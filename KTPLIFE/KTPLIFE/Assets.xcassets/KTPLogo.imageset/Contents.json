@@ -1,14 +1,17 @@
 {
   "images" : [
     {
+      "filename" : "KTPPHI.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
+      "filename" : "KTPPHI.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
+      "filename" : "KTPPHI.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

@@ -29,9 +29,30 @@
 		4996113C2FE1DDAB00E5014D /* KTPLIFEUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KTPLIFEUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		499611512FE1E24C00E5014D /* Exceptions for "KTPLIFE" folder in "KTPLIFETests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ContentView.swift,
+			);
+			target = 499611312FE1DDAB00E5014D /* KTPLIFETests */;
+		};
+		499611522FE1E24C00E5014D /* Exceptions for "KTPLIFE" folder in "KTPLIFEUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ContentView.swift,
+			);
+			target = 4996113B2FE1DDAB00E5014D /* KTPLIFEUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		499611252FE1DDA900E5014D /* KTPLIFE */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				499611512FE1E24C00E5014D /* Exceptions for "KTPLIFE" folder in "KTPLIFETests" target */,
+				499611522FE1E24C00E5014D /* Exceptions for "KTPLIFE" folder in "KTPLIFEUITests" target */,
+			);
 			path = KTPLIFE;
 			sourceTree = "<group>";
 		};
