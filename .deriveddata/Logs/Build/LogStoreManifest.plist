@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>logFormatVersion</key>
+	<integer>11</integer>
+	<key>logs</key>
+	<dict>
+		<key>E6E5E9DC-D533-44BA-BCB7-9889C3AD5020</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>E6E5E9DC-D533-44BA-BCB7-9889C3AD5020.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>E</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>71</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>KTPLIFE project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>KTPLIFE</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE</string>
+			<key>timeStartedRecording</key>
+			<real>803342860.26615596</real>
+			<key>timeStoppedRecording</key>
+			<real>803342873.19598103</real>
+			<key>title</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE</string>
+			<key>uniqueIdentifier</key>
+			<string>E6E5E9DC-D533-44BA-BCB7-9889C3AD5020</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

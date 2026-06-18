@@ -1,0 +1,65 @@
+{
+  "buildCommand" : {
+    "command" : "build",
+    "skipDependencies" : false,
+    "style" : "buildOnly"
+  },
+  "configuredTargets" : [
+    {
+      "guid" : "5fb81db8ee1d2fe121fccec9039bdb3b1ca702126260104ce2bb0dd53a544080"
+    }
+  ],
+  "containerPath" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE.xcodeproj",
+  "continueBuildingAfterErrors" : true,
+  "dependencyScope" : "workspace",
+  "enableIndexBuildArena" : false,
+  "hideShellScriptEnvironment" : false,
+  "parameters" : {
+    "action" : "build",
+    "activeArchitecture" : "undefined_arch",
+    "activeRunDestination" : {
+      "disableOnlyActiveArch" : true,
+      "platform" : "iphonesimulator",
+      "sdk" : "iphonesimulator26.0",
+      "sdkVariant" : "iphonesimulator",
+      "supportedArchitectures" : [
+        "i386",
+        "x86_64"
+      ],
+      "targetArchitecture" : "undefined_arch"
+    },
+    "arenaInfo" : {
+      "buildIntermediatesPath" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex",
+      "buildProductsPath" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Products",
+      "derivedDataPath" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata",
+      "indexDataStoreFolderPath" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Index.noindex/DataStore",
+      "indexEnableDataStore" : true,
+      "indexPCHPath" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Index.noindex/PrecompiledHeaders",
+      "pchPath" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/PrecompiledHeaders"
+    },
+    "configurationName" : "Debug",
+    "overrides" : {
+      "commandLine" : {
+        "table" : {
+          "SDKROOT" : "iphonesimulator26.0"
+        }
+      },
+      "synthesized" : {
+        "table" : {
+          "ACTION" : "build",
+          "CLANG_COVERAGE_MAPPING" : "YES",
+          "CLANG_PROFILE_DATA_DIRECTORY" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/ProfileData",
+          "ENABLE_PREVIEWS" : "NO",
+          "ENABLE_XOJIT_PREVIEWS" : "YES",
+          "ONLY_ACTIVE_ARCH" : "YES"
+        }
+      }
+    }
+  },
+  "schemeCommand" : "launch",
+  "showNonLoggedProgress" : true,
+  "useDryRun" : false,
+  "useImplicitDependencies" : true,
+  "useLegacyBuildLocations" : false,
+  "useParallelTargets" : true
+}
