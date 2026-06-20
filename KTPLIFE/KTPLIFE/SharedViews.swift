@@ -5,6 +5,21 @@
 
 import SwiftUI
 
+struct KTPLogoMark: View {
+    var maxWidth: CGFloat = 220
+    var maxHeight: CGFloat = 78
+    var alignment: Alignment = .center
+
+    var body: some View {
+        Image("KTPLogo")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .foregroundStyle(.white)
+            .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: alignment)
+    }
+}
+
 struct EmptyState: View {
     let title: String
     let message: String
@@ -12,11 +27,11 @@ struct EmptyState: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(.headline, design: .rounded, weight: .bold))
+                .font(AppFont.headline())
                 .foregroundStyle(.white)
 
             Text(message)
-                .font(.system(.subheadline, design: .rounded))
+                .font(AppFont.subheadline())
                 .foregroundStyle(.white.opacity(0.7))
         }
         .frame(maxWidth: .infinity, alignment: .leading)

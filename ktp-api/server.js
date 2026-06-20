@@ -1,0 +1,27 @@
+const express = require("express");
+const cors = require("cors");
+
+const membersRoutes = require("./routes/members");
+// TODO: Re-enable messages when message model/controller logic is ready.
+// const messagesRoutes = require("./routes/messages");
+
+const app = express();
+const PORT = 3000;
+
+app.use(cors());
+app.use(express.json());
+
+// TODO: Add shared middleware, request logging, or validation here.
+
+app.get("/", (req, res) => {
+  res.json({ message: "KTP API is running" });
+});
+
+// Register routes
+app.use("/members", membersRoutes);
+// TODO: Re-enable messages when needed.
+// app.use("/messages", messagesRoutes);
+
+app.listen(PORT, () => {
+  console.log(`KTP API server running on port ${PORT}`);
+});

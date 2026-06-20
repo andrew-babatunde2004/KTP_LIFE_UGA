@@ -54,7 +54,6 @@ private struct MessagesHotbar: View {
             ForEach(MessagesSection.allCases) { section in
                 SegmentedPillButton(
                     title: section.title,
-                    icon: section.icon,
                     isSelected: selectedSection == section,
                     select: { selectedSection = section }
                 )
@@ -73,7 +72,6 @@ private struct DirectoryGroupPicker: View {
             ForEach(DirectoryGroup.allCases) { group in
                 SegmentedPillButton(
                     title: group.title,
-                    icon: group.icon,
                     isSelected: selectedGroup == group,
                     select: { selectedGroup = group }
                 )
@@ -86,30 +84,24 @@ private struct DirectoryGroupPicker: View {
 
 private struct SegmentedPillButton: View {
     let title: String
-    let icon: String
     let isSelected: Bool
     let select: () -> Void
 
     var body: some View {
         Button(action: select) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .bold))
-
-                Text(title)
-                    .font(.system(.footnote, design: .rounded, weight: .bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-            }
-            .foregroundStyle(.white.opacity(isSelected ? 1 : 0.68))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .padding(.horizontal, 4)
-            .background(Color.white.opacity(isSelected ? 0.18 : 0.06), in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(Color.white.opacity(isSelected ? 0.16 : 0.06), lineWidth: 1)
-            }
+            Text(title)
+                .font(AppFont.footnote(weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .foregroundStyle(.white.opacity(isSelected ? 1 : 0.68))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 4)
+                .background(Color.white.opacity(isSelected ? 0.18 : 0.06), in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(Color.white.opacity(isSelected ? 0.16 : 0.06), lineWidth: 1)
+                }
         }
         .buttonStyle(.plain)
     }
@@ -123,11 +115,11 @@ private struct MessageThreadCard: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(thread.title)
-                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .font(AppFont.headline())
                     .foregroundStyle(.white)
 
                 Text(thread.preview)
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(AppFont.subheadline())
                     .foregroundStyle(.white.opacity(0.72))
             }
 
@@ -135,14 +127,14 @@ private struct MessageThreadCard: View {
 
             VStack(alignment: .trailing, spacing: 8) {
                 Text(thread.time)
-                    .font(.system(.footnote, design: .rounded, weight: .semibold))
+                    .font(AppFont.footnote(weight: .semibold))
                     .foregroundStyle(.white.opacity(0.8))
 
-                Image(systemName: isUnread ? "message.badge.fill" : "message.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .frame(width: 38, height: 38)
-                    .background(Color.white.opacity(0.10), in: Circle())
+                if isUnread {
+                    Text("Unread")
+                        .font(AppFont.caption(weight: .bold))
+                        .foregroundStyle(.white.opacity(0.74))
+                }
             }
         }
         .padding(20)
@@ -156,26 +148,20 @@ private struct DirectoryMemberCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: member.group.icon)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white.opacity(0.92))
-                .frame(width: 40, height: 40)
-                .background(Color.white.opacity(0.10), in: Circle())
-
             VStack(alignment: .leading, spacing: 6) {
                 Text(member.name)
-                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .font(AppFont.headline())
                     .foregroundStyle(.white)
 
                 Text(member.role)
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(AppFont.subheadline())
                     .foregroundStyle(.white.opacity(0.72))
             }
 
             Spacer()
 
             Text(member.year)
-                .font(.system(.footnote, design: .rounded, weight: .bold))
+                .font(AppFont.footnote(weight: .bold))
                 .foregroundStyle(.white.opacity(0.58))
         }
         .padding(20)
@@ -218,14 +204,6 @@ private enum MessagesSection: CaseIterable, Identifiable {
         }
     }
 
-    var icon: String {
-        switch self {
-        case .messages:
-            return "message.fill"
-        case .directory:
-            return "person.2.fill"
-        }
-    }
 }
 
 private enum DirectoryGroup: CaseIterable, Identifiable {
@@ -249,18 +227,6 @@ private enum DirectoryGroup: CaseIterable, Identifiable {
         }
     }
 
-    var icon: String {
-        switch self {
-        case .activeMembers:
-            return "person.2.fill"
-        case .pledges:
-            return "person.badge.plus"
-        case .eBoard:
-            return "star.fill"
-        case .alumni:
-            return "graduationcap.fill"
-        }
-    }
 }
 
 private struct MessageThread {

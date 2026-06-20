@@ -10,43 +10,48 @@ struct AuthView: View {
     @Binding var password: String
 
     let signIn: () -> Void
+    let showSignup: () -> Void
+
+    init(
+        email: Binding<String>,
+        password: Binding<String>,
+        signIn: @escaping () -> Void,
+        showSignup: @escaping () -> Void = {}
+    ) {
+        self._email = email
+        self._password = password
+        self.signIn = signIn
+        self.showSignup = showSignup
+    }
 
     private var canSignIn: Bool {
         !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .center, spacing: 28) {
             Spacer(minLength: 24)
 
-            Image("KTPLogo")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(.white)
-                .frame(maxWidth: 220, maxHeight: 78)
+            KTPLogoMark()
                 .frame(maxWidth: .infinity, alignment: .center)
-                .shadow(color: .white.opacity(0.08), radius: 14, y: 6)
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .center, spacing: 14) {
                 authField(
                     title: "Email",
                     prompt: "name@uga.edu",
-                    text: $email,
-                    icon: "envelope.fill"
+                    text: $email
                 )
 
                 authSecureField(
                     title: "Password",
                     prompt: "Enter password",
-                    text: $password,
-                    icon: "lock.fill"
+                    text: $password
                 )
             }
 
             Button(action: signIn) {
                 Text("Sign In")
-                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .font(AppFont.headline())
                     .foregroundStyle(.white.opacity(canSignIn ? 1 : 0.5))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
@@ -59,27 +64,33 @@ struct AuthView: View {
             }
             .disabled(!canSignIn)
 
+            Button(action: showSignup) {
+                Text("Back to Sign Up")
+                    .font(AppFont.footnote(weight: .bold))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+            }
+            .buttonStyle(.plain)
+            .matteCard(radius: 24)
+
             Text("This screen is the local auth gate right now. Hook the sign-in action to your real auth flow when you add it.")
-                .font(.system(.footnote, design: .rounded))
+                .font(AppFont.footnote())
                 .foregroundStyle(.white.opacity(0.58))
 
             Spacer()
         }
     }
 
-    private func authField(title: String, prompt: String, text: Binding<String>, icon: String) -> some View {
+    private func authField(title: String, prompt: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(.footnote, design: .rounded, weight: .semibold))
+                .font(AppFont.footnote(weight: .semibold))
                 .foregroundStyle(.white.opacity(0.72))
 
             HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .frame(width: 18)
-
                 TextField("", text: text, prompt: Text(prompt).foregroundStyle(.white.opacity(0.42)))
+                    .font(AppFont.subheadline())
                     .textInputAutocapitalization(.never)
                     .keyboardType(.emailAddress)
                     .autocorrectionDisabled()
@@ -91,19 +102,15 @@ struct AuthView: View {
         }
     }
 
-    private func authSecureField(title: String, prompt: String, text: Binding<String>, icon: String) -> some View {
+    private func authSecureField(title: String, prompt: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(.footnote, design: .rounded, weight: .semibold))
+                .font(AppFont.footnote(weight: .semibold))
                 .foregroundStyle(.white.opacity(0.72))
 
             HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .frame(width: 18)
-
                 SecureField("", text: text, prompt: Text(prompt).foregroundStyle(.white.opacity(0.42)))
+                    .font(AppFont.subheadline())
                     .textInputAutocapitalization(.never)
                     .foregroundStyle(.white)
             }
@@ -118,7 +125,8 @@ struct AuthView: View {
     AuthView(
         email: .constant(""),
         password: .constant(""),
-        signIn: {}
+        signIn: {},
+        showSignup: {}
     )
     .padding(20)
     .background(AppTab.home.theme.backgroundColor)

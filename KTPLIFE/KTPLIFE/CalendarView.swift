@@ -9,7 +9,7 @@ struct CalendarView: View {
     var body: some View {
         PageScaffold {
             Text("Calendar view coming soon!")
-                .font(.system(.headline, design: .rounded, weight: .bold))
+                .font(AppFont.headline())
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(22)

@@ -35,7 +35,7 @@ private struct OpportunitiesHeader: View {
         VStack(alignment: .center, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Opportunities")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .font(AppFont.largeTitle())
                     .foregroundStyle(Color.black.opacity(0.88))
                     .multilineTextAlignment(.center)
             }
@@ -70,20 +70,15 @@ private struct OpportunityTypeButton: View {
 
     var body: some View {
         Button(action: select) {
-            HStack(spacing: 8) {
-                Image(systemName: type.icon)
-                    .font(.system(size: 13, weight: .bold))
-
-                Text(type.title)
-                    .font(.system(.footnote, design: .rounded, weight: .bold))
-            }
-            .foregroundStyle(isSelected ? Color.white : Color.black.opacity(0.66))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background {
-                Capsule()
-                    .fill(isSelected ? Color.black.opacity(0.82) : Color.black.opacity(0.06))
-            }
+            Text(type.title)
+                .font(AppFont.footnote(weight: .bold))
+                .foregroundStyle(isSelected ? Color.white : Color.black.opacity(0.66))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background {
+                    Capsule()
+                        .fill(isSelected ? Color.black.opacity(0.82) : Color.black.opacity(0.06))
+                }
         }
         .buttonStyle(.plain)
     }
@@ -94,32 +89,26 @@ private struct OpportunityCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: opportunity.icon)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Color.black.opacity(0.78))
-                .frame(width: 38, height: 38)
-                .background(Color.black.opacity(0.06), in: Circle())
-
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(opportunity.title)
-                        .font(.system(.headline, design: .rounded, weight: .bold))
+                        .font(AppFont.headline())
                         .foregroundStyle(Color.black.opacity(0.86))
 
                     Spacer(minLength: 10)
 
                     Text(opportunity.category)
-                        .font(.system(.caption, design: .rounded, weight: .bold))
+                        .font(AppFont.caption(weight: .bold))
                         .foregroundStyle(Color.black.opacity(0.52))
                 }
 
                 Text(opportunity.description)
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(AppFont.subheadline())
                     .foregroundStyle(Color.black.opacity(0.62))
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(opportunity.detail)
-                    .font(.system(.footnote, design: .rounded, weight: .semibold))
+                    .font(AppFont.footnote(weight: .semibold))
                     .foregroundStyle(Color.black.opacity(0.46))
             }
         }
@@ -143,32 +132,28 @@ private extension OpportunitiesView {
             type: .internships,
             category: "Internship",
             description: "Keep links, deadlines, and application status for software, data, security, and product roles.",
-            detail: "Priority: deadlines and referrals",
-            icon: "briefcase.fill"
+            detail: "Priority: deadlines and referrals"
         ),
         Opportunity(
             title: "Technical Interview Prep",
             type: .internships,
             category: "Practice",
             description: "Plan LeetCode sessions, mock interviews, resume reviews, and system design practice.",
-            detail: "Focus: DS&A, behavioral, projects",
-            icon: "terminal.fill"
+            detail: "Focus: DS&A, behavioral, projects"
         ),
         Opportunity(
             title: "CS Events Calendar",
             type: .events,
             category: "Events",
             description: "Track hackathons, company info sessions, tech talks, workshops, and UGA computing events.",
-            detail: "Add date, location, and RSVP link later",
-            icon: "calendar.badge.clock"
+            detail: "Add date, location, and RSVP link later"
         ),
         Opportunity(
             title: "Tech Talks & Workshops",
             type: .events,
             category: "Workshop",
             description: "Keep a running list of speaker events, skill workshops, and chapter-led learning sessions.",
-            detail: "Good for RSVP links and reminders",
-            icon: "person.3.sequence.fill"
+            detail: "Good for RSVP links and reminders"
         )
     ]
 }
@@ -188,14 +173,6 @@ private enum OpportunityType: String, CaseIterable, Identifiable {
         }
     }
 
-    var icon: String {
-        switch self {
-        case .internships:
-            return "briefcase.fill"
-        case .events:
-            return "calendar"
-        }
-    }
 }
 
 private struct Opportunity: Identifiable {
@@ -205,7 +182,6 @@ private struct Opportunity: Identifiable {
     let category: String
     let description: String
     let detail: String
-    let icon: String
 }
 
 #Preview("Opportunities") {

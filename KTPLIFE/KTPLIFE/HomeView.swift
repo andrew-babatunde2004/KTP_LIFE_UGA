@@ -10,16 +10,16 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Item.timestamp, order: .reverse) private var items: [Item]
 
-    let returnToAuth: () -> Void
+    let returnToSignup: () -> Void
 
-    init(returnToAuth: @escaping () -> Void) {
-        self.returnToAuth = returnToAuth
+    init(returnToSignup: @escaping () -> Void) {
+        self.returnToSignup = returnToSignup
     }
     // this is required 
     var body: some View {
         VStack(spacing: 28) {
             HStack {
-                headerLogo
+                homeLogo
 
                 Spacer()
 
@@ -29,45 +29,36 @@ struct HomeView: View {
         
             Spacer()
 
-            returnToAuthButton
+            returnToSignupButton
         }
         .padding(22)
     }
-    private var headerLogo: some View {
-        Image("KTPLogo")
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .foregroundStyle(.white)
-            .frame(maxWidth: 180, maxHeight: 64, alignment: .leading)
-            .shadow(color: .white.opacity(0.08), radius: 12, y: 4)
+
+    private var homeLogo: some View {
+        KTPLogoMark(maxWidth: 180, maxHeight: 64, alignment: .leading)
     }
 
     private var addButton: some View {
         Button(action: addItem) {
-            Image(systemName: "plus")
-                .font(.system(size: 16, weight: .bold))
+            Text("Add")
+                .font(AppFont.footnote(weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(Color.white.opacity(0.12), in: Circle())
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(Color.white.opacity(0.12), in: Capsule())
                 .overlay {
-                    Circle()
+                    Capsule()
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 }
         }
         .buttonStyle(.plain)
     }
 
-    private var returnToAuthButton: some View {
-        Button(action: returnToAuth) {
+    private var returnToSignupButton: some View {
+        Button(action: returnToSignup) {
             HStack(spacing: 12) {
-                Image(systemName: "lock.open.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 34, height: 34)
-                    .background(Color.white.opacity(0.10), in: Circle())
-
-                Text("Back to Auth")
-                    .font(.system(.headline, design: .rounded, weight: .bold))
+                Text("Back to Sign Up")
+                    .font(AppFont.headline())
 
                 Spacer()
             }
@@ -102,24 +93,25 @@ private struct HomeActivityRow: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.timestamp, format: .dateTime.month(.abbreviated).day().year())
-                    .font(.system(.headline, design: .rounded, weight: .bold))
+                    .font(AppFont.headline())
                     .foregroundStyle(.white)
 
                 Text(item.timestamp, format: .dateTime.hour().minute())
-                    .font(.system(.subheadline, design: .rounded))
+                    .font(AppFont.subheadline())
                     .foregroundStyle(.white.opacity(0.7))
             }
 
             Spacer()
 
             Button(action: delete) {
-                Image(systemName: "trash")
-                    .font(.system(size: 15, weight: .semibold))
+                Text("Delete")
+                    .font(AppFont.footnote(weight: .bold))
                     .foregroundStyle(.white.opacity(0.88))
-                    .frame(width: 38, height: 38)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.10), in: Capsule())
             }
             .buttonStyle(.plain)
-            .background(Color.white.opacity(0.10), in: Circle())
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -128,7 +120,7 @@ private struct HomeActivityRow: View {
 }
 
 #Preview("Home") {
-    HomeView(returnToAuth: {})
+    HomeView(returnToSignup: {})
         .modelContainer(PreviewModelContainer.shared)
         .padding(20)
         .background(AppTab.home.theme.backgroundColor)

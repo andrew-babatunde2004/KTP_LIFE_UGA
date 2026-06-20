@@ -53,7 +53,7 @@ struct PageScaffold<Content: View>: View {
             VStack(alignment: .leading, spacing: 8) {
                 if let title {
                     Text(title)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .font(AppFont.largeTitle())
                         .foregroundStyle(.white)
                 } else {
                     header
@@ -61,7 +61,7 @@ struct PageScaffold<Content: View>: View {
 
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(AppFont.subheadline())
                         .foregroundStyle(.white.opacity(0.72))
                 }
             }
@@ -78,13 +78,13 @@ struct PageScaffold<Content: View>: View {
             VStack(alignment: .leading, spacing: 12) {
                 if let sectionTitle {
                     Text(sectionTitle)
-                        .font(.system(.title3, design: .rounded, weight: .bold))
+                        .font(AppFont.title())
                         .foregroundStyle(.white)
                 }
 
                 if let sectionSubtitle {
                     Text(sectionSubtitle)
-                        .font(.system(.footnote, design: .rounded, weight: .medium))
+                        .font(AppFont.footnote(weight: .medium))
                         .foregroundStyle(.white.opacity(0.66))
                 }
             }
