@@ -6,11 +6,15 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "db:init": "node scripts/init-db.js",
+    "db:seed": "node scripts/init-db.js --seed-only",
+    "db:schema": "node scripts/init-db.js --schema-only"
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
     "express": "^4.18.3",
-    "sqlite3": "^5.1.7"
+    "pg": "^8.13.1"
   }
 }

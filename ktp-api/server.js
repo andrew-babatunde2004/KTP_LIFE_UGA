@@ -1,12 +1,12 @@
 const express = require("express");
 const cors = require("cors");
-
+require("dotenv").config();
 const membersRoutes = require("./routes/members");
 // TODO: Re-enable messages when message model/controller logic is ready.
 // const messagesRoutes = require("./routes/messages");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());

@@ -1,18 +1,19 @@
 CREATE TABLE IF NOT EXISTS members (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT,
-  role TEXT,
+  role TEXT NOT NULL,
   year TEXT,
-  status TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  member_group TEXT NOT NULL CHECK (member_group IN (
+    'activeMembers', 'pledges', 'eBoard', 'alumni'
+  )),
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  member_id INTEGER,
+  id SERIAL PRIMARY KEY,
+  member_id INTEGER REFERENCES members(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   body TEXT,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (member_id) REFERENCES members(id)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );

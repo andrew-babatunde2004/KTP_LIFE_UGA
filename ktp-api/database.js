@@ -1,8 +1,12 @@
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+require("dotenv").config();
+const { Pool } = require("pg");
 
-// TODO: Add database initialization, migrations, and error handling later.
-const dbPath = path.join(__dirname, "db", "ktp.db");
-const db = new sqlite3.Database(dbPath);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-module.exports = db;
+async function query(text, params) {
+    return pool.query(text, params);
+}
+
+module.exports = { pool, query };

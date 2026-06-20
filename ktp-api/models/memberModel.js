@@ -1,15 +1,16 @@
-const db = require("../database");
+const { query } = require("../database");
 
-function findAll() {
-  return new Promise((resolve, reject) => {
-    db.all("SELECT * FROM members", (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
+async function findAll() {
+ let sql = "SELECT * FROM members";
+ const params = [];
+ if (groupFilter) {
+  sql += " WHERE member_group = $1";
+  params.push(groupFilter);
+ }
+ sql += " ORDER BY name ASC";
+
+ const result = await query(sql, params);
+ return result.rows.map(toDirectoryJSON);
 }
 
 
@@ -17,34 +18,16 @@ function findById(id) {
   // TODO: Query one member by id from SQLite.
 }
 
-function create(data) {
-  return new Promise((resolve, reject) => {
-    const sql = `
-      INSERT INTO members (name, email, role, year, status)
-      VALUES (?, ?, ?, ?, ?)
-    `;
-
-    db.run(
-      sql,
-      [data.name, data.role, data.year, data.group],
-      function (err) {
-        if (err) {
-          // returns a rejection request with the error that caused the rejection
-          reject(err);
-        } else {
-          //sends a resolve request that updates the database with the new memeber?
-          resolve({
-            id: this.lastID,
-            name: data.name,
-            email: data.role,
-            role: data.year,
-            year: data.group,
-          }
-          );
-        }
-      });
-  });
+async function create(data) {
+  const result = await query(
+    `INSERT INTO members (name, email, role, year , member_group)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING *`,
+    [data.name, data.email ?? null, data.role, data.year ?? null, data.member_group]
+  );
+  return toDirectoryJSON(result.rows[0]);
 }
+
 
   function update(id, data) {
   // TODO: Update a member in SQLite.

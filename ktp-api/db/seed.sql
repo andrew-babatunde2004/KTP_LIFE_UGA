@@ -1,5 +1,3 @@
--- INSERT INTO members (name, email, role, year, status)
--- VALUES ('Example Member', 'member@example.com', 'Active Member', '2027', 'active');
-
--- INSERT INTO messages (member_id, title, body)
--- VALUES (1, 'Example Message', 'Write seed message content here.');
+INSERT INTO members (name, role, year, member_group) VALUES
+  ('Andrew Babatunde', 'Computer Science', '2027', 'activeMembers'),
+  ('Danny Rifai', 'Data Science Track', '2026', 'activeMembers');
