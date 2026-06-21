@@ -47,6 +47,16 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		499611532FE1E24D00E5014D /* KTPModels */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KTPModels;
+			sourceTree = "<group>";
+		};
+		499611542FE1E24D00E5014D /* KTPServices */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KTPServices;
+			sourceTree = "<group>";
+		};
 		499611252FE1DDA900E5014D /* KTPLIFE */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -97,6 +107,8 @@
 			isa = PBXGroup;
 			children = (
 				499611252FE1DDA900E5014D /* KTPLIFE */,
+				499611532FE1E24D00E5014D /* KTPModels */,
+				499611542FE1E24D00E5014D /* KTPServices */,
 				499611352FE1DDAB00E5014D /* KTPLIFETests */,
 				4996113F2FE1DDAB00E5014D /* KTPLIFEUITests */,
 				499611242FE1DDA900E5014D /* Products */,
@@ -130,6 +142,8 @@
 			);
 			fileSystemSynchronizedGroups = (
 				499611252FE1DDA900E5014D /* KTPLIFE */,
+				499611532FE1E24D00E5014D /* KTPModels */,
+				499611542FE1E24D00E5014D /* KTPServices */,
 			);
 			name = KTPLIFE;
 			packageProductDependencies = (
@@ -421,6 +435,7 @@
 				DEVELOPMENT_TEAM = ZAL9S5GDHG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = KTPLIFE/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -453,6 +468,7 @@
 				DEVELOPMENT_TEAM = ZAL9S5GDHG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = KTPLIFE/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

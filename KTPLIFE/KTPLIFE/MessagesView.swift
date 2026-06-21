@@ -7,7 +7,16 @@ import SwiftUI
 
 struct MessagesView: View {
     @State private var selectedSection: MessagesSection = .messages
-    @State private var selectedDirectoryGroup: DirectoryGroup = .activeMembers
+    @State private var selectedDirectoryGroup: MemberGroup = .activeMembers
+    @State private var directoryMembers: [DirectoryMember] = []
+    @State private var isLoadingDirectory = false
+    @State private var directoryLoadError: String?
+
+    private let apiService = KTPAPIService()
+
+    private var isPreview: Bool {
+        ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    }
 
     var body: some View {
         PageScaffold(showsPageHeader: false) {
@@ -18,6 +27,10 @@ struct MessagesView: View {
             } else {
                 directoryView
             }
+        }
+        .task(id: selectedSection) {
+            guard selectedSection == .directory else { return }
+            await loadDirectoryMembers()
         }
     }
 
@@ -31,18 +44,47 @@ struct MessagesView: View {
 
     private var directoryView: some View {
         VStack(spacing: 14) {
-            DirectoryGroupPicker(selectedGroup: $selectedDirectoryGroup)
+            MemberGroupPicker(selectedGroup: $selectedDirectoryGroup)
 
-            LazyVStack(spacing: 14) {
-                ForEach(filteredMembers) { member in
-                    DirectoryMemberCard(member: member)
+            if isLoadingDirectory {
+                DirectoryStatusCard(message: "Loading directory...")
+            } else if let directoryLoadError {
+                DirectoryStatusCard(message: directoryLoadError)
+            } else if filteredMembers.isEmpty {
+                DirectoryStatusCard(message: "No members in this group yet.")
+            } else {
+                LazyVStack(spacing: 14) {
+                    ForEach(filteredMembers) { member in
+                        DirectoryMemberCard(member: member)
+                    }
                 }
             }
         }
     }
 
     private var filteredMembers: [DirectoryMember] {
-        Self.directoryMembers.filter { $0.group == selectedDirectoryGroup }
+        directoryMembers.filter { $0.group == selectedDirectoryGroup }
+    }
+
+    @MainActor
+    private func loadDirectoryMembers() async {
+        if isPreview {
+            directoryMembers = DirectoryMember.previewSamples
+            directoryLoadError = nil
+            return
+        }
+
+        isLoadingDirectory = true
+        directoryLoadError = nil
+
+        do {
+            directoryMembers = try await apiService.fetchDirectoryMembers()
+        } catch {
+            directoryMembers = []
+            directoryLoadError = "Could not load directory. Start the API with npm start in ktp-api."
+        }
+
+        isLoadingDirectory = false
     }
 }
 
@@ -64,12 +106,12 @@ private struct MessagesHotbar: View {
     }
 }
 
-private struct DirectoryGroupPicker: View {
-    @Binding var selectedGroup: DirectoryGroup
+private struct MemberGroupPicker: View {
+    @Binding var selectedGroup: MemberGroup
 
     var body: some View {
         HStack(spacing: 6) {
-            ForEach(DirectoryGroup.allCases) { group in
+            ForEach(MemberGroup.allCases) { group in
                 SegmentedPillButton(
                     title: group.title,
                     isSelected: selectedGroup == group,
@@ -104,6 +146,19 @@ private struct SegmentedPillButton: View {
                 }
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct DirectoryStatusCard: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .font(AppFont.subheadline())
+            .foregroundStyle(.white.opacity(0.72))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .matteCard()
     }
 }
 
@@ -160,9 +215,11 @@ private struct DirectoryMemberCard: View {
 
             Spacer()
 
-            Text(member.year)
-                .font(AppFont.footnote(weight: .bold))
-                .foregroundStyle(.white.opacity(0.58))
+            if let year = member.year {
+                Text(year)
+                    .font(AppFont.footnote(weight: .bold))
+                    .foregroundStyle(.white.opacity(0.58))
+            }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -175,17 +232,6 @@ private extension MessagesView {
         MessageThread(title: "General Thread", preview: "Chapter updates are live for this week.", time: "Now"),
         MessageThread(title: "Recruitment", preview: "Reminder: recruitment meeting starts at 7:00 PM.", time: "4:15"),
         MessageThread(title: "Committee Notes", preview: "Your committee notes were shared with the team.", time: "Yesterday")
-    ]
-
-    static let directoryMembers = [
-        DirectoryMember(name: "Jordan Lee", role: "Software Engineering Track", year: "2027", group: .activeMembers),
-        DirectoryMember(name: "Maya Patel", role: "Data Science Track", year: "2026", group: .activeMembers),
-        DirectoryMember(name: "Chris Nguyen", role: "New Member", year: "2028", group: .pledges),
-        DirectoryMember(name: "Ava Brooks", role: "New Member", year: "2028", group: .pledges),
-        DirectoryMember(name: "Sam Rivera", role: "President", year: "2026", group: .eBoard),
-        DirectoryMember(name: "Taylor Kim", role: "VP Technology", year: "2027", group: .eBoard),
-        DirectoryMember(name: "Morgan Chen", role: "Software Engineer", year: "Alum", group: .alumni),
-        DirectoryMember(name: "Riley Johnson", role: "Product Manager", year: "Alum", group: .alumni)
     ]
 }
 
@@ -203,44 +249,12 @@ private enum MessagesSection: CaseIterable, Identifiable {
             return "Directory"
         }
     }
-
-}
-
-private enum DirectoryGroup: CaseIterable, Identifiable {
-    case activeMembers
-    case pledges
-    case eBoard
-    case alumni
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .activeMembers:
-            return "Active"
-        case .pledges:
-            return "Pledges"
-        case .eBoard:
-            return "E-Board"
-        case .alumni:
-            return "Alumni"
-        }
-    }
-
 }
 
 private struct MessageThread {
     let title: String
     let preview: String
     let time: String
-}
-
-private struct DirectoryMember: Identifiable {
-    let id = UUID()
-    let name: String
-    let role: String
-    let year: String
-    let group: DirectoryGroup
 }
 
 #Preview("Messages") {

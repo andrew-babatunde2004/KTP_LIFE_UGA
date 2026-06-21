@@ -1,13 +1,27 @@
 # ktp-api
 
-Minimal Node.js + Express + SQLite test API scaffold for the KTP app.
+Node.js + Express + PostgreSQL API for the KTP iOS app.
 
-This project is intentionally incomplete. It only defines the folder structure, route placeholders, controller placeholders, model placeholders, and SQL starter files so backend logic can be added later.
+## Prerequisites
 
-## Install
+- PostgreSQL running locally
+- Database `ktp_life` and user `ktp_user` created in pgAdmin or psql
+
+## Setup
 
 ```sh
+cp .env.example .env
 npm install
+npm run db:init
+```
+
+`db:init` runs `db/schema.sql` (tables) and `db/seed.sql` (sample members).
+
+Other scripts:
+
+```sh
+npm run db:schema   # schema only
+npm run db:seed     # seed only
 ```
 
 ## Run
@@ -16,31 +30,21 @@ npm install
 npm start
 ```
 
-or:
+Server: `http://localhost:3000`
 
-```sh
-npm run dev
-```
+## Endpoints
 
-The server starts on:
+Members (used by the iOS directory):
 
 ```text
-http://localhost:3000
+GET    /members          — list all members (live in app)
+GET    /members/:id      — single member
+POST   /members          — create member
+PUT    /members/:id      — update member
+DELETE /members/:id      — delete member
 ```
 
-## Planned Endpoints
-
-Members:
-
-```text
-GET    /members
-GET    /members/:id
-POST   /members
-PUT    /members/:id
-DELETE /members/:id
-```
-
-Messages:
+Messages (not yet wired in the app):
 
 ```text
 GET    /messages
@@ -50,9 +54,25 @@ PUT    /messages/:id
 DELETE /messages/:id
 ```
 
+## Response shape for members
+
+The iOS app expects this JSON from `GET /members`:
+
+```json
+[
+  {
+    "id": "1",
+    "name": "Andrew Babatunde",
+    "role": "Computer Science",
+    "year": "2027",
+    "group": "activeMembers"
+  }
+]
+```
+
+Mapping is handled in `models/memberModel.js` via `toDirectoryJSON()`.
+
 ## Notes
 
 - Authentication is not included.
-- Production deployment setup is not included.
-- Route handlers currently contain TODO placeholders only.
-- SQL schema files are starter files only.
+- See the root `README.md` for full iOS + API development workflow.

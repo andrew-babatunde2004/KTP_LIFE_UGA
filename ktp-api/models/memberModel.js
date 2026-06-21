@@ -1,6 +1,16 @@
 const { query } = require("../database");
 
-async function findAll() {
+function toDirectoryJSON(row) {
+  return {
+    id: String(row.id),
+    name: row.name,
+    role: row.role,
+    year: row.year,
+    group: row.member_group,
+  };
+}
+
+async function findAll(groupFilter) {
  let sql = "SELECT * FROM members";
  const params = [];
  if (groupFilter) {
@@ -14,8 +24,10 @@ async function findAll() {
 }
 
 
-function findById(id) {
-  // TODO: Query one member by id from SQLite.
+async function findById(id) {
+  const result = await query("SELECT * FROM members WHERE id = $1", [id]);
+  if (result.rows.length === 0) return null;
+  return toDirectoryJSON(result.rows[0]);
 }
 
 async function create(data) {
@@ -29,12 +41,28 @@ async function create(data) {
 }
 
 
-  function update(id, data) {
-  // TODO: Update a member in SQLite.
+async function update(id, data) {
+  const result = await query(
+    `UPDATE members
+     SET name = COALESCE($1, name),
+         email = COALESCE($2, email),
+         role = COALESCE($3, role),
+         year = COALESCE($4, year),
+         member_group = COALESCE($5, member_group)
+     WHERE id = $6
+     RETURNING *`,
+    [data.name, data.email, data.role, data.year, data.member_group, id]
+  );
+  if (result.rows.length === 0) return null;
+  return toDirectoryJSON(result.rows[0]);
 }
 
-function remove(id) {
-  // TODO: Delete a member from SQLite.
+async function remove(id) {
+  const result = await query(
+    "DELETE FROM members WHERE id = $1 RETURNING id",
+    [id]
+  );
+  return result.rows.length > 0;
 }
 
 module.exports = {
