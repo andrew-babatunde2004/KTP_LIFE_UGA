@@ -13,7 +13,7 @@ final class KTPAPIService {
     private let baseURL: URL
     private let session: URLSession
 
-    init(baseURL: URL = URL(string: "http://127.0.0.1:3000/")!, session: URLSession = .shared) {
+    init(baseURL: URL = URL(string: "http://192.168.1.64:3000/")!, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
     }
