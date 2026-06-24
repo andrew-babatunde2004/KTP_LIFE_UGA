@@ -2,7 +2,7 @@ import Foundation
 
 class CalendarNetworkService {
     private let baseURL = URL(string: "http://192.168.1.64:3000/")!
-
+    
     // come back and fix this later
     func fetchCalendarEvents() async throws -> [CalendarEvent] {
         let url = baseURL.appendingPathComponent("events")
@@ -14,4 +14,5 @@ class CalendarNetworkService {
             throw URLError(.badServerResponse)
         }
         return try decoder.decode([CalendarEvent].self, from: data)
+    }
 }
