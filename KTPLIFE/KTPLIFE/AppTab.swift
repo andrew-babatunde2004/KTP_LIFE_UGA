@@ -11,6 +11,7 @@ enum AppTab: CaseIterable, Identifiable {
     case messages
     case opportunities
     case calendar
+    case photos
 
     var id: Self { self }
 
@@ -24,6 +25,8 @@ enum AppTab: CaseIterable, Identifiable {
             return "briefcase.fill"
         case .calendar:
             return "calendar"
+        case .photos:
+            return "photo"
         }
     }
 
@@ -37,6 +40,8 @@ enum AppTab: CaseIterable, Identifiable {
             return "Opportunities"
         case .calendar:
             return "Calendar"
+        case .photos:
+            return "Photos"
         }
     }
 
@@ -50,6 +55,8 @@ enum AppTab: CaseIterable, Identifiable {
             return .opportunities
         case .calendar:
             return .defaultBlue
+        case .photos:
+            return .defaultBlue
         }
     }
 }
@@ -61,7 +68,7 @@ struct PageTheme {
     static let defaultBlue = PageTheme(backgroundColor: Color(red: 0.10, green: 0.20, blue: 0.40))
 
     // Change the Opportunities page background color here.
-    static let opportunities = PageTheme(backgroundColor: Color(red: 0.94, green: 0.94, blue: 0.91))
+    static let opportunities = PageTheme(backgroundColor: Color(red: 0.10, green: 0.20, blue: 0.40))
 
     static let auth = defaultBlue
 }

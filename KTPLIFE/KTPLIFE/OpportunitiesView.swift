@@ -36,7 +36,7 @@ private struct OpportunitiesHeader: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Opportunities")
                     .font(AppFont.largeTitle())
-                    .foregroundStyle(Color.black.opacity(0.88))
+                    .foregroundStyle(Color.blue.opacity(0.88))
                     .multilineTextAlignment(.center)
             }
             // HStack (alignment: top, center, bottom)

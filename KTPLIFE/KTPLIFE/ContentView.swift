@@ -53,6 +53,8 @@ struct ContentView: View {
             OpportunitiesView()
         case .calendar:
             CalendarView()
+        case .photos:
+            PhotosView()
         }
     }
 
