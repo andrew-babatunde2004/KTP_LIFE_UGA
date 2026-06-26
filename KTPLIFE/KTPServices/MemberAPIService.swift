@@ -23,8 +23,10 @@ final class KTPAPIService {
     func fetchDirectoryMembers() async throws -> [DirectoryMember] {
         let url = baseURL.appendingPathComponent("members")
 
+        // fetches data fro the url
         let (data, response) = try await session.data(from: url)
 
+        // protects from invalid responses
         guard let httpResponse = response as? HTTPURLResponse,
               200..<300 ~= httpResponse.statusCode else {
             throw URLError(.badServerResponse)

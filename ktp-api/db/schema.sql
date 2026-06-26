@@ -28,3 +28,12 @@ CREATE TABLE IF NOT EXISTS events (
   description TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS photos (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  image_path TEXT NOT NULL,
+  caption TEXT,
+  uploaded_by INTEGER REFERENCES members(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
