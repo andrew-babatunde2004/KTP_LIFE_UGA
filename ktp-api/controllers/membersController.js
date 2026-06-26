@@ -1,5 +1,9 @@
 const memberModel = require("../models/memberModel");
 
+// this handles the requrests given by the application or the http request
+// all that should be done here is creating a async function and using a const to use the functions we defined in
+// memberModel make sure to catch errors and return failed messages for debugging
+
 async function getMembers(req, res) {
   try {
     // TODO: Add filtering, sorting, and pagination later.
@@ -37,6 +41,7 @@ function deleteMember(req, res) {
   res.status(501).json({ message: "Not implemented" });
 }
 
+// exports the functions we defined in this file so that we can call them within other javascript files
 module.exports = {
   getMembers,
   getMemberById,

@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const membersRoutes = require("./routes/members");
+//const calendarRouters = require("./routes/events")
 // TODO: Re-enable messages when message model/controller logic is ready.
 // const messagesRoutes = require("./routes/messages");
 
@@ -19,6 +20,7 @@ app.get("/", (req, res) => {
 
 // Register routes
 app.use("/members", membersRoutes);
+//app.use("/events", calendarRouters )
 // TODO: Re-enable messages when needed.
 // app.use("/messages", messagesRoutes);
 

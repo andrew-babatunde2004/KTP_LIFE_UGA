@@ -1,3 +1,5 @@
+-- you must adhere to the SQL language when creating DTB entires
+-- you do not need to create a new schema file when making a new entry just seperate and create a new isntance
 CREATE TABLE IF NOT EXISTS members (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,

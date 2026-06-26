@@ -1,3 +1,6 @@
+// this file handels how members are written into the postgres DB
+
+
 const { query } = require("../database");
 
 function toDirectoryJSON(row) {
