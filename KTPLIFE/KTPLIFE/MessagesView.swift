@@ -12,6 +12,7 @@ struct MessagesView: View {
     @State private var isLoadingDirectory = false
     @State private var directoryLoadError: String?
 
+    // rename this to member service or something distinguishable
     private let apiService = KTPAPIService()
 
     private var isPreview: Bool {

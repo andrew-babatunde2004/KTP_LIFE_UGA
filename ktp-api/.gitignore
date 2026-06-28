@@ -3,3 +3,4 @@ db/*.db
 db/*.db-*
 .env
 .DS_Store
+uploads/

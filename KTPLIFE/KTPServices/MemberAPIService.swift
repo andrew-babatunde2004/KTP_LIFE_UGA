@@ -5,15 +5,15 @@ import Foundation
 /// Development setup:
 /// 1. Start Postgres and run `npm run db:init` in `ktp-api`.
 /// 2. Run `npm start` in `ktp-api` (listens on port 3000).
-/// 3. Run the app in the **Simulator** — it reaches the API at `http://localhost:3000`.
+/// 3. Run the app — it reaches the API at `http://192.168.1.174:3000`.
 ///
-/// For a physical device, replace `baseURL` with your Mac's LAN IP (for example `http://192.168.1.10:3000/`).
+/// For Simulator-only dev on the same Mac, you can use `http://localhost:3000/` instead.
 final class KTPAPIService {
 
     private let baseURL: URL
     private let session: URLSession
 
-    init(baseURL: URL = URL(string: "http://127.0.0.1:3000/")!, session: URLSession = .shared) {
+    init(baseURL: URL = URL(string: "http://192.168.1.174:3000/")!, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
     }
@@ -23,8 +23,10 @@ final class KTPAPIService {
     func fetchDirectoryMembers() async throws -> [DirectoryMember] {
         let url = baseURL.appendingPathComponent("members")
 
+        // fetches data fro the url
         let (data, response) = try await session.data(from: url)
 
+        // protects from invalid responses
         guard let httpResponse = response as? HTTPURLResponse,
               200..<300 ~= httpResponse.statusCode else {
             throw URLError(.badServerResponse)
