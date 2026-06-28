@@ -54,11 +54,11 @@ private struct OpportunitiesHeader: View {
         .padding(22)
         .background(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.58))
+                .fill(AppSurfaceColor.lightPanel)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                .stroke(AppSurfaceColor.lightPanelBorder, lineWidth: 1)
         }
     }
 }
@@ -77,7 +77,7 @@ private struct OpportunityTypeButton: View {
                 .padding(.vertical, 12)
                 .background {
                     Capsule()
-                        .fill(isSelected ? Color.black.opacity(0.82) : Color.black.opacity(0.06))
+                        .fill(isSelected ? AppSurfaceColor.darkPill : AppSurfaceColor.mutedPill)
                 }
         }
         .buttonStyle(.plain)
@@ -116,11 +116,11 @@ private struct OpportunityCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(Color.white.opacity(0.62))
+                .fill(AppSurfaceColor.lightPanelSecondary)
         )
         .overlay {
             RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .stroke(Color.black.opacity(0.08), lineWidth: 1)
+                .stroke(AppSurfaceColor.lightPanelBorder, lineWidth: 1)
         }
     }
 }

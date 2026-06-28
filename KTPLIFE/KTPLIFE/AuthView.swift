@@ -59,10 +59,10 @@ struct AuthView: View {
                     .padding(.vertical, 18)
             }
             .buttonStyle(.plain)
-            .background(Color.white.opacity(canSignIn ? 0.16 : 0.06), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .background(canSignIn ? AppSurfaceColor.primaryControl : AppSurfaceColor.disabledControl, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.white.opacity(canSignIn ? 0.14 : 0.06), lineWidth: 1)
+                    .stroke(AppSurfaceColor.cardBorder, lineWidth: 1)
             }
             .disabled(!canSignIn)
 

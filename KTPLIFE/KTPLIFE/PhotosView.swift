@@ -16,18 +16,19 @@ struct PhotosView: View {
     }
 
     private let columns = [
-        GridItem(.flexible(), spacing: 14),
-        GridItem(.flexible(), spacing: 14),
+        GridItem(.flexible(), spacing: 0),
+        GridItem(.flexible(), spacing: 0),
     ]
 
     var body: some View {
         PageScaffold(showsPageHeader: false) {
-            VStack(alignment: .trailing, spacing: 28) {
+            VStack(alignment: .trailing, spacing: 20) {
                 addPhotoButton
+                    .padding(.trailing, 20)
 
-                LazyVGrid(columns: columns, spacing: 14) {
+                LazyVGrid(columns: columns, spacing: 0) {
                     ForEach(photos) { photo in
-                        Color.white.opacity(0.08)
+                        AppSurfaceColor.card
                             .aspectRatio(1, contentMode: .fit)
                             .overlay {
                                 AsyncImage(url: imageURL(for: photo)) { phase in
@@ -38,11 +39,10 @@ struct PhotosView: View {
                                     }
                                 }
                             }
-                            .matteCard()
                     }
                 }
+                .padding(.horizontal, -20)
             }
-            .padding(20)
         }
         .task {
             await loadPhotos()
@@ -56,10 +56,10 @@ struct PhotosView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
-                .background(Color.white.opacity(0.12), in: Capsule())
+                .background(AppSurfaceColor.primaryControl, in: Capsule())
                 .overlay {
                     Capsule()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        .stroke(AppSurfaceColor.cardBorder, lineWidth: 1)
                 }
         }
         .buttonStyle(.plain)
@@ -82,6 +82,6 @@ struct PhotosView: View {
 
 #Preview("Photos") {
     PhotosView()
-        .padding(20)
+        .padding(.horizontal, 20)
         .background(AppTab.photos.theme.backgroundColor)
 }

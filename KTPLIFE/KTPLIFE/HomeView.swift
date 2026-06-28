@@ -9,57 +9,31 @@ import SwiftUI
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Item.timestamp, order: .reverse) private var items: [Item]
-
+    
     let returnToSignup: () -> Void
-
+    
     init(returnToSignup: @escaping () -> Void) {
         self.returnToSignup = returnToSignup
     }
-    // this is required 
+    // this is required
     var body: some View {
         VStack(spacing: 28) {
-            HStack {
-                homeLogo
-
-                Spacer()
-
-                addButton
-            }
-
-        
+            
             Spacer()
-
             returnToSignupButton
         }
         .padding(22)
     }
-
-    private var homeLogo: some View {
-        KTPLogoMark(maxWidth: 180, maxHeight: 64, alignment: .leading)
-    }
-
-    private var addButton: some View {
-        Button(action: addItem) {
-            Text("Add")
-                .font(AppFont.footnote(weight: .bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-                .background(Color.white.opacity(0.12), in: Capsule())
-                .overlay {
-                    Capsule()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                }
-        }
-        .buttonStyle(.plain)
-    }
-
+    
+    
+    
+    
     private var returnToSignupButton: some View {
         Button(action: returnToSignup) {
             HStack(spacing: 12) {
                 Text("Back to Sign Up")
                     .font(AppFont.headline())
-
+                
                 Spacer()
             }
             .foregroundStyle(.white)
@@ -69,22 +43,9 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .matteCard()
     }
-
- 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItem(_ item: Item) {
-        withAnimation {
-            modelContext.delete(item)
-        }
-    }
 }
 
+ 
 private struct HomeActivityRow: View {
     let item: Item
     let delete: () -> Void
@@ -109,7 +70,7 @@ private struct HomeActivityRow: View {
                     .foregroundStyle(.white.opacity(0.88))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.10), in: Capsule())
+                    .background(AppSurfaceColor.primaryControl, in: Capsule())
             }
             .buttonStyle(.plain)
         }
