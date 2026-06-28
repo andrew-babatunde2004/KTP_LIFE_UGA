@@ -44,11 +44,23 @@ extension View {
     func matteCard(radius: CGFloat = 26) -> some View {
         background(
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(AppSurfaceColor.card)
         )
         .overlay {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                .stroke(AppSurfaceColor.cardBorder, lineWidth: 1)
         }
     }
+}
+
+enum AppSurfaceColor {
+    static let card = Color(red: 0.17, green: 0.27, blue: 0.45)
+    static let cardBorder = Color(red: 0.23, green: 0.33, blue: 0.51)
+    static let primaryControl = Color(red: 0.27, green: 0.37, blue: 0.55)
+    static let disabledControl = Color(red: 0.14, green: 0.24, blue: 0.42)
+    static let lightPanel = Color(red: 0.66, green: 0.70, blue: 0.78)
+    static let lightPanelSecondary = Color(red: 0.70, green: 0.73, blue: 0.80)
+    static let lightPanelBorder = Color(red: 0.54, green: 0.59, blue: 0.68)
+    static let darkPill = Color(red: 0.14, green: 0.16, blue: 0.20)
+    static let mutedPill = Color(red: 0.60, green: 0.64, blue: 0.72)
 }

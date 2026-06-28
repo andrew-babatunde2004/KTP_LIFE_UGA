@@ -33,10 +33,10 @@ struct SignupView: View {
                         .padding(.vertical, 18)
                 }
                 .buttonStyle(.plain)
-                .background(Color.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .background(AppSurfaceColor.primaryControl, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                        .stroke(AppSurfaceColor.cardBorder, lineWidth: 1)
                 }
 
                 Button(action: showLogin) {
