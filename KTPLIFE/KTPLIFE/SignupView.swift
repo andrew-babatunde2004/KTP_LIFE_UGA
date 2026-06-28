@@ -16,13 +16,12 @@ struct SignupView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
 
             VStack(alignment: .center, spacing: 10) {
-                Text("Welcome to KTP Life")
-                    .font(AppFont.largeTitle())
-                    .foregroundStyle(.white)
-
                 Text("Create an account or log in to continue.")
                     .font(AppFont.subheadline())
                     .foregroundStyle(.white.opacity(0.68))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: .infinity)
             }
 
             VStack(spacing: 14) {

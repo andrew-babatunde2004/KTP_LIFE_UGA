@@ -8,20 +8,22 @@ import SwiftUI
 struct AuthView: View {
     @Binding var email: String
     @Binding var password: String
-
+ 
     let signIn: () -> Void
     let showSignup: () -> Void
-
+    let showResetPassword: () -> Void
     init(
         email: Binding<String>,
         password: Binding<String>,
         signIn: @escaping () -> Void,
-        showSignup: @escaping () -> Void = {}
+        showSignup: @escaping () -> Void = {},
+        showResetPassword: @escaping () -> Void = {}
     ) {
         self._email = email
         self._password = password
         self.signIn = signIn
         self.showSignup = showSignup
+        self.showResetPassword = showResetPassword
     }
 
     private var canSignIn: Bool {
@@ -74,9 +76,15 @@ struct AuthView: View {
             .buttonStyle(.plain)
             .matteCard(radius: 24)
 
-            Text("This screen is the local auth gate right now. Hook the sign-in action to your real auth flow when you add it.")
-                .font(AppFont.footnote())
-                .foregroundStyle(.white.opacity(0.58))
+           Button(action: showResetPassword) {
+                Text("Reset Password")
+                    .font(AppFont.footnote(weight: .bold))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+            }
+            .buttonStyle(.plain)
+            .matteCard(radius: 24)
 
             Spacer()
         }
@@ -126,7 +134,8 @@ struct AuthView: View {
         email: .constant(""),
         password: .constant(""),
         signIn: {},
-        showSignup: {}
+        showSignup: {},
+        showResetPassword: {}
     )
     .padding(20)
     .background(AppTab.home.theme.backgroundColor)

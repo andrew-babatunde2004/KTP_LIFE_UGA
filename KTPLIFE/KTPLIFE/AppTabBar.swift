@@ -10,8 +10,8 @@ struct AppTabBar: View {
 
     var body: some View {
         // increase and decreasing this spreads the icons themselves out lower = closer larger = further
-        GlassEffectContainer(spacing: 5) {
-            HStack(spacing: 5) {
+        GlassEffectContainer(spacing: 20) {
+            HStack(spacing: 20) {
                 ForEach(AppTab.allCases) { tab in
                     AppTabBarButton(
                         tab: tab,
@@ -24,15 +24,16 @@ struct AppTabBar: View {
                     )
                 }
             }
-            // ngl i dont even know what this does
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .glassEffect(.clear.tint(Color.white.opacity(0.08)), in: Capsule())
+            // these two affect the bar width and height as well
+            // as the clear glass opacity for the bar
+            .padding(.horizontal, 30)
+            .padding(.vertical, 5)
+            .glassEffect(.clear.tint(Color.white.opacity(0.10)), in: Capsule())
         }
-        // the bar width itself
-        .padding(.horizontal, 20)
+        // idk what this shit does
+        .padding(.horizontal, 0)
         // the positon of the bar from the bottom of the screen
-        .padding(.bottom, 10)
+        .padding(.bottom, 5)
     }
 }
 

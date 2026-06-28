@@ -1,7 +1,7 @@
 import Foundation
 
 class PhotoService {
-    private let baseURL = URL(string: "http://localhost:3000/")!
+    private let baseURL = URL(string: "http://192.168.1.174:3000/")!
 
     func fetchPhotos() async throws -> [PhotoItem] {
         let url = baseURL.appendingPathComponent("photos")

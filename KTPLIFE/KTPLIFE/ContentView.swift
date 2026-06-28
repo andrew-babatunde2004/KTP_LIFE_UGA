@@ -68,8 +68,11 @@ struct ContentView: View {
                 email: $email,
                 password: $password,
                 signIn: signIn,
-                showSignup: showSignup
+                showSignup: showSignup,
+                showResetPassword: showResetPassword
             )
+        case .resetPassword:
+            ResetPasswordView(showLogin: showLogin)
         }
     }
 
@@ -97,6 +100,12 @@ struct ContentView: View {
         }
     }
 
+    private func showResetPassword() {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            authScreen = .resetPassword
+        }
+    }
+
     private func returnToSignupForTesting() {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
             isAuthenticated = false
@@ -110,6 +119,7 @@ struct ContentView: View {
 private enum AuthScreen {
     case signup
     case login
+    case resetPassword
 }
 
 private extension View {

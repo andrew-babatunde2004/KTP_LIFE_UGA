@@ -9,7 +9,7 @@ struct PhotosView: View {
     @State private var photos: [PhotoItem] = []
 
     private let photoService = PhotoService()
-    private let apiBaseURL = URL(string: "http://localhost:3000/")!
+    private let apiBaseURL = URL(string: "http://192.168.1.174:3000/")!
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"

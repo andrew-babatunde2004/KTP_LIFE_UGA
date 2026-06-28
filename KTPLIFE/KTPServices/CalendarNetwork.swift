@@ -1,7 +1,7 @@
 import Foundation
 
 class CalendarNetworkService {
-    private let baseURL = URL(string: "http://localhost:3000/")!
+    private let baseURL = URL(string: "http://192.168.1.174:3000/")!
     
     // come back and fix this later
     func fetchCalendarEvents() async throws -> [CalendarEvent] {
