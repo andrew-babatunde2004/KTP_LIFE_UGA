@@ -1,44 +1,50 @@
 # KTP_LIFE_UGA
 
-## Backend and iOS API connection
+Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to a separate backend over HTTP — configure the base URL in `Secrets.plist` (see below). This repo contains the SwiftUI client only; the API is maintained outside this project.
 
-The member directory in the Messages tab loads live data from the Node API in `ktp-api`.
+## Getting started
 
-### Run the stack locally
+### Prerequisites
 
-1. **PostgreSQL** — database `ktp_life` with user `ktp_user` (see pgAdmin setup).
-2. **API env** — copy `ktp-api/.env.example` to `ktp-api/.env` and adjust credentials if needed.
-3. **Install and seed**:
+- Xcode (open `KTPLIFE/KTPLIFE.xcodeproj`)
+- A running KTP backend that exposes the endpoints listed below
+
+### Configure the API URL
+
+1. Copy the secrets template (once per machine):
    ```powershell
-   cd ktp-api
-   npm install
-   npm run db:init
+   cd KTPLIFE/KTPLIFE
+   copy Secrets.example.plist Secrets.plist
    ```
-4. **Start the API**:
-   ```powershell
-   npm start
-   ```
-   Server runs at `http://localhost:3000`. Verify with:
-   ```powershell
-   curl.exe http://localhost:3000/members
-   ```
+2. Edit `Secrets.plist` and set `API_BASE_URL` to your backend:
+   - **Simulator (API on same Mac):** `http://127.0.0.1:3000/`
+   - **Physical iPhone:** your server or Mac LAN IP, e.g. `http://192.168.1.10:3000/`
+   - **Hosted backend:** your deployed URL, e.g. `https://api.example.com/`
 
-### Run the iOS app against the API
+`Secrets.plist` is gitignored. `Secrets.example.plist` is the committed template.
 
-1. Keep `npm start` running in `ktp-api`.
-2. Open `KTPLIFE/KTPLIFE.xcodeproj` and run on the **Simulator**.
-3. In the app, go to **Messages → Directory**. Members load from `GET /members`.
+### Run the app
+
+1. Open `KTPLIFE/KTPLIFE.xcodeproj` and run on the **Simulator** or a device.
+2. Sign in (auth is still in progress) and use the tab bar to navigate.
+3. **Messages → Directory** loads members from `GET /members` when the backend is reachable.
 
 ### Key files
 
 | File | Role |
 |------|------|
-| `ktp-api/models/memberModel.js` | Postgres queries; maps rows to JSON |
+| `KTPLIFE/KTPLIFE/Secrets.example.plist` | Committed template for `API_BASE_URL` |
+| `KTPLIFE/KTPLIFE/Secrets.plist` | Local API URL (gitignored; copy from example) |
+| `KTPLIFE/KTPServices/APIConfig.swift` | Loads `API_BASE_URL` from Secrets plist |
 | `KTPLIFE/KTPServices/MemberAPIService.swift` | Fetches `/members` |
-| `KTPLIFE/KTPModels/DirectoryMember.swift` | Swift model matching API JSON |
-| `KTPLIFE/KTPLIFE/MessagesView.swift` | Directory UI; calls `KTPAPIService` |
+| `KTPLIFE/KTPServices/PhotoService.swift` | Fetches `/photos` |
+| `KTPLIFE/KTPServices/CalendarNetwork.swift` | Fetches `/events` |
+| `KTPLIFE/KTPModels/DirectoryMember.swift` | Swift model matching member JSON |
+| `KTPLIFE/KTPLIFE/MessagesView.swift` | Messages tab + directory routing |
 
-### JSON contract (`GET /members`)
+### API contract (`GET /members`)
+
+The directory expects an array of objects shaped like:
 
 ```json
 {
@@ -52,17 +58,15 @@ The member directory in the Messages tab loads live data from the Node API in `k
 
 `group` must be one of: `activeMembers`, `pledges`, `eBoard`, `alumni`.
 
+Other tabs use `GET /events`, `GET /photos`, and (planned) `GET /messages` against the same `API_BASE_URL`.
+
 ### Troubleshooting
 
-**Port 3000 already in use** (when starting the API):
-```powershell
-netstat -ano | findstr :3000
-taskkill /PID <PID_FROM_ABOVE> /F
-```
+**Directory or other tabs show a load error** — confirm `API_BASE_URL` in `Secrets.plist` is correct, the backend is running, and the device can reach that host (Simulator vs physical device use different URLs).
 
-**Directory shows an error in the app** — confirm Postgres is running, `npm start` is active, and `curl.exe http://localhost:3000/members` returns JSON.
+**Physical device cannot connect** — `127.0.0.1` only works on the Simulator. Use your Mac’s LAN IP or a hosted API URL on a real iPhone.
 
-**Physical device testing** — the Simulator uses `127.0.0.1`. On a real iPhone, update the base URL in `KTPAPIService` to your Mac's LAN IP (for example `http://192.168.1.10:3000/`).
+**App Transport Security** — local HTTP is allowed via `NSAllowsLocalNetworking` in `Info.plist`. Production HTTPS endpoints do not need extra ATS changes.
 
 ## UI Conventions
 
@@ -71,11 +75,10 @@ taskkill /PID <PID_FROM_ABOVE> /F
 - Exception: the bottom app tab bar is allowed to remain glass.
 - When adding a new page, create a separate `...View.swift`, add the case to `AppTab`, route it in `ContentView`, and keep page-specific UI inside that page file.
 - App backgrounds should be solid colors, not gradients.
-- Change the default blue background in `KTPLIFE/KTPLIFE/AppTab.swift` at `PageTheme.defaultBlue`.
-- Change the Opportunities background in `KTPLIFE/KTPLIFE/AppTab.swift` at `PageTheme.opportunities`.
-- When creating new elements or pages, unless specified do not add any emojis or icons, if it is an image file being used leave it be. The design should be clean and simple, relying on typography and layout rather than decorative elements.
+- Change page backgrounds in `KTPLIFE/KTPLIFE/AppTab.swift` (`PageTheme.defaultBlue`, `PageTheme.defaultWhite`, `PageTheme.opportunities`).
+- When creating new elements or pages, unless specified do not add any emojis or icons; if it is an image file being used leave it be. The design should be clean and simple, relying on typography and layout rather than decorative elements.
 - The KTP logo is an allowed brand image on Home, Sign Up, and Authentication screens. Use `KTPLogoMark` from `KTPLIFE/KTPLIFE/SharedViews.swift` instead of duplicating logo image code.
-- Make sure when adding new pages or elements that proper documentation is being used as your context alone does not help others who are working on the project
+- Make sure when adding new pages or elements that proper documentation is being used as your context alone does not help others who are working on the project.
 - Make sure that all new pages or elements are tested in both light and dark mode. Test on multiple devices and screen sizes to ensure a consistent experience across devices.
 
 ## Typography

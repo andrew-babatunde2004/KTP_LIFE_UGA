@@ -199,5 +199,5 @@ struct MemberDirectoryView: View {
 #Preview("Member Directory") {
     MemberDirectoryView()
         .padding(20)
-        .background(AppTab.messages.theme.backgroundColor)
+        .background(AppTab.messages.theme.previewBackground())
 }

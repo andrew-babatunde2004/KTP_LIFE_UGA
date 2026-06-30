@@ -6,7 +6,12 @@
 import SwiftUI
 
 struct AppTabBar: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Binding var selectedTab: AppTab
+
+    private var activeTheme: PageTheme {
+        selectedTab.theme
+    }
 
     var body: some View {
         // increase and decreasing this spreads the icons themselves out lower = closer larger = further
@@ -16,6 +21,10 @@ struct AppTabBar: View {
                     AppTabBarButton(
                         tab: tab,
                         isSelected: selectedTab == tab,
+                        iconColor: activeTheme.tabBarIconColor(
+                            isSelected: selectedTab == tab,
+                            colorScheme: colorScheme
+                        ),
                         select: {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
                                 selectedTab = tab
@@ -28,7 +37,10 @@ struct AppTabBar: View {
             // as the clear glass opacity for the bar
             .padding(.horizontal, 30)
             .padding(.vertical, 5)
-            .glassEffect(.clear.tint(Color.white.opacity(0.10)), in: Capsule())
+            .glassEffect(
+                .clear.tint(activeTheme.tabBarGlassTint(for: colorScheme)),
+                in: Capsule()
+            )
         }
         // idk what this shit does
         .padding(.horizontal, 0)
@@ -40,11 +52,8 @@ struct AppTabBar: View {
 private struct AppTabBarButton: View {
     let tab: AppTab
     let isSelected: Bool
+    let iconColor: Color
     let select: () -> Void
-
-    private var iconOpacity: Double {
-        isSelected ? 1 : 0.74
-    }
 
     var body: some View {
         Button(action: select) {
@@ -53,7 +62,7 @@ private struct AppTabBarButton: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
                 .accessibilityLabel(tab.title)
-                .foregroundStyle(.white.opacity(iconOpacity))
+                .foregroundStyle(iconColor)
         }
         .buttonStyle(.plain)
     }

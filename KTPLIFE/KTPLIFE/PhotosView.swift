@@ -9,7 +9,6 @@ struct PhotosView: View {
     @State private var photos: [PhotoItem] = []
 
     private let photoService = PhotoService()
-    private let apiBaseURL = URL(string: "http://192.168.1.174:3000/")!
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -66,7 +65,7 @@ struct PhotosView: View {
     }
 
     private func imageURL(for photo: PhotoItem) -> URL {
-        URL(string: photo.imagePath, relativeTo: apiBaseURL)?.absoluteURL ?? apiBaseURL
+        APIConfig.absoluteURL(for: photo.imagePath)
     }
 
     @MainActor
@@ -83,5 +82,5 @@ struct PhotosView: View {
 #Preview("Photos") {
     PhotosView()
         .padding(.horizontal, 20)
-        .background(AppTab.photos.theme.backgroundColor)
+        .background(AppTab.photos.theme.previewBackground())
 }

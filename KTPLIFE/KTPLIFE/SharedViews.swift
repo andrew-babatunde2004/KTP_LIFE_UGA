@@ -41,6 +41,20 @@ struct EmptyState: View {
 }
 
 extension View {
+
+    func loginCard(radius: CGFloat = 24) -> some View {
+        background(
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(AppSurfaceColor.loginCard)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(AppSurfaceColor.cardBorder, lineWidth: 1)
+        }
+    }
+}
+
+extension View {
     func matteCard(radius: CGFloat = 26) -> some View {
         background(
             RoundedRectangle(cornerRadius: radius, style: .continuous)
@@ -54,7 +68,8 @@ extension View {
 }
 
 enum AppSurfaceColor {
-    static let card = Color(red: 0.17, green: 0.27, blue: 0.45)
+    static let loginCard = Color(red: 0.17, green: 0.27, blue: 0.45)
+    static let card = Color(white: 0.08)
     static let cardBorder = Color(red: 0.23, green: 0.33, blue: 0.51)
     static let primaryControl = Color(red: 0.27, green: 0.37, blue: 0.55)
     static let disabledControl = Color(red: 0.14, green: 0.24, blue: 0.42)
@@ -63,4 +78,17 @@ enum AppSurfaceColor {
     static let lightPanelBorder = Color(red: 0.54, green: 0.59, blue: 0.68)
     static let darkPill = Color(red: 0.14, green: 0.16, blue: 0.20)
     static let mutedPill = Color(red: 0.60, green: 0.64, blue: 0.72)
+}
+
+/// Semantic text colors for light/dark pages. Use instead of hard-coded `.white` on page backgrounds.
+enum AppTextColor {
+    static func primary(on theme: PageTheme, colorScheme: ColorScheme) -> Color {
+        theme.surfaceStyle == .light && colorScheme == .light
+            ? Color(red: 0.10, green: 0.12, blue: 0.16)
+            : .white
+    }
+
+    static func secondary(on theme: PageTheme, colorScheme: ColorScheme) -> Color {
+        primary(on: theme, colorScheme: colorScheme).opacity(0.72)
+    }
 }

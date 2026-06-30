@@ -187,5 +187,5 @@ private struct Opportunity: Identifiable {
 #Preview("Opportunities") {
     OpportunitiesView()
         .padding(20)
-        .background(AppTab.opportunities.theme.backgroundColor)
+        .background(AppTab.opportunities.theme.previewBackground())
 }

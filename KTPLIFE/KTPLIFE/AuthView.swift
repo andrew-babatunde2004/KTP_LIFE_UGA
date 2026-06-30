@@ -74,7 +74,7 @@ struct AuthView: View {
                     .padding(.vertical, 16)
             }
             .buttonStyle(.plain)
-            .matteCard(radius: 24)
+            .loginCard(radius: 24)
 
            Button(action: showResetPassword) {
                 Text("Reset Password")
@@ -84,7 +84,7 @@ struct AuthView: View {
                     .padding(.vertical, 16)
             }
             .buttonStyle(.plain)
-            .matteCard(radius: 24)
+            .loginCard(radius: 24)
 
             Spacer()
         }
@@ -106,7 +106,7 @@ struct AuthView: View {
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 18)
-            .matteCard(radius: 24)
+            .loginCard(radius: 24)
         }
     }
 
@@ -124,7 +124,7 @@ struct AuthView: View {
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 18)
-            .matteCard(radius: 24)
+            .loginCard(radius: 24)
         }
     }
 }
@@ -138,5 +138,5 @@ struct AuthView: View {
         showResetPassword: {}
     )
     .padding(20)
-    .background(AppTab.home.theme.backgroundColor)
+    .background(AppTab.home.theme.previewBackground())
 }

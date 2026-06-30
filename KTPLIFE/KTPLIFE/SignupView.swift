@@ -47,7 +47,7 @@ struct SignupView: View {
                         .padding(.vertical, 18)
                 }
                 .buttonStyle(.plain)
-                .matteCard(radius: 24)
+                .loginCard(radius: 24)
             }
 
             Spacer()
@@ -58,5 +58,5 @@ struct SignupView: View {
 #Preview("Sign Up") {
     SignupView(showLogin: {})
         .padding(20)
-        .background(AppTab.home.theme.backgroundColor)
+        .background(AppTab.home.theme.previewBackground())
 }
