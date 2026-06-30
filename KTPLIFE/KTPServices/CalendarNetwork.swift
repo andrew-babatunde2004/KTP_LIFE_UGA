@@ -1,9 +1,12 @@
 import Foundation
 
 class CalendarNetworkService {
-    private let baseURL = URL(string: "http://192.168.1.174:3000/")!
-    
-    // come back and fix this later
+    private let baseURL: URL
+
+    init(baseURL: URL = APIConfig.baseURL) {
+        self.baseURL = baseURL
+    }
+
     func fetchCalendarEvents() async throws -> [CalendarEvent] {
         let url = baseURL.appendingPathComponent("events")
         let (data, response) = try await URLSession.shared.data(from: url)

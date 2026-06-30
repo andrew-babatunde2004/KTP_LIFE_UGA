@@ -1,0 +1,11 @@
+# iOS local API config (copy from Secrets.example.plist)
+KTPLIFE/KTPLIFE/Secrets.plist
+
+# Node API
+ktp-api/node_modules/
+ktp-api/.env
+ktp-api/uploads/
+
+# macOS / Xcode
+.DS_Store
+**/.deriveddata/

@@ -90,6 +90,6 @@ private struct CalendarEventCard: View {
 #Preview("Calendar") {
     CalendarView()
         .padding(20)
-        .background(AppTab.calendar.theme.backgroundColor)
+        .background(AppTab.calendar.theme.previewBackground())
 }
 

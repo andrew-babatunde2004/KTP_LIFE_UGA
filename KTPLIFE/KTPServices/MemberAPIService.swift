@@ -3,17 +3,15 @@ import Foundation
 /// Client for the local KTP Node API (`ktp-api`). Used by the iOS app to load live directory data.
 ///
 /// Development setup:
-/// 1. Start Postgres and run `npm run db:init` in `ktp-api`.
-/// 2. Run `npm start` in `ktp-api` (listens on port 3000).
-/// 3. Run the app — it reaches the API at `http://192.168.1.174:3000`.
-///
-/// For Simulator-only dev on the same Mac, you can use `http://localhost:3000/` instead.
+/// 1. Copy `KTPLIFE/Secrets.example.plist` to `KTPLIFE/Secrets.plist` and set `API_BASE_URL`.
+/// 2. Start Postgres and run `npm run db:init` in `ktp-api`.
+/// 3. Run `npm start` in `ktp-api` (listens on port 3000).
 final class KTPAPIService {
 
     private let baseURL: URL
     private let session: URLSession
 
-    init(baseURL: URL = URL(string: "http://192.168.1.174:3000/")!, session: URLSession = .shared) {
+    init(baseURL: URL = APIConfig.baseURL, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
     }

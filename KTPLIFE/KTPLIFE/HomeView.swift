@@ -84,5 +84,5 @@ private struct HomeActivityRow: View {
     HomeView(returnToSignup: {})
         .modelContainer(PreviewModelContainer.shared)
         .padding(20)
-        .background(AppTab.home.theme.backgroundColor)
+        .background(AppTab.home.theme.previewBackground())
 }
