@@ -3,40 +3,55 @@
 //  KTPLIFE
 //
 
-import SwiftData
 import SwiftUI
 
 struct HomeView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Item.timestamp, order: .reverse) private var items: [Item]
-    
     let returnToSignup: () -> Void
-    
-    init(returnToSignup: @escaping () -> Void) {
-        self.returnToSignup = returnToSignup
-    }
-    // this is required
+
     var body: some View {
-        VStack(spacing: 28) {
-            
+        VStack(alignment: .leading, spacing: 28) {
+            thisWeekSection
             Spacer()
             returnToSignupButton
         }
-        .padding(22)
     }
-    
-    
-    
-    
+
+    private var thisWeekSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("This week")
+                .font(AppFont.headline())
+                .appTextPrimary()
+
+            ForEach(Self.upcomingEvents) { event in
+                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                    Text(event.day)
+                        .font(AppFont.footnote(weight: .semibold))
+                        .frame(width: 52, alignment: .leading)
+                        .appTextMuted()
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(event.title)
+                            .font(AppFont.headline())
+                            .appTextPrimary()
+
+                        Text(event.time)
+                            .font(AppFont.footnote())
+                            .appTextSecondary()
+                    }
+                }
+            }
+        }
+    }
+
     private var returnToSignupButton: some View {
         Button(action: returnToSignup) {
             HStack(spacing: 12) {
                 Text("Back to Sign Up")
                     .font(AppFont.headline())
-                
+                    .appTextOnCard()
+
                 Spacer()
             }
-            .foregroundStyle(.white)
             .padding(18)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -45,44 +60,32 @@ struct HomeView: View {
     }
 }
 
- 
-private struct HomeActivityRow: View {
-    let item: Item
-    let delete: () -> Void
-
-    var body: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.timestamp, format: .dateTime.month(.abbreviated).day().year())
-                    .font(AppFont.headline())
-                    .foregroundStyle(.white)
-
-                Text(item.timestamp, format: .dateTime.hour().minute())
-                    .font(AppFont.subheadline())
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-
-            Spacer()
-
-            Button(action: delete) {
-                Text("Delete")
-                    .font(AppFont.footnote(weight: .bold))
-                    .foregroundStyle(.white.opacity(0.88))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(AppSurfaceColor.primaryControl, in: Capsule())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .matteCard()
-    }
+private struct HomeEvent: Identifiable {
+    let id = UUID()
+    let day: String
+    let title: String
+    let time: String
 }
 
-#Preview("Home") {
+private extension HomeView {
+    static let upcomingEvents: [HomeEvent] = [
+        HomeEvent(day: "Thu 3", title: "Chapter Meeting", time: "7:00 PM"),
+        HomeEvent(day: "Sat 5", title: "Professional Development", time: "2:00 PM"),
+    ]
+}
+
+#Preview("Home — Light") {
     HomeView(returnToSignup: {})
-        .modelContainer(PreviewModelContainer.shared)
-        .padding(20)
-        .background(AppTab.home.theme.previewBackground())
+        .padding(.horizontal, 20)
+        .background(AppTab.home.theme.previewBackground(.light))
+        .environment(\.pageTheme, AppTab.home.theme)
+        .preferredColorScheme(.light)
+}
+
+#Preview("Home — Dark") {
+    HomeView(returnToSignup: {})
+        .padding(.horizontal, 20)
+        .background(AppTab.home.theme.previewBackground(.dark))
+        .environment(\.pageTheme, AppTab.home.theme)
+        .preferredColorScheme(.dark)
 }

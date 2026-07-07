@@ -24,11 +24,11 @@ private struct MessageThreadCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(thread.title)
                     .font(AppFont.headline())
-                    .foregroundStyle(.white)
+                    .appTextOnCard()
 
                 Text(thread.preview)
                     .font(AppFont.subheadline())
-                    .foregroundStyle(.white.opacity(0.72))
+                    .appTextOnCardSecondary()
             }
 
             Spacer()
@@ -36,12 +36,12 @@ private struct MessageThreadCard: View {
             VStack(alignment: .trailing, spacing: 8) {
                 Text(thread.time)
                     .font(AppFont.footnote(weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .appTextOnCard(opacity: 0.8)
 
                 if isUnread {
                     Text("Unread")
                         .font(AppFont.caption(weight: .bold))
-                        .foregroundStyle(.white.opacity(0.74))
+                        .appTextOnCardSecondary()
                 }
             }
         }

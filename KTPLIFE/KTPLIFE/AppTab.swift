@@ -127,3 +127,14 @@ struct PageTheme {
     backgroundColor(for: colorScheme)
   }
 }
+
+private struct PageThemeKey: EnvironmentKey {
+  static let defaultValue: PageTheme = .defaultWhite
+}
+
+extension EnvironmentValues {
+  var pageTheme: PageTheme {
+    get { self[PageThemeKey.self] }
+    set { self[PageThemeKey.self] = newValue }
+  }
+}

@@ -20,6 +20,7 @@ struct ContentView: View {
             PageBackground(theme: activePageTheme, animationValue: selectedTab)
             rootContent
         }
+        .environment(\.pageTheme, activePageTheme)
         .safeAreaInset(edge: .bottom) {
             if isAuthenticated {
                 AppTabBar(selectedTab: $selectedTab)

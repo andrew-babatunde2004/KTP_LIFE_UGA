@@ -84,23 +84,30 @@ struct MemberDirectoryView: View {
 }
     
     private struct DirectorySearchBar: View {
+        @Environment(\.colorScheme) private var colorScheme
+        @Environment(\.pageTheme) private var pageTheme
         @Binding var searchText: String
         
         var body: some View {
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.58))
+                    .appTextOnCardMuted()
                 
                 TextField(
                     "",
                     text: $searchText,
-                    prompt: Text("Search members").foregroundStyle(.white.opacity(0.42))
+                    prompt: AppTextColor.prompt(
+                        "Search members",
+                        role: .onCardPlaceholder,
+                        theme: pageTheme,
+                        colorScheme: colorScheme
+                    )
                 )
                 .font(AppFont.subheadline())
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .foregroundStyle(.white)
+                .appTextOnCard()
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 16)
@@ -147,7 +154,7 @@ struct MemberDirectoryView: View {
                 Text(title)
                     .font(AppFont.footnote(weight: .bold))
                     .lineLimit(1)
-                    .foregroundStyle(.white.opacity(labelOpacity))
+                    .appTextOnCard(opacity: labelOpacity)
                     .padding(.vertical, 12)
                     .contentShape(Rectangle())
             }
@@ -161,7 +168,7 @@ struct MemberDirectoryView: View {
         var body: some View {
             Text(message)
                 .font(AppFont.subheadline())
-                .foregroundStyle(.white.opacity(0.72))
+                .appTextOnCardSecondary()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
                 .matteCard()
@@ -176,11 +183,11 @@ struct MemberDirectoryView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(member.name)
                         .font(AppFont.headline())
-                        .foregroundStyle(.white)
+                        .appTextOnCard()
                     
                     Text(member.role)
                         .font(AppFont.subheadline())
-                        .foregroundStyle(.white.opacity(0.72))
+                        .appTextOnCardSecondary()
                 }
                 
                 Spacer()
@@ -188,7 +195,7 @@ struct MemberDirectoryView: View {
                 if let year = member.year {
                     Text(year)
                         .font(AppFont.footnote(weight: .bold))
-                        .foregroundStyle(.white.opacity(0.58))
+                        .appTextOnCardMuted()
                 }
             }
             .padding(20)

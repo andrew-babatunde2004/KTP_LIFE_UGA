@@ -16,13 +16,13 @@ struct ResetPasswordView: View {
 
             Text("Enter your email to reset your password")
                 .font(AppFont.subheadline())
-                .foregroundStyle(.white.opacity(0.68))
+                .appTextSecondary()
                 .multilineTextAlignment(.center)
 
             Button(action: showLogin) {
                 Text("Back to Log In")
                     .font(AppFont.footnote(weight: .bold))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .appTextOnCardSecondary()
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
             }

@@ -6,6 +6,9 @@
 import SwiftUI
 
 struct AuthView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.pageTheme) private var pageTheme
+
     @Binding var email: String
     @Binding var password: String
  
@@ -54,7 +57,7 @@ struct AuthView: View {
             Button(action: signIn) {
                 Text("Sign In")
                     .font(AppFont.headline())
-                    .foregroundStyle(.white.opacity(canSignIn ? 1 : 0.5))
+                    .appTextOnCard(opacity: canSignIn ? 1 : 0.5)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
             }
@@ -69,7 +72,7 @@ struct AuthView: View {
             Button(action: showSignup) {
                 Text("Back to Sign Up")
                     .font(AppFont.footnote(weight: .bold))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .appTextOnCardSecondary()
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
             }
@@ -79,7 +82,7 @@ struct AuthView: View {
            Button(action: showResetPassword) {
                 Text("Reset Password")
                     .font(AppFont.footnote(weight: .bold))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .appTextOnCardSecondary()
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
             }
@@ -94,15 +97,20 @@ struct AuthView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(AppFont.footnote(weight: .semibold))
-                .foregroundStyle(.white.opacity(0.72))
+                .appTextSecondary()
 
             HStack(spacing: 12) {
-                TextField("", text: text, prompt: Text(prompt).foregroundStyle(.white.opacity(0.42)))
+                TextField("", text: text, prompt: AppTextColor.prompt(
+                    prompt,
+                    role: .onCardPlaceholder,
+                    theme: pageTheme,
+                    colorScheme: colorScheme
+                ))
                     .font(AppFont.subheadline())
                     .textInputAutocapitalization(.never)
                     .keyboardType(.emailAddress)
                     .autocorrectionDisabled()
-                    .foregroundStyle(.white)
+                    .appTextOnCard()
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 18)
@@ -114,13 +122,18 @@ struct AuthView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(AppFont.footnote(weight: .semibold))
-                .foregroundStyle(.white.opacity(0.72))
+                .appTextSecondary()
 
             HStack(spacing: 12) {
-                SecureField("", text: text, prompt: Text(prompt).foregroundStyle(.white.opacity(0.42)))
+                SecureField("", text: text, prompt: AppTextColor.prompt(
+                    prompt,
+                    role: .onCardPlaceholder,
+                    theme: pageTheme,
+                    colorScheme: colorScheme
+                ))
                     .font(AppFont.subheadline())
                     .textInputAutocapitalization(.never)
-                    .foregroundStyle(.white)
+                    .appTextOnCard()
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 18)
@@ -138,5 +151,6 @@ struct AuthView: View {
         showResetPassword: {}
     )
     .padding(20)
-    .background(AppTab.home.theme.previewBackground())
+    .background(PageTheme.auth.previewBackground())
+    .environment(\.pageTheme, PageTheme.auth)
 }

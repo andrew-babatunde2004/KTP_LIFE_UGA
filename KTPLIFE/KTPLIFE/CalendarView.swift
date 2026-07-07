@@ -50,7 +50,7 @@ struct CalendarView: View {
         var body: some View {
             Text(message)
                 .font(AppFont.subheadline())
-                .foregroundStyle(.white.opacity(0.72))
+                .appTextOnCardSecondary()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
                 .matteCard()
@@ -82,7 +82,7 @@ private struct CalendarEventCard: View {
     var body: some View {
         Text(event.title + " - " + event.startDate.formatted(date: .abbreviated, time: .omitted))
             .font(AppFont.headline())
-        .foregroundStyle(.white)
+            .appTextOnCard()
     }
  }
 }

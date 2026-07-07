@@ -61,7 +61,7 @@ private struct MessagesHotbarButton: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
                 .accessibilityLabel(section.title)
-                .foregroundStyle(.white.opacity(iconOpacity))
+                    .foregroundStyle(Color.white.opacity(iconOpacity))
         }
         .buttonStyle(.plain)
     }
