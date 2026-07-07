@@ -1,25 +1,26 @@
 # KTP_LIFE_UGA
 
-Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to a separate backend over HTTP — configure the base URL in `Secrets.plist` (see below). This repo contains the SwiftUI client only; the API is maintained outside this project.
+Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to the production KTP API at `https://api2.ugaktp.com` by default. This repo contains the SwiftUI client only; the API is maintained outside this project.
 
 ## Getting started
 
 ### Prerequisites
 
 - Xcode (open `KTPLIFE/KTPLIFE.xcodeproj`)
-- A running KTP backend that exposes the endpoints listed below
+- The KTP backend at `https://api2.ugaktp.com`
+- An Authentik access token for protected routes such as `/members`
 
 ### Configure the API URL
 
 1. Copy the secrets template (once per machine):
-   ```powershell
+   ```sh
    cd KTPLIFE/KTPLIFE
-   copy Secrets.example.plist Secrets.plist
+   cp Secrets.example.plist Secrets.plist
    ```
-2. Edit `Secrets.plist` and set `API_BASE_URL` to your backend:
-   - **Simulator (API on same Mac):** `http://127.0.0.1:3000/`
-   - **Physical iPhone:** your server or Mac LAN IP, e.g. `http://192.168.1.10:3000/`
-   - **Hosted backend:** your deployed URL, e.g. `https://api.example.com/`
+2. Edit `Secrets.plist` and set `API_BASE_URL` if you need to override production:
+   - **Production:** `https://api2.ugaktp.com`
+   - **Internal server/LXC network:** `http://10.0.0.53:4000`
+3. Optional for temporary local testing: set `API_ACCESS_TOKEN` to a valid Authentik access token. This is only a development bridge until the iOS Authentik login flow stores the token in the app.
 
 `Secrets.plist` is gitignored. `Secrets.example.plist` is the committed template.
 
@@ -27,44 +28,53 @@ Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to a separate b
 
 1. Open `KTPLIFE/KTPLIFE.xcodeproj` and run on the **Simulator** or a device.
 2. Sign in (auth is still in progress) and use the tab bar to navigate.
-3. **Messages → Directory** loads members from `GET /members` when the backend is reachable.
+3. **Messages → Directory** loads members from protected `GET /members` when a valid Authentik access token is available.
 
 ### Key files
 
 | File | Role |
 |------|------|
-| `KTPLIFE/KTPLIFE/Secrets.example.plist` | Committed template for `API_BASE_URL` |
-| `KTPLIFE/KTPLIFE/Secrets.plist` | Local API URL (gitignored; copy from example) |
-| `KTPLIFE/KTPServices/APIConfig.swift` | Loads `API_BASE_URL` from Secrets plist |
-| `KTPLIFE/KTPServices/MemberAPIService.swift` | Fetches `/members` |
+| `KTPLIFE/KTPLIFE/Secrets.example.plist` | Committed template for `API_BASE_URL` and optional dev `API_ACCESS_TOKEN` |
+| `KTPLIFE/KTPLIFE/Secrets.plist` | Local API override/token file (gitignored; copy from example) |
+| `KTPLIFE/KTPServices/APIConfig.swift` | Loads API config from Secrets plist |
+| `KTPLIFE/KTPServices/MemberAPIService.swift` | Fetches protected `/members` with a Bearer token |
 | `KTPLIFE/KTPServices/PhotoService.swift` | Fetches `/photos` |
 | `KTPLIFE/KTPServices/CalendarNetwork.swift` | Fetches `/events` |
 | `KTPLIFE/KTPModels/DirectoryMember.swift` | Swift model matching member JSON |
 | `KTPLIFE/KTPLIFE/MessagesView.swift` | Messages tab + directory routing |
 
-### API contract (`GET /members`)
+### API contract
 
-The directory expects an array of objects shaped like:
+Public endpoints:
 
-```json
-{
-  "id": "1",
-  "name": "Andrew Babatunde",
-  "role": "Computer Science",
-  "year": "2027",
-  "group": "activeMembers"
-}
+```text
+GET /                 Health check
+GET /events           Public events
+GET /events/:id       Single public event
+GET /photos           Public photo metadata
 ```
 
-`group` must be one of: `activeMembers`, `pledges`, `eBoard`, `alumni`.
+Protected endpoints require:
 
-Other tabs use `GET /events`, `GET /photos`, and (planned) `GET /messages` against the same `API_BASE_URL`.
+```text
+Authorization: Bearer <access_token>
+```
+
+The directory uses:
+
+```text
+GET /members
+GET /members?group=active
+GET /members/:id
+```
+
+The Swift member model accepts production member groups: `active`, `pledge`, `eboard`, `chair`, and `alumni`.
 
 ### Troubleshooting
 
-**Directory or other tabs show a load error** — confirm `API_BASE_URL` in `Secrets.plist` is correct, the backend is running, and the device can reach that host (Simulator vs physical device use different URLs).
+**Directory shows “Sign in with Authentik”** — `/members` is protected. Wire the real Authentik login flow or temporarily set `API_ACCESS_TOKEN` in local `Secrets.plist`.
 
-**Physical device cannot connect** — `127.0.0.1` only works on the Simulator. Use your Mac’s LAN IP or a hosted API URL on a real iPhone.
+**Public tabs show a load error** — confirm `API_BASE_URL` in `Secrets.plist` is correct and the device can reach that host.
 
 **App Transport Security** — local HTTP is allowed via `NSAllowsLocalNetworking` in `Info.plist`. Production HTTPS endpoints do not need extra ATS changes.
 

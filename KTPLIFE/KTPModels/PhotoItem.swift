@@ -6,6 +6,42 @@ struct PhotoItem: Identifiable, Codable {
     let imagePath: String
     let caption: String?
     let uploadedBy: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case imagePath
+        case assetId
+        case immichAssetId
+        case caption
+        case uploadedBy
+    }
+
+    init(id: String, title: String, imagePath: String, caption: String?, uploadedBy: String?) {
+        self.id = id
+        self.title = title
+        self.imagePath = imagePath
+        self.caption = caption
+        self.uploadedBy = uploadedBy
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        if let stringId = try container.decodeIfPresent(String.self, forKey: .id) {
+            id = stringId
+        } else {
+            id = String(try container.decode(Int.self, forKey: .id))
+        }
+
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Chapter Photo"
+        imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
+            ?? container.decodeIfPresent(String.self, forKey: .assetId)
+            ?? container.decodeIfPresent(String.self, forKey: .immichAssetId)
+            ?? ""
+        caption = try container.decodeIfPresent(String.self, forKey: .caption)
+        uploadedBy = try container.decodeIfPresent(String.self, forKey: .uploadedBy)
+    }
 }
 
 #if DEBUG

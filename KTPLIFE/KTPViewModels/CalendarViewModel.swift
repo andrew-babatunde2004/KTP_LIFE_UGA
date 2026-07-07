@@ -3,7 +3,7 @@ import Observation
 
 @Observable
 class CalendarViewModel {
-    var events: [Calendar] = []
+    var events: [CalendarEvent] = []
     var isLoading = false 
     var errorMessage: String? = nil
 
@@ -19,8 +19,8 @@ class CalendarViewModel {
             self.events = try await networkService.fetchCalendarEvents()
         } catch {
             self.errorMessage = "Failed to load calendar events"
-        } finally {
-            isLoading = false
         }
+
+        isLoading = false
     }
 }

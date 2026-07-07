@@ -7,7 +7,7 @@ import SwiftUI
 
 struct MemberDirectoryView: View {
     @State private var directorySearchText = ""
-    @State private var selectedDirectoryGroup: MemberGroup = .activeMembers
+    @State private var selectedDirectoryGroup: MemberGroup = .active
     @State private var directoryMembers: [DirectoryMember] = []
     @State private var isLoadingDirectory = false
     @State private var directoryLoadError: String?
@@ -47,7 +47,7 @@ struct MemberDirectoryView: View {
     }
     
     private var filteredMembers: [DirectoryMember] {
-        // filters by pledges, eBoard, alumni, and active members
+        // Filters by production member groups: active, pledge, eboard, chair, and alumni.
         directoryMembers.filter { $0.group == selectedDirectoryGroup }
             .filter { member in
                 guard !directorySearchText.isEmpty else { return true }
@@ -76,10 +76,18 @@ struct MemberDirectoryView: View {
             directoryMembers = try await apiService.fetchDirectoryMembers()
         } catch {
             directoryMembers = []
-            directoryLoadError = "Could not load directory. Start the API with npm start in ktp-api."
+            directoryLoadError = directoryErrorMessage(for: error)
         }
         
         isLoadingDirectory = false
+    }
+
+    private func directoryErrorMessage(for error: Error) -> String {
+        if case KTPAPIError.missingAccessToken = error {
+            return "Sign in with Authentik to load the directory."
+        }
+
+        return "Could not load directory from the KTP API."
     }
 }
     

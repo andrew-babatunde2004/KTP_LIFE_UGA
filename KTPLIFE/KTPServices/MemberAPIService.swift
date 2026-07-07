@@ -1,40 +1,52 @@
 import Foundation
 
-/// Client for the local KTP Node API (`ktp-api`). Used by the iOS app to load live directory data.
-///
-/// Development setup:
-/// 1. Copy `KTPLIFE/Secrets.example.plist` to `KTPLIFE/Secrets.plist` and set `API_BASE_URL`.
-/// 2. Start Postgres and run `npm run db:init` in `ktp-api`.
-/// 3. Run `npm start` in `ktp-api` (listens on port 3000).
+enum KTPAPIError: Error {
+    case missingAccessToken
+    case badStatusCode(Int)
+}
+
+/// Client for the KTP API. Protected routes require an Authentik access token.
 final class KTPAPIService {
 
     private let baseURL: URL
     private let session: URLSession
+    private let accessTokenProvider: () -> String?
 
-    init(baseURL: URL = APIConfig.baseURL, session: URLSession = .shared) {
+    init(
+        baseURL: URL = APIConfig.baseURL,
+        session: URLSession = .shared,
+        accessTokenProvider: @escaping () -> String? = { APIConfig.developmentAccessToken }
+    ) {
         self.baseURL = baseURL
         self.session = session
+        self.accessTokenProvider = accessTokenProvider
     }
 
-    /// Fetches all members for the Messages directory tab.
-    /// Expected response: `[DirectoryMember]` from `GET /members`.
+    /// Fetches all completed member profiles from protected `GET /members`.
     func fetchDirectoryMembers() async throws -> [DirectoryMember] {
         let url = baseURL.appendingPathComponent("members")
-
-        // fetches data fro the url
-        let (data, response) = try await session.data(from: url)
-
-        // protects from invalid responses
-        guard let httpResponse = response as? HTTPURLResponse,
-              200..<300 ~= httpResponse.statusCode else {
-            throw URLError(.badServerResponse)
-        }
+        let data = try await fetchProtectedData(from: url)
 
         return try JSONDecoder().decode([DirectoryMember].self, from: data)
     }
 
-    // func fetchMessageThreads() async throws -> [MessageThread] {
-    //     let url = baseURL.appendingPathComponent("messages")
-    //     ...
-    // }
+    private func fetchProtectedData(from url: URL) async throws -> Data {
+        guard let accessToken = accessTokenProvider(), !accessToken.isEmpty else {
+            throw KTPAPIError.missingAccessToken
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+
+        guard 200..<300 ~= httpResponse.statusCode else {
+            throw KTPAPIError.badStatusCode(httpResponse.statusCode)
+        }
+
+        return data
+    }
 }

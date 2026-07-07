@@ -14,6 +14,8 @@ class PhotoService {
               httpResponse.statusCode == 200 else {
             throw URLError(.badServerResponse)
         }
-        return try JSONDecoder().decode([PhotoItem].self, from: data)
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode([PhotoItem].self, from: data)
     }
 }
