@@ -30,21 +30,18 @@ enum MemberGroup: String, Codable, Identifiable, CaseIterable {
         let rawValue = try container.decode(String.self)
 
         switch rawValue.lowercased() {
-        case "active", "activemembers":
+        case "active", "activemember", "active_member", "active-members", "activemembers":
             self = .active
-        case "pledge", "pledges":
+        case "pledge", "pledges", "new_member", "newmember":
             self = .pledge
-        case "eboard", "e_board", "e-board":
+        case "eboard", "e_board", "e-board", "exec", "executive":
             self = .eboard
         case "chair", "chairs":
             self = .chair
-        case "alumni", "alum":
+        case "alumni", "alum", "alumnus":
             self = .alumni
         default:
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Unknown member group: \(rawValue)"
-            )
+            self = .active
         }
     }
 

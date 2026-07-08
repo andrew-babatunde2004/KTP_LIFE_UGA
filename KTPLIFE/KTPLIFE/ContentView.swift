@@ -9,11 +9,9 @@ import SwiftData
 import SwiftUI
 
 struct ContentView: View {
-    @State private var email = ""
-    @State private var password = ""
-    @State private var authScreen: AuthScreen = .signup
-    @State private var isAuthenticated = false
+    @EnvironmentObject private var authManager: AuthManager
     @State private var selectedTab: AppTab = .home
+    @State private var didBootstrap = false
 
     var body: some View {
         ZStack {
@@ -21,8 +19,18 @@ struct ContentView: View {
             rootContent
         }
         .environment(\.pageTheme, activePageTheme)
+        .task {
+            guard !didBootstrap else { return }
+            didBootstrap = true
+            await authManager.bootstrap()
+        }
+        .onChange(of: authManager.phase) { _, newPhase in
+            if newPhase != .signedIn {
+                selectedTab = .home
+            }
+        }
         .safeAreaInset(edge: .bottom) {
-            if isAuthenticated {
+            if authManager.profileIsComplete {
                 AppTabBar(selectedTab: $selectedTab)
             }
         }
@@ -30,17 +38,41 @@ struct ContentView: View {
 
     @ViewBuilder
     private var rootContent: some View {
-        if isAuthenticated {
+        switch authManager.phase {
+        case .loading, .signedOut, .signingIn:
+            SSOLoginView(
+                isLoading: authManager.isBusy,
+                errorMessage: authManager.errorMessage,
+                signIn: {
+                    Task {
+                        await authManager.signInWithSSO()
+                    }
+                }
+            )
+            .contentShellPadding(bottom: 32)
+        case .profileIncomplete:
+            ProfileIncompleteView(
+                errorMessage: authManager.errorMessage,
+                retrySync: {
+                    Task {
+                        await authManager.checkProfileStatus()
+                    }
+                },
+                signOut: {
+                    Task {
+                        await authManager.signOut()
+                    }
+                }
+            )
+            .contentShellPadding(bottom: 32)
+        case .signedIn:
             appShellView
                 .contentShellPadding(bottom: 116)
-        } else {
-            authFlowView
-                .contentShellPadding(bottom: 32)
         }
     }
 
     private var activePageTheme: PageTheme {
-        isAuthenticated ? selectedTab.theme : .auth
+        authManager.profileIsComplete ? selectedTab.theme : .auth
     }
 
     @ViewBuilder
@@ -50,6 +82,8 @@ struct ContentView: View {
             HomeView(returnToSignup: returnToSignupForTesting)
         case .messages:
             MessagesView()
+        case .directory:
+            MemberDirectoryView()
         case .opportunities:
             OpportunitiesView()
         case .calendar:
@@ -59,68 +93,11 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
-    private var authFlowView: some View {
-        switch authScreen {
-        case .signup:
-            SignupView(showLogin: showLogin)
-        case .login:
-            AuthView(
-                email: $email,
-                password: $password,
-                signIn: signIn,
-                showSignup: showSignup,
-                showResetPassword: showResetPassword
-            )
-        case .resetPassword:
-            ResetPasswordView(showLogin: showLogin)
-        }
-    }
-
-    private var canSignIn: Bool {
-        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
-    }
-
-    private func signIn() {
-        guard canSignIn else { return }
-
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            isAuthenticated = true
-        }
-    }
-
-    private func showLogin() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            authScreen = .login
-        }
-    }
-
-    private func showSignup() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            authScreen = .signup
-        }
-    }
-
-    private func showResetPassword() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            authScreen = .resetPassword
-        }
-    }
-
     private func returnToSignupForTesting() {
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-            isAuthenticated = false
-            authScreen = .signup
-            selectedTab = .home
-            password = ""
+        Task {
+            await authManager.signOut()
         }
     }
-}
-
-private enum AuthScreen {
-    case signup
-    case login
-    case resetPassword
 }
 
 private extension View {
@@ -134,4 +111,5 @@ private extension View {
 #Preview {
     ContentView()
         .modelContainer(PreviewModelContainer.shared)
+        .environmentObject(AuthManager.previewSignedOut)
 }

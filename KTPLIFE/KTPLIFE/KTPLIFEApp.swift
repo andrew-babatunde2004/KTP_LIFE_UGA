@@ -10,6 +10,8 @@ import SwiftData
 
 @main
 struct KTPLIFEApp: App {
+    @StateObject private var authManager = AuthManager()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -26,6 +28,7 @@ struct KTPLIFEApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(authManager)
         }
         .modelContainer(sharedModelContainer)
     }

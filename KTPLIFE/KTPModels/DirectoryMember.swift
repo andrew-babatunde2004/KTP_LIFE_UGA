@@ -14,6 +14,9 @@ struct DirectoryMember: Identifiable, Codable {
         case name
         case displayName = "display_name"
         case fullName = "full_name"
+        case firstName = "first_name"
+        case lastName = "last_name"
+        case preferredName = "preferred_name"
         case username
         case role
         case title
@@ -21,6 +24,7 @@ struct DirectoryMember: Identifiable, Codable {
         case memberGroup = "member_group"
         case year
         case graduationYear = "graduation_year"
+        case graduationDate = "graduation_date"
         case classYear = "class_year"
         case group
         case status
@@ -45,25 +49,46 @@ struct DirectoryMember: Identifiable, Codable {
             id = try container.decode(String.self, forKey: .authentikId)
         }
 
-        name = try container.decodeFirstPresentString(
-            for: [.name, .displayName, .fullName, .username],
-            fallback: "Unnamed Member"
-        )
+        if let directName = try container.decodeFirstPresentStringIfPresent(for: [.name, .displayName, .fullName, .preferredName]) {
+            name = directName
+        } else {
+            let firstName = try container.decodeFirstPresentStringIfPresent(for: [.firstName])
+            let lastName = try container.decodeFirstPresentStringIfPresent(for: [.lastName])
+            let composedName = [firstName, lastName]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+
+            name = composedName.isEmpty
+                ? try container.decodeFirstPresentString(for: [.username], fallback: "Unnamed Member")
+                : composedName
+        }
 
         role = try container.decodeFirstPresentString(
             for: [.role, .title, .major, .memberGroup],
             fallback: "Member"
         )
 
-        year = try container.decodeFirstPresentStringIfPresent(for: [.year, .graduationYear, .classYear])
+        year = try container.decodeFirstPresentStringIfPresent(for: [.year, .graduationYear, .classYear, .graduationDate])
 
         if let groupValue = try container.decodeIfPresent(MemberGroup.self, forKey: .group) {
             group = groupValue
         } else if let memberGroupValue = try container.decodeIfPresent(MemberGroup.self, forKey: .memberGroup) {
             group = memberGroupValue
+        } else if let statusValue = try container.decodeIfPresent(MemberGroup.self, forKey: .status) {
+            group = statusValue
         } else {
-            group = try container.decode(MemberGroup.self, forKey: .status)
+            group = .active
         }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(role, forKey: .role)
+        try container.encodeIfPresent(year, forKey: .year)
+        try container.encode(group, forKey: .group)
     }
 }
 

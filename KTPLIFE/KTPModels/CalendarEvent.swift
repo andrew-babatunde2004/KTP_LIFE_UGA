@@ -38,6 +38,15 @@ struct CalendarEvent: Identifiable, Codable {
         endDate = try container.decodeIfPresent(Date.self, forKey: .endDate) ?? decodedStartDate
         description = try container.decodeIfPresent(String.self, forKey: .description)
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(startDate, forKey: .startDate)
+        try container.encode(endDate, forKey: .endDate)
+        try container.encodeIfPresent(description, forKey: .description)
+    }
 }
 
 #if DEBUG

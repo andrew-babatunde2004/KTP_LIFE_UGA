@@ -9,6 +9,7 @@ import SwiftUI
 enum AppTab: CaseIterable, Identifiable {
     case home
     case messages
+    case directory
     case opportunities
     case calendar
     case photos
@@ -20,7 +21,9 @@ enum AppTab: CaseIterable, Identifiable {
         case .home:
             return "house.fill"
         case .messages:
-            return "person.fill"
+            return "bubble.left.and.bubble.right.fill"
+        case .directory:
+            return "person.2.fill"
         case .opportunities:
             return "briefcase.fill"
         case .calendar:
@@ -36,6 +39,8 @@ enum AppTab: CaseIterable, Identifiable {
             return "Home"
         case .messages:
             return "Messages"
+        case .directory:
+            return "Directory"
         case .opportunities:
             return "Opportunities"
         case .calendar:
@@ -50,11 +55,13 @@ enum AppTab: CaseIterable, Identifiable {
         case .home:
             return .defaultWhite
         case .messages:
+            return .calendar
+        case .directory:
             return .defaultWhite
         case .opportunities:
             return .opportunities
         case .calendar:
-            return .defaultWhite
+            return .calendar
         case .photos:
             return .defaultWhite
         }
@@ -116,6 +123,12 @@ struct PageTheme {
   static let defaultWhite = PageTheme(
     surfaceStyle: .light,
     lightModeBackground: Color(red: 0.96, green: 0.96, blue: 0.94),
+    darkModeBackground: Color(red: 0.11, green: 0.12, blue: 0.14)
+  )
+
+  static let calendar = PageTheme(
+    surfaceStyle: .light,
+    lightModeBackground: .white,
     darkModeBackground: Color(red: 0.11, green: 0.12, blue: 0.14)
   )
 

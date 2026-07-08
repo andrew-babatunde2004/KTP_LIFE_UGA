@@ -6,27 +6,8 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXContainerItemProxy section */
-		499611332FE1DDAB00E5014D /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 4996111B2FE1DDA900E5014D /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 499611222FE1DDA900E5014D;
-			remoteInfo = KTPLIFE;
-		};
-		4996113D2FE1DDAB00E5014D /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 4996111B2FE1DDA900E5014D /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 499611222FE1DDA900E5014D;
-			remoteInfo = KTPLIFE;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin PBXFileReference section */
 		499611232FE1DDA900E5014D /* KTPLIFE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KTPLIFE.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		499611322FE1DDAB00E5014D /* KTPLIFETests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KTPLIFETests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4996113C2FE1DDAB00E5014D /* KTPLIFEUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KTPLIFEUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -37,20 +18,6 @@
 			);
 			target = 499611222FE1DDA900E5014D /* KTPLIFE */;
 		};
-		499611512FE1E24C00E5014D /* Exceptions for "KTPLIFE" folder in "KTPLIFETests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				ContentView.swift,
-			);
-			target = 499611312FE1DDAB00E5014D /* KTPLIFETests */;
-		};
-		499611522FE1E24C00E5014D /* Exceptions for "KTPLIFE" folder in "KTPLIFEUITests" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				ContentView.swift,
-			);
-			target = 4996113B2FE1DDAB00E5014D /* KTPLIFEUITests */;
-		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -58,20 +25,8 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				4968A9802FE7C3B900ABB38E /* Exceptions for "KTPLIFE" folder in "KTPLIFE" target */,
-				499611512FE1E24C00E5014D /* Exceptions for "KTPLIFE" folder in "KTPLIFETests" target */,
-				499611522FE1E24C00E5014D /* Exceptions for "KTPLIFE" folder in "KTPLIFEUITests" target */,
 			);
 			path = KTPLIFE;
-			sourceTree = "<group>";
-		};
-		499611352FE1DDAB00E5014D /* KTPLIFETests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = KTPLIFETests;
-			sourceTree = "<group>";
-		};
-		4996113F2FE1DDAB00E5014D /* KTPLIFEUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = KTPLIFEUITests;
 			sourceTree = "<group>";
 		};
 		499611532FE1E24D00E5014D /* KTPModels */ = {
@@ -84,24 +39,15 @@
 			path = KTPServices;
 			sourceTree = "<group>";
 		};
+		499611552FE1E24D00E5014D /* KTPViewModels */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KTPViewModels;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		499611202FE1DDA900E5014D /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4996112F2FE1DDAB00E5014D /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		499611392FE1DDAB00E5014D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -117,8 +63,7 @@
 				499611252FE1DDA900E5014D /* KTPLIFE */,
 				499611532FE1E24D00E5014D /* KTPModels */,
 				499611542FE1E24D00E5014D /* KTPServices */,
-				499611352FE1DDAB00E5014D /* KTPLIFETests */,
-				4996113F2FE1DDAB00E5014D /* KTPLIFEUITests */,
+				499611552FE1E24D00E5014D /* KTPViewModels */,
 				499611242FE1DDA900E5014D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -127,8 +72,6 @@
 			isa = PBXGroup;
 			children = (
 				499611232FE1DDA900E5014D /* KTPLIFE.app */,
-				499611322FE1DDAB00E5014D /* KTPLIFETests.xctest */,
-				4996113C2FE1DDAB00E5014D /* KTPLIFEUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -152,6 +95,7 @@
 				499611252FE1DDA900E5014D /* KTPLIFE */,
 				499611532FE1E24D00E5014D /* KTPModels */,
 				499611542FE1E24D00E5014D /* KTPServices */,
+				499611552FE1E24D00E5014D /* KTPViewModels */,
 			);
 			name = KTPLIFE;
 			packageProductDependencies = (
@@ -159,52 +103,6 @@
 			productName = KTPLIFE;
 			productReference = 499611232FE1DDA900E5014D /* KTPLIFE.app */;
 			productType = "com.apple.product-type.application";
-		};
-		499611312FE1DDAB00E5014D /* KTPLIFETests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 499611492FE1DDAB00E5014D /* Build configuration list for PBXNativeTarget "KTPLIFETests" */;
-			buildPhases = (
-				4996112E2FE1DDAB00E5014D /* Sources */,
-				4996112F2FE1DDAB00E5014D /* Frameworks */,
-				499611302FE1DDAB00E5014D /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				499611342FE1DDAB00E5014D /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				499611352FE1DDAB00E5014D /* KTPLIFETests */,
-			);
-			name = KTPLIFETests;
-			packageProductDependencies = (
-			);
-			productName = KTPLIFETests;
-			productReference = 499611322FE1DDAB00E5014D /* KTPLIFETests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		4996113B2FE1DDAB00E5014D /* KTPLIFEUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 4996114C2FE1DDAB00E5014D /* Build configuration list for PBXNativeTarget "KTPLIFEUITests" */;
-			buildPhases = (
-				499611382FE1DDAB00E5014D /* Sources */,
-				499611392FE1DDAB00E5014D /* Frameworks */,
-				4996113A2FE1DDAB00E5014D /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				4996113E2FE1DDAB00E5014D /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				4996113F2FE1DDAB00E5014D /* KTPLIFEUITests */,
-			);
-			name = KTPLIFEUITests;
-			packageProductDependencies = (
-			);
-			productName = KTPLIFEUITests;
-			productReference = 4996113C2FE1DDAB00E5014D /* KTPLIFEUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
 
@@ -218,14 +116,6 @@
 				TargetAttributes = {
 					499611222FE1DDA900E5014D = {
 						CreatedOnToolsVersion = 26.0.1;
-					};
-					499611312FE1DDAB00E5014D = {
-						CreatedOnToolsVersion = 26.0.1;
-						TestTargetID = 499611222FE1DDA900E5014D;
-					};
-					4996113B2FE1DDAB00E5014D = {
-						CreatedOnToolsVersion = 26.0.1;
-						TestTargetID = 499611222FE1DDA900E5014D;
 					};
 				};
 			};
@@ -244,28 +134,12 @@
 			projectRoot = "";
 			targets = (
 				499611222FE1DDA900E5014D /* KTPLIFE */,
-				499611312FE1DDAB00E5014D /* KTPLIFETests */,
-				4996113B2FE1DDAB00E5014D /* KTPLIFEUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		499611212FE1DDA900E5014D /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		499611302FE1DDAB00E5014D /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4996113A2FE1DDAB00E5014D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -282,34 +156,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4996112E2FE1DDAB00E5014D /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		499611382FE1DDAB00E5014D /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		499611342FE1DDAB00E5014D /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 499611222FE1DDA900E5014D /* KTPLIFE */;
-			targetProxy = 499611332FE1DDAB00E5014D /* PBXContainerItemProxy */;
-		};
-		4996113E2FE1DDAB00E5014D /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 499611222FE1DDA900E5014D /* KTPLIFE */;
-			targetProxy = 4996113D2FE1DDAB00E5014D /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		499611442FE1DDAB00E5014D /* Debug */ = {
@@ -446,6 +293,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KTPLIFE/Info.plist;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We need to acces your photos to upload to our photocircle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -480,6 +328,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KTPLIFE/Info.plist;
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We need to acces your photos to upload to our photocircle";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -503,90 +352,6 @@
 			};
 			name = Release;
 		};
-		4996114A2FE1DDAB00E5014D /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZAL9S5GDHG;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = SB.KTPLIFETests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KTPLIFE.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KTPLIFE";
-			};
-			name = Debug;
-		};
-		4996114B2FE1DDAB00E5014D /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZAL9S5GDHG;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = SB.KTPLIFETests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KTPLIFE.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KTPLIFE";
-			};
-			name = Release;
-		};
-		4996114D2FE1DDAB00E5014D /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZAL9S5GDHG;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = SB.KTPLIFEUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = KTPLIFE;
-			};
-			name = Debug;
-		};
-		4996114E2FE1DDAB00E5014D /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZAL9S5GDHG;
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = SB.KTPLIFEUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = KTPLIFE;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -604,24 +369,6 @@
 			buildConfigurations = (
 				499611472FE1DDAB00E5014D /* Debug */,
 				499611482FE1DDAB00E5014D /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		499611492FE1DDAB00E5014D /* Build configuration list for PBXNativeTarget "KTPLIFETests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				4996114A2FE1DDAB00E5014D /* Debug */,
-				4996114B2FE1DDAB00E5014D /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		4996114C2FE1DDAB00E5014D /* Build configuration list for PBXNativeTarget "KTPLIFEUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				4996114D2FE1DDAB00E5014D /* Debug */,
-				4996114E2FE1DDAB00E5014D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

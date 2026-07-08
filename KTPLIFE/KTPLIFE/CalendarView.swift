@@ -6,90 +6,423 @@
 import SwiftUI
 
 struct CalendarView: View {
-    @State private var calendarEvent: [CalendarEvent] = []
-    @State private var isLoadingCalendar = false
-    @State private var errorMessage: String? = nil
+    @State private var viewModel = CalendarViewModel()
+    @State private var displayedMonth = Date()
+    @State private var selectedDate = Date()
+    @State private var userSelectedDate = false
 
-    private let networkService = CalendarNetworkService()
+    private let calendar = Calendar.ktpCalendar
 
-     private var isPreview: Bool {
+    private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }
 
-    var body: some View {
-        PageScaffold {
-                calendarEventList
-                .padding(20)
-        }
-         .task {
-                    await loadCalendarEvents()
-                }
+    private var sortedEvents: [CalendarEvent] {
+        viewModel.events.sorted { $0.startDate < $1.startDate }
     }
 
-    private var calendarEventList: some View {
-        LazyVStack(spacing: 14) {
-            if isLoadingCalendar {
-                CalendarStatusCard(message: "Loading calendar events...")
-            } else if let errorMessage {
-                CalendarStatusCard(message: errorMessage)
-            } else if calendarEvent.isEmpty {
-                CalendarStatusCard(message: "No calendar events found.")
+    private var nextEvent: CalendarEvent? {
+        sortedEvents.first { $0.endDate >= Date() } ?? sortedEvents.first
+    }
+
+    private var selectedDateEvents: [CalendarEvent] {
+        sortedEvents.filter { calendar.isDate($0.startDate, inSameDayAs: selectedDate) }
+    }
+
+    private var visibleUpcomingEvents: [CalendarEvent] {
+        let sameDayEvents = selectedDateEvents
+        if !sameDayEvents.isEmpty {
+            return sameDayEvents
+        }
+
+        return Array(sortedEvents.filter { $0.endDate >= Date() }.prefix(3))
+    }
+
+    var body: some View {
+        PageScaffold(showsPageHeader: false) {
+            VStack(spacing: 26) {
+                CalendarMonthPanel(
+                    displayedMonth: displayedMonth,
+                    selectedDate: selectedDate,
+                    events: sortedEvents,
+                    selectDate: { date in
+                        selectedDate = date
+                        userSelectedDate = true
+                    },
+                    previousMonth: showPreviousMonth,
+                    nextMonth: showNextMonth
+                )
+
+                upcomingSection
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .background(CalendarDesign.background)
+        .task {
+            await loadCalendarEvents()
+        }
+        .onChange(of: viewModel.events.count) { _, _ in
+            syncSelectionToNextEventIfNeeded()
+        }
+        .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.events.count)
+        .animation(.spring(response: 0.32, dampingFraction: 0.9), value: displayedMonth)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: selectedDate)
+    }
+
+    @ViewBuilder
+    private var upcomingSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Upcoming")
+                .font(AppFont.largeTitle(20))
+                .foregroundStyle(CalendarDesign.title)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+
+            if viewModel.isLoading {
+                CalendarStatusRow(message: "Loading calendar events...")
+            } else if let errorMessage = viewModel.errorMessage {
+                CalendarStatusRow(message: errorMessage)
+            } else if visibleUpcomingEvents.isEmpty {
+                CalendarStatusRow(message: "No events scheduled.")
             } else {
-                LazyVStack(spacing: 14) {
-                    ForEach(calendarEvent) { event in
-                        CalendarEventCard(event: event)
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(visibleUpcomingEvents.enumerated()), id: \.element.id) { index, event in
+                        CalendarEventRow(event: event, accent: CalendarDesign.dotColors[index % CalendarDesign.dotColors.count])
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
             }
         }
     }
 
-    private struct CalendarStatusCard: View {
-        let message: String
-
-        var body: some View {
-            Text(message)
-                .font(AppFont.subheadline())
-                .appTextOnCardSecondary()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
-                .matteCard()
+    private func showPreviousMonth() {
+        guard let month = calendar.date(byAdding: .month, value: -1, to: displayedMonth) else {
+            return
         }
+        displayedMonth = month
+        selectedDate = calendar.startOfMonth(for: month)
+        userSelectedDate = true
+    }
+
+    private func showNextMonth() {
+        guard let month = calendar.date(byAdding: .month, value: 1, to: displayedMonth) else {
+            return
+        }
+        displayedMonth = month
+        selectedDate = calendar.startOfMonth(for: month)
+        userSelectedDate = true
     }
 
     @MainActor
     private func loadCalendarEvents() async {
         if isPreview {
-            calendarEvent = CalendarEvent.previewSamples
-            errorMessage = nil
+            viewModel.events = CalendarEvent.previewSamples
+            viewModel.errorMessage = nil
+            syncSelectionToNextEventIfNeeded()
             return
         }
 
-        isLoadingCalendar = true
-        errorMessage = nil
-        do {
-            calendarEvent = try await networkService.fetchCalendarEvents()
-        } catch {
-            calendarEvent = []
-            errorMessage = "Failed to load calendar events"
+        await viewModel.fetchEvents()
+        syncSelectionToNextEventIfNeeded()
+    }
+
+    private func syncSelectionToNextEventIfNeeded() {
+        guard !userSelectedDate, let nextEvent else {
+            return
         }
-        isLoadingCalendar = false
+
+        selectedDate = nextEvent.startDate
+        displayedMonth = calendar.startOfMonth(for: nextEvent.startDate)
+    }
+}
+
+private struct CalendarMonthPanel: View {
+    let displayedMonth: Date
+    let selectedDate: Date
+    let events: [CalendarEvent]
+    let selectDate: (Date) -> Void
+    let previousMonth: () -> Void
+    let nextMonth: () -> Void
+
+    private let calendar = Calendar.ktpCalendar
+
+    private var monthDays: [CalendarDay] {
+        calendar.monthGrid(containing: displayedMonth)
     }
 
+    private var monthTitle: String {
+        displayedMonth.formatted(.dateTime.month(.wide))
+    }
 
-private struct CalendarEventCard: View {
-    let event: CalendarEvent
+    private var yearTitle: String {
+        displayedMonth.formatted(.dateTime.year())
+    }
+
     var body: some View {
-        Text(event.title + " - " + event.startDate.formatted(date: .abbreviated, time: .omitted))
-            .font(AppFont.headline())
-            .appTextOnCard()
+        VStack(spacing: 24) {
+            KTPLogoMark(maxWidth: 76, maxHeight: 32)
+                .padding(.top, 2)
+
+            HStack {
+                MonthButton(systemName: "chevron.left", action: previousMonth)
+
+                Spacer()
+
+                VStack(spacing: 2) {
+                    Text(monthTitle)
+                        .font(AppFont.title(23))
+                        .foregroundStyle(CalendarDesign.title)
+
+                    Text(yearTitle)
+                        .font(AppFont.caption(weight: .medium))
+                        .foregroundStyle(CalendarDesign.muted)
+                }
+
+                Spacer()
+
+                MonthButton(systemName: "chevron.right", action: nextMonth)
+            }
+
+            VStack(spacing: 10) {
+                HStack {
+                    ForEach(CalendarDay.weekdaySymbols, id: \.self) { weekday in
+                        Text(weekday)
+                            .font(AppFont.footnote(weight: .medium))
+                            .foregroundStyle(CalendarDesign.muted)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7), spacing: 20) {
+                    ForEach(monthDays) { day in
+                        CalendarDayCell(
+                            day: day,
+                            isSelected: calendar.isDate(day.date, inSameDayAs: selectedDate),
+                            eventCount: eventCount(on: day.date),
+                            dotOffset: dotOffset(for: day.date),
+                            action: { selectDate(day.date) }
+                        )
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 4)
     }
- }
+
+    private func eventCount(on date: Date) -> Int {
+        min(events.filter { calendar.isDate($0.startDate, inSameDayAs: date) }.count, 3)
+    }
+
+    private func dotOffset(for date: Date) -> Int {
+        guard let event = events.first(where: { calendar.isDate($0.startDate, inSameDayAs: date) }) else {
+            return 0
+        }
+
+        return abs(event.id.hashValue) % CalendarDesign.dotColors.count
+    }
+}
+
+private struct MonthButton: View {
+    let systemName: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(CalendarDesign.title)
+                .frame(width: 34, height: 34)
+                .background(CalendarDesign.element, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(CalendarDesign.border, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(systemName == "chevron.left" ? "Previous month" : "Next month")
+    }
+}
+
+private struct CalendarDayCell: View {
+    let day: CalendarDay
+    let isSelected: Bool
+    let eventCount: Int
+    let dotOffset: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                ZStack {
+                    if isSelected {
+                        Circle()
+                            .fill(Color.black)
+                            .frame(width: 30, height: 30)
+                    }
+
+                    Text("\(day.number)")
+                        .font(AppFont.footnote(weight: isSelected ? .bold : .medium))
+                        .foregroundStyle(textColor)
+                        .frame(width: 34, height: 30)
+                        .contentTransition(.numericText())
+                }
+
+                HStack(spacing: 3) {
+                    ForEach(0..<eventCount, id: \.self) { index in
+                        Circle()
+                            .fill(CalendarDesign.dotColors[(index + dotOffset) % CalendarDesign.dotColors.count])
+                            .frame(width: 4, height: 4)
+                    }
+                }
+                .frame(height: 4)
+            }
+            .frame(maxWidth: .infinity, minHeight: 38)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var textColor: Color {
+        if isSelected {
+            return .white
+        }
+
+        return day.isInDisplayedMonth ? CalendarDesign.title : CalendarDesign.muted
+    }
+
+    private var accessibilityLabel: String {
+        eventCount == 1 ? "\(day.number), 1 event" : "\(day.number), \(eventCount) events"
+    }
+}
+
+private struct CalendarEventRow: View {
+    let event: CalendarEvent
+    let accent: Color
+
+    private var timeRange: String {
+        if !Calendar.current.isDate(event.startDate, inSameDayAs: event.endDate) {
+            return "\(event.startDate.formatted(date: .abbreviated, time: .shortened)) - \(event.endDate.formatted(date: .abbreviated, time: .shortened))"
+        }
+
+        return "\(event.startDate.formatted(date: .omitted, time: .shortened))-\(event.endDate.formatted(date: .omitted, time: .shortened))"
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            Circle()
+                .fill(accent)
+                .frame(width: 6, height: 6)
+                .padding(.top, 10)
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(timeRange)
+                    .font(AppFont.footnote(weight: .medium))
+                    .foregroundStyle(CalendarDesign.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
+
+                Text(event.title)
+                    .font(AppFont.subheadline())
+                    .foregroundStyle(CalendarDesign.title)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(CalendarDesign.muted)
+                .padding(.top, 3)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(CalendarDesign.element, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(CalendarDesign.border.opacity(0.42))
+                .frame(height: 1)
+                .padding(.leading, 36)
+        }
+    }
+}
+
+private struct CalendarStatusRow: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .font(AppFont.subheadline())
+            .foregroundStyle(CalendarDesign.muted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 18)
+            .background(CalendarDesign.element, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+private struct CalendarDay: Identifiable {
+    let date: Date
+    let number: Int
+    let isInDisplayedMonth: Bool
+
+    var id: Date { date }
+
+    static let weekdaySymbols = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+}
+
+private enum CalendarDesign {
+    static let background = Color.white
+    static let element = Color(red: 0.96, green: 0.97, blue: 0.98)
+    static let title = Color(red: 0.13, green: 0.17, blue: 0.28)
+    static let muted = Color(red: 0.56, green: 0.62, blue: 0.72)
+    static let border = Color(red: 0.88, green: 0.91, blue: 0.94)
+    static let dotColors = [
+        Color(red: 0.14, green: 0.38, blue: 1.00),
+        Color(red: 0.00, green: 0.68, blue: 0.45),
+        Color(red: 0.48, green: 0.32, blue: 1.00)
+    ]
+}
+
+private extension Calendar {
+    static var ktpCalendar: Calendar {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
+        return calendar
+    }
+
+    func startOfMonth(for date: Date) -> Date {
+        let components = dateComponents([.year, .month], from: date)
+        return self.date(from: components) ?? startOfDay(for: date)
+    }
+
+    func monthGrid(containing date: Date) -> [CalendarDay] {
+        let monthStart = startOfMonth(for: date)
+        let range = range(of: .day, in: .month, for: monthStart) ?? 1..<31
+        let leadingDays = (component(.weekday, from: monthStart) - firstWeekday + 7) % 7
+        let gridStart = self.date(byAdding: .day, value: -leadingDays, to: monthStart) ?? monthStart
+        let totalCells = Int(ceil(Double(leadingDays + range.count) / 7.0)) * 7
+
+        return (0..<totalCells).compactMap { offset in
+            guard let cellDate = self.date(byAdding: .day, value: offset, to: gridStart) else {
+                return nil
+            }
+
+            return CalendarDay(
+                date: cellDate,
+                number: component(.day, from: cellDate),
+                isInDisplayedMonth: isDate(cellDate, equalTo: monthStart, toGranularity: .month)
+            )
+        }
+    }
 }
 
 #Preview("Calendar") {
     CalendarView()
         .padding(20)
         .background(AppTab.calendar.theme.previewBackground())
+        .environment(\.pageTheme, AppTab.calendar.theme)
 }
-

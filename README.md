@@ -8,7 +8,7 @@ Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to the producti
 
 - Xcode (open `KTPLIFE/KTPLIFE.xcodeproj`)
 - The KTP backend at `https://api2.ugaktp.com`
-- An Authentik access token for protected routes such as `/members`
+- An Authentik login on `https://auth.ugaktp.com/application/o/ktpapp/`
 
 ### Configure the API URL
 
@@ -20,28 +20,32 @@ Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to the producti
 2. Edit `Secrets.plist` and set `API_BASE_URL` if you need to override production:
    - **Production:** `https://api2.ugaktp.com`
    - **Internal server/LXC network:** `http://10.0.0.53:4000`
-3. Optional for temporary local testing: set `API_ACCESS_TOKEN` to a valid Authentik access token. This is only a development bridge until the iOS Authentik login flow stores the token in the app.
+3. The app now performs native Authentik SSO. No manual access token is needed for normal use.
 
 `Secrets.plist` is gitignored. `Secrets.example.plist` is the committed template.
 
 ### Run the app
 
 1. Open `KTPLIFE/KTPLIFE.xcodeproj` and run on the **Simulator** or a device.
-2. Sign in (auth is still in progress) and use the tab bar to navigate.
-3. **Messages → Directory** loads members from protected `GET /members` when a valid Authentik access token is available.
+2. Sign in with SSO on the initial login screen.
+3. Complete your profile if prompted.
+4. Use the tab bar to navigate. Protected screens load members from `GET /members` after the app stores and refreshes your Authentik tokens.
 
 ### Key files
 
 | File | Role |
 |------|------|
-| `KTPLIFE/KTPLIFE/Secrets.example.plist` | Committed template for `API_BASE_URL` and optional dev `API_ACCESS_TOKEN` |
-| `KTPLIFE/KTPLIFE/Secrets.plist` | Local API override/token file (gitignored; copy from example) |
+| `KTPLIFE/KTPLIFE/Secrets.example.plist` | Committed template for `API_BASE_URL` |
+| `KTPLIFE/KTPLIFE/Secrets.plist` | Local API override file (gitignored; copy from example) |
 | `KTPLIFE/KTPServices/APIConfig.swift` | Loads API config from Secrets plist |
+| `KTPLIFE/KTPServices/AuthConfiguration.swift` | Central Authentik issuer, client ID, redirect URI, and scopes |
+| `KTPLIFE/KTPServices/OIDCAuthService.swift` | Native OIDC login and token refresh |
 | `KTPLIFE/KTPServices/MemberAPIService.swift` | Fetches protected `/members` with a Bearer token |
+| `KTPLIFE/KTPViewModels/AuthManager.swift` | Coordinates login, token refresh, and profile gating |
 | `KTPLIFE/KTPServices/PhotoService.swift` | Fetches `/photos` |
 | `KTPLIFE/KTPServices/CalendarNetwork.swift` | Fetches `/events` |
 | `KTPLIFE/KTPModels/DirectoryMember.swift` | Swift model matching member JSON |
-| `KTPLIFE/KTPLIFE/MessagesView.swift` | Messages tab + directory routing |
+| `KTPLIFE/KTPLIFE/ContentView.swift` | Routes the app between SSO login, profile completion, and the main shell |
 
 ### API contract
 
@@ -72,7 +76,7 @@ The Swift member model accepts production member groups: `active`, `pledge`, `eb
 
 ### Troubleshooting
 
-**Directory shows “Sign in with Authentik”** — `/members` is protected. Wire the real Authentik login flow or temporarily set `API_ACCESS_TOKEN` in local `Secrets.plist`.
+**Directory shows a sign-in screen** — complete the SSO flow first. The app stores Authentik tokens and refreshes them automatically.
 
 **Public tabs show a load error** — confirm `API_BASE_URL` in `Secrets.plist` is correct and the device can reach that host.
 

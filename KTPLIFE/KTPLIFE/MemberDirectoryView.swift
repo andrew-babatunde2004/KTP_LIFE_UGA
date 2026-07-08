@@ -6,16 +6,21 @@
 import SwiftUI
 
 struct MemberDirectoryView: View {
+    @EnvironmentObject private var authManager: AuthManager
     @State private var directorySearchText = ""
     @State private var selectedDirectoryGroup: MemberGroup = .active
     @State private var directoryMembers: [DirectoryMember] = []
     @State private var isLoadingDirectory = false
     @State private var directoryLoadError: String?
-    
-    private let apiService = KTPAPIService()
-    
+
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    }
+
+    private var apiService: KTPAPIService {
+        KTPAPIService(accessTokenProvider: { [authManager] in
+            try await authManager.validAccessToken()
+        })
     }
     
     var body: some View {
@@ -34,7 +39,7 @@ struct MemberDirectoryView: View {
                     : "No members found matching '\(directorySearchText)'."
                 )
             } else {
-                LazyVStack(spacing: 14) {
+                LazyVStack(spacing: 10) {
                     ForEach(filteredMembers) { member in
                         DirectoryMemberCard(member: member)
                     }
@@ -57,8 +62,8 @@ struct MemberDirectoryView: View {
                     .lowercased()
                 
                 return member.name.lowercased().contains(query) ||
-                member.role.lowercased().contains(query) ||
-                member.year?.lowercased().contains(query) ?? false
+                    member.role.lowercased().contains(query) ||
+                    (member.year?.lowercased().contains(query) ?? false)
             }
     }
     @MainActor
@@ -83,11 +88,27 @@ struct MemberDirectoryView: View {
     }
 
     private func directoryErrorMessage(for error: Error) -> String {
-        if case KTPAPIError.missingAccessToken = error {
-            return "Sign in with Authentik to load the directory."
+        if case AuthManagerError.notAuthenticated = error {
+            return "Sign in with SSO to load the directory."
         }
 
-        return "Could not load directory from the KTP API."
+        if case KTPAPIError.missingAccessToken = error {
+            return "Sign in with SSO to load the directory."
+        }
+
+        if case KTPAPIError.badStatusCode(let statusCode, let body) = error {
+            if statusCode == 401 || statusCode == 403 {
+                return "Directory access was rejected by the API (\(statusCode)). Sign out and sign in again. \(body)"
+            }
+
+            return "Directory API failed with status \(statusCode). \(body)"
+        }
+
+        if case KTPAPIError.decodeFailed(let message) = error {
+            return "Directory data did not match the app model. \(message)"
+        }
+
+        return "Could not load directory from the KTP API. \(error.localizedDescription)"
     }
 }
     
@@ -119,7 +140,7 @@ struct MemberDirectoryView: View {
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 16)
-            .matteCard(radius: 24)
+            .matteCard(radius: 8)
         }
     }
     
@@ -144,7 +165,7 @@ struct MemberDirectoryView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 5)
             }
-            .matteCard(radius: 28)
+            .matteCard(radius: 8)
         }
     }
     
@@ -179,40 +200,105 @@ struct MemberDirectoryView: View {
                 .appTextOnCardSecondary()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
-                .matteCard()
+                .matteCard(radius: 8)
         }
     }
     
     private struct DirectoryMemberCard: View {
         let member: DirectoryMember
+
+        private var initials: String {
+            let parts = member.name
+                .split(separator: " ")
+                .prefix(2)
+                .compactMap(\.first)
+
+            let value = String(parts).uppercased()
+            return value.isEmpty ? "KT" : value
+        }
+
+        private var displayYear: String {
+            guard let year = member.year?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !year.isEmpty else {
+                return "N/A"
+            }
+
+            return year
+        }
         
         var body: some View {
-            HStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 10) {
+                    Text(initials)
+                        .font(AppFont.caption(weight: .bold))
+                        .appTextOnCard()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .frame(width: 38, height: 38)
+                        .background(AppSurfaceColor.primaryControl, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+                    Spacer(minLength: 8)
+
+                    Text(member.group.title.uppercased())
+                        .font(AppFont.caption(weight: .bold))
+                        .appTextOnCardMuted()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.62)
+                        .frame(maxWidth: 78, alignment: .trailing)
+                }
+
+                VStack(alignment: .leading, spacing: 5) {
                     Text(member.name)
                         .font(AppFont.headline())
                         .appTextOnCard()
-                    
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.78)
+                        .fixedSize(horizontal: false, vertical: true)
+
                     Text(member.role)
-                        .font(AppFont.subheadline())
+                        .font(AppFont.footnote())
                         .appTextOnCardSecondary()
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.76)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                
-                Spacer()
-                
-                if let year = member.year {
-                    Text(year)
-                        .font(AppFont.footnote(weight: .bold))
+
+                Spacer(minLength: 0)
+
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("YEAR")
+                        .font(AppFont.caption(weight: .bold))
                         .appTextOnCardMuted()
+                        .lineLimit(1)
+
+                    Spacer(minLength: 6)
+
+                    Text(displayYear)
+                        .font(AppFont.footnote(weight: .bold))
+                        .appTextOnCard()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.62)
                 }
             }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .matteCard()
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 176, alignment: .topLeading)
+            .background(AppSurfaceColor.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(AppSurfaceColor.cardBorder)
+                    .frame(height: 1)
+                    .opacity(0.85)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(AppSurfaceColor.cardBorder, lineWidth: 1)
+            }
+            .clipped()
         }
     }
 #Preview("Member Directory") {
     MemberDirectoryView()
         .padding(20)
         .background(AppTab.messages.theme.previewBackground())
+        .environmentObject(AuthManager.previewSignedOut)
 }

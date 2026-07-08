@@ -6,6 +6,7 @@ enum APIConfig {
     private static let accessTokenKey = "API_ACCESS_TOKEN"
 
     static let baseURL: URL = loadBaseURL()
+    // Optional dev fallback. The production app should use the native SSO token flow.
     static let developmentAccessToken: String? = loadOptionalString(accessTokenKey)
 
     // this will be how u call the api from now on (e.g. APIConfig.url(path: "members")

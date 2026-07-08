@@ -42,6 +42,15 @@ struct PhotoItem: Identifiable, Codable {
         caption = try container.decodeIfPresent(String.self, forKey: .caption)
         uploadedBy = try container.decodeIfPresent(String.self, forKey: .uploadedBy)
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(imagePath, forKey: .imagePath)
+        try container.encodeIfPresent(caption, forKey: .caption)
+        try container.encodeIfPresent(uploadedBy, forKey: .uploadedBy)
+    }
 }
 
 #if DEBUG
