@@ -73,9 +73,11 @@ struct ProfileIncompleteView: View {
     }
 }
 
+#if DEBUG
 #Preview("Profile Incomplete") {
     ProfileIncompleteView(errorMessage: nil, retrySync: {}, signOut: {})
         .padding(20)
         .background(PageTheme.auth.previewBackground())
         .environment(\.pageTheme, PageTheme.auth)
 }
+#endif

@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 struct PhotoItem: Identifiable, Codable {
     let id: String
@@ -6,6 +7,8 @@ struct PhotoItem: Identifiable, Codable {
     let imagePath: String
     let caption: String?
     let uploadedBy: String?
+    let albumId: String?
+    let mediaType: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -15,14 +18,26 @@ struct PhotoItem: Identifiable, Codable {
         case immichAssetId
         case caption
         case uploadedBy
+        case albumId
+        case mediaType
     }
 
-    init(id: String, title: String, imagePath: String, caption: String?, uploadedBy: String?) {
+    init(
+        id: String,
+        title: String,
+        imagePath: String,
+        caption: String?,
+        uploadedBy: String?,
+        albumId: String? = nil,
+        mediaType: String? = nil
+    ) {
         self.id = id
         self.title = title
         self.imagePath = imagePath
         self.caption = caption
         self.uploadedBy = uploadedBy
+        self.albumId = albumId
+        self.mediaType = mediaType
     }
 
     init(from decoder: Decoder) throws {
@@ -41,6 +56,8 @@ struct PhotoItem: Identifiable, Codable {
             ?? ""
         caption = try container.decodeIfPresent(String.self, forKey: .caption)
         uploadedBy = try container.decodeIfPresent(String.self, forKey: .uploadedBy)
+        albumId = try container.decodeIfPresent(String.self, forKey: .albumId)
+        mediaType = try container.decodeIfPresent(String.self, forKey: .mediaType)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -50,6 +67,18 @@ struct PhotoItem: Identifiable, Codable {
         try container.encode(imagePath, forKey: .imagePath)
         try container.encodeIfPresent(caption, forKey: .caption)
         try container.encodeIfPresent(uploadedBy, forKey: .uploadedBy)
+        try container.encodeIfPresent(albumId, forKey: .albumId)
+        try container.encodeIfPresent(mediaType, forKey: .mediaType)
+    }
+
+    var isVideo: Bool {
+        if mediaType?.localizedCaseInsensitiveContains("video") == true {
+            return true
+        }
+
+        guard !imagePath.isEmpty else { return false }
+        let fileExtension = URL(fileURLWithPath: imagePath).pathExtension
+        return UTType(filenameExtension: fileExtension)?.conforms(to: .movie) == true
     }
 }
 

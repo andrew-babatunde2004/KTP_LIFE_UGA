@@ -15,6 +15,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				Secrets.example.plist,
+				Secrets.plist,
 			);
 			target = 499611222FE1DDA900E5014D /* KTPLIFE */;
 		};
@@ -293,8 +295,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KTPLIFE/Info.plist;
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We need to acces your photos to upload to our photocircle";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow KTP Life to save downloaded chapter photos and videos to your library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Allow KTP Life to access photos and videos you choose to share with the chapter gallery.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -328,8 +330,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KTPLIFE/Info.plist;
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We need to acces your photos to upload to our photocircle";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow KTP Life to save downloaded chapter photos and videos to your library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Allow KTP Life to access photos and videos you choose to share with the chapter gallery.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

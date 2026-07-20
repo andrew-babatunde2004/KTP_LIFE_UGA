@@ -16,6 +16,7 @@ enum AuthServiceError: LocalizedError {
     case missingDiscoveryEndpoint
     case invalidTokenResponse
     case cancelled
+    case authorizationFailed(String, String?)
     case badStatusCode(Int, String)
 
     var errorDescription: String? {
@@ -32,6 +33,12 @@ enum AuthServiceError: LocalizedError {
             return "Invalid token response."
         case .cancelled:
             return "Authentication was cancelled."
+        case .authorizationFailed(let error, let description):
+            if let description, !description.isEmpty {
+                return "Authorization failed: \(error). \(description)"
+            }
+
+            return "Authorization failed: \(error)."
         case .badStatusCode(let statusCode, let body):
             return "Auth request failed with status \(statusCode): \(body)"
         }
@@ -76,8 +83,16 @@ final class OIDCAuthService {
             throw AuthServiceError.invalidCallback
         }
 
-        guard let callbackComponents = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
-              let returnedState = callbackComponents.queryItems?.first(where: { $0.name == "state" })?.value,
+        guard let callbackComponents = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false) else {
+            throw AuthServiceError.invalidCallback
+        }
+
+        if let callbackError = callbackComponents.queryItems?.first(where: { $0.name == "error" })?.value {
+            let description = callbackComponents.queryItems?.first(where: { $0.name == "error_description" })?.value
+            throw AuthServiceError.authorizationFailed(callbackError, description)
+        }
+
+        guard let returnedState = callbackComponents.queryItems?.first(where: { $0.name == "state" })?.value,
               returnedState == state,
               let authorizationCode = callbackComponents.queryItems?.first(where: { $0.name == "code" })?.value
         else {

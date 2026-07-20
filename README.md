@@ -40,39 +40,92 @@ Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to the producti
 | `KTPLIFE/KTPServices/APIConfig.swift` | Loads API config from Secrets plist |
 | `KTPLIFE/KTPServices/AuthConfiguration.swift` | Central Authentik issuer, client ID, redirect URI, and scopes |
 | `KTPLIFE/KTPServices/OIDCAuthService.swift` | Native OIDC login and token refresh |
-| `KTPLIFE/KTPServices/MemberAPIService.swift` | Fetches protected `/members` with a Bearer token |
+| `KTPLIFE/KTPServices/MemberAPIService.swift` | Fetches protected `/members` and `/messages` with a Bearer token |
 | `KTPLIFE/KTPViewModels/AuthManager.swift` | Coordinates login, token refresh, and profile gating |
-| `KTPLIFE/KTPServices/PhotoService.swift` | Fetches `/photos` |
+| `KTPLIFE/KTPServices/PhotoService.swift` | Fetches, uploads, deletes, and loads media from protected `/photos` |
 | `KTPLIFE/KTPServices/CalendarNetwork.swift` | Fetches `/events` |
 | `KTPLIFE/KTPModels/DirectoryMember.swift` | Swift model matching member JSON |
 | `KTPLIFE/KTPLIFE/ContentView.swift` | Routes the app between SSO login, profile completion, and the main shell |
 
 ### API contract
 
-Public endpoints:
+Current backend routes:
 
 ```text
 GET /                 Health check
-GET /events           Public events
-GET /events/:id       Single public event
-GET /photos           Public photo metadata
+GET /members
+GET /members/:id
+GET /photos
+GET /photos/:id/media
+POST /photos
+DELETE /photos/:id
+GET /albums
+POST /albums
+GET /ios-homepage-photos
+GET /ios-homepage-photos/:id/media
+POST /ios-homepage-photos
+POST /ios-homepage-photos/register
+PUT /ios-homepage-photos/reorder
+PUT /ios-homepage-photos/:id
+DELETE /ios-homepage-photos/:id
+GET /documents/folders
+POST /documents/folders
+DELETE /documents/folders/:id
+GET /documents
+GET /documents/:id/download
+GET /documents/:id/preview
+POST /documents
+DELETE /documents/:id
+GET /events
+GET /events/:id
+POST /events
+PUT /events/:id
+DELETE /events/:id
+POST /users/sync
+GET /users/me
+PUT /users/me/profile
+DELETE /users/me
+PUT /users/me/profile-picture
+GET /users/:id/profile-picture/media
+GET /users/blocked
+POST /users/:id/block
+DELETE /users/:id/block
+GET /admin/users
+POST /webhooks/authentik
+GET /messages/conversations
+GET /messages/conversations/:userId
+PUT /messages/conversations/:userId/read
+POST /messages
+GET /announcements
+POST /announcements
+DELETE /announcements/:id
+GET /group-chats
+POST /group-chats
+DELETE /group-chats/:id
+GET /group-chats/:id/messages
+POST /group-chats/:id/messages
+PUT /group-chats/:id/read
+GET /group-chats/:id/members
+POST /group-chats/:id/members
+DELETE /group-chats/:id/members/:userId
+POST /reports
+GET /reports
+PUT /reports/:id/status
 ```
 
-Protected endpoints require:
+Routes guarded by the backend auth middleware require:
 
 ```text
 Authorization: Bearer <access_token>
 ```
 
-The directory uses:
-
-```text
-GET /members
-GET /members?group=active
-GET /members/:id
-```
-
 The Swift member model accepts production member groups: `active`, `pledge`, `eboard`, `chair`, and `alumni`.
+
+### Reports and moderation
+
+Members can report a directory profile, a direct or group message, or a chapter photo from the relevant detail screen. The report sheet sends `content_type`, the applicable `content_id`, the known `reported_user_id`, a reason, and optional details to `POST /reports`.
+
+Eboard members can review the backend-authorized queue from **Profile → Review Reports**. The queue supports filtering by report status and updating a report to `resolved` or `dismissed` with an optional moderator response. The client only exposes this entry point for the `eboard` member group; the API remains the authorization authority.
 
 ### Troubleshooting
 

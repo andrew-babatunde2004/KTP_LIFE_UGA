@@ -34,8 +34,10 @@ struct ResetPasswordView: View {
     }
 }
 
+#if DEBUG
 #Preview("Reset Password") {
     ResetPasswordView(showLogin: {})
         .padding(20)
         .background(AppTab.home.theme.previewBackground())
 }
+#endif

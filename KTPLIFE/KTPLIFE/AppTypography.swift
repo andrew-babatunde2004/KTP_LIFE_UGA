@@ -6,11 +6,12 @@
 import SwiftUI
 
 enum AppFont {
-    // Change these PostScript names after adding a custom .ttf/.otf font to the app target.
-    static let regularName = "AvenirNext-Regular"
-    static let mediumName = "AvenirNext-Medium"
-    static let semiboldName = "AvenirNext-DemiBold"
-    static let boldName = "AvenirNext-Bold"
+    // Inter is bundled with the app so the same typography renders consistently
+    // across devices. SwiftUI's `relativeTo` scaling preserves Dynamic Type.
+    static let regularName = "Inter-Regular"
+    static let mediumName = "Inter-Medium"
+    static let semiboldName = "Inter-SemiBold"
+    static let boldName = "Inter-Bold"
 
     static func largeTitle(_ size: CGFloat = 34) -> Font {
         .custom(boldName, size: size, relativeTo: .largeTitle)
@@ -24,8 +25,8 @@ enum AppFont {
         .custom(boldName, size: 17, relativeTo: .headline)
     }
 
-    static func subheadline() -> Font {
-        .custom(regularName, size: 15, relativeTo: .subheadline)
+    static func subheadline(weight: FontWeight = .regular) -> Font {
+        .custom(fontName(for: weight), size: 15, relativeTo: .subheadline)
     }
 
     static func footnote(weight: FontWeight = .regular) -> Font {
@@ -112,9 +113,7 @@ enum AppTextColor {
     private static func pagePrimary(theme: PageTheme, colorScheme: ColorScheme) -> Color {
         switch theme.surfaceStyle {
         case .light:
-            return colorScheme == .light
-                ? Color(red: 0.10, green: 0.12, blue: 0.16)
-                : Color(red: 0.96, green: 0.96, blue: 0.94)
+            return AppSystemColor.primaryLabel
         case .dark:
             return Color(red: 0.96, green: 0.96, blue: 0.94)
         }

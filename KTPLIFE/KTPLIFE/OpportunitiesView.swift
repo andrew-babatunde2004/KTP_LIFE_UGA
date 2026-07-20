@@ -184,8 +184,10 @@ private struct Opportunity: Identifiable {
     let detail: String
 }
 
+#if DEBUG
 #Preview("Opportunities") {
     OpportunitiesView()
         .padding(20)
         .background(AppTab.opportunities.theme.previewBackground())
 }
+#endif

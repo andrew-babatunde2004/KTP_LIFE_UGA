@@ -2,14 +2,28 @@ import Foundation
 
 class CalendarNetworkService {
     private let baseURL: URL
+    private let session: URLSession
+    private let accessTokenProvider: () async throws -> String?
 
-    init(baseURL: URL = APIConfig.baseURL) {
+    init(
+        baseURL: URL = APIConfig.baseURL,
+        session: URLSession = .shared,
+        accessTokenProvider: @escaping () async throws -> String? = { APIConfig.developmentAccessToken }
+    ) {
         self.baseURL = baseURL
+        self.session = session
+        self.accessTokenProvider = accessTokenProvider
     }
 
     func fetchCalendarEvents() async throws -> [CalendarEvent] {
         let url = baseURL.appendingPathComponent("events")
-        let (data, response) = try await URLSession.shared.data(from: url)
+        guard let accessToken = try await accessTokenProvider(), !accessToken.isEmpty else {
+            throw CalendarNetworkError.missingAccessToken
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .custom { decoder in
@@ -33,11 +47,28 @@ class CalendarNetworkService {
                 debugDescription: "Invalid ISO8601 date: \(value)"
             )
         }
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
+
+        guard 200..<300 ~= httpResponse.statusCode else {
+            throw CalendarNetworkError.badStatusCode(httpResponse.statusCode)
+        }
         return try decoder.decode([CalendarEvent].self, from: data)
+    }
+}
+
+enum CalendarNetworkError: LocalizedError {
+    case missingAccessToken
+    case badStatusCode(Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingAccessToken:
+            return "Sign in with SSO to load calendar events."
+        case .badStatusCode(let statusCode):
+            return "Calendar API failed with status \(statusCode)."
+        }
     }
 }
 

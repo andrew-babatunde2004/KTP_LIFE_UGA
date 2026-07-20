@@ -5,14 +5,20 @@
 
 import SwiftUI
 
-// Add new cases here as you add pages to the tab bar.
+// Only `allCases` is rendered in the bottom tab bar. The retained legacy routes
+// keep their screens available to in-app entry points and previews.
 enum AppTab: CaseIterable, Identifiable {
     case home
+    case community
+    case calendar
+
+    // Non-tab destinations.
     case messages
     case directory
     case opportunities
-    case calendar
     case photos
+
+    static var allCases: [AppTab] { [.home, .community, .calendar] }
 
     var id: Self { self }
 
@@ -20,6 +26,8 @@ enum AppTab: CaseIterable, Identifiable {
         switch self {
         case .home:
             return "house.fill"
+        case .community:
+            return "person.2.fill"
         case .messages:
             return "bubble.left.and.bubble.right.fill"
         case .directory:
@@ -37,6 +45,8 @@ enum AppTab: CaseIterable, Identifiable {
         switch self {
         case .home:
             return "Home"
+        case .community:
+            return "Community"
         case .messages:
             return "Messages"
         case .directory:
@@ -54,8 +64,10 @@ enum AppTab: CaseIterable, Identifiable {
         switch self {
         case .home:
             return .defaultWhite
+        case .community:
+            return .community
         case .messages:
-            return .calendar
+            return .community
         case .directory:
             return .defaultWhite
         case .opportunities:
@@ -93,6 +105,8 @@ struct PageTheme {
       return Color.white.opacity(0.12)
     case (.dark, _):
       return Color.white.opacity(0.10)
+    @unknown default:
+      return Color.white.opacity(0.10)
     }
   }
 
@@ -119,17 +133,19 @@ struct PageTheme {
     darkModeBackground: Color(red: 0.06, green: 0.10, blue: 0.22)
   )
 
-  // Home: warm off-white in light mode, charcoal in dark mode.
+  // Standard pages follow the user's system appearance exactly.
   static let defaultWhite = PageTheme(
     surfaceStyle: .light,
-    lightModeBackground: Color(red: 0.96, green: 0.96, blue: 0.94),
-    darkModeBackground: Color(red: 0.11, green: 0.12, blue: 0.14)
+    lightModeBackground: AppSystemColor.background,
+    darkModeBackground: AppSystemColor.background
   )
 
-  static let calendar = PageTheme(
+  static let calendar = defaultWhite
+
+  static let community = PageTheme(
     surfaceStyle: .light,
-    lightModeBackground: .white,
-    darkModeBackground: Color(red: 0.11, green: 0.12, blue: 0.14)
+    lightModeBackground: AppSystemColor.background,
+    darkModeBackground: AppSystemColor.background
   )
 
   static let opportunities = defaultBlue

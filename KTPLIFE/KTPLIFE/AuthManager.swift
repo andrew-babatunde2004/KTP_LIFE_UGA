@@ -13,6 +13,7 @@ final class AuthManager: ObservableObject {
 
     @Published private(set) var phase: Phase = .loading
     @Published private(set) var errorMessage: String?
+    @Published private(set) var currentUserProfile: UserProfile?
 
     private let authService: OIDCAuthService
     private let userSyncService: UserSyncService
@@ -22,13 +23,13 @@ final class AuthManager: ObservableObject {
     private var lastAccessTokenClaims: TokenClaimSummary?
 
     init(
-        authService: OIDCAuthService = OIDCAuthService(),
-        userSyncService: UserSyncService = UserSyncService(),
-        keychain: KeychainStore = KeychainStore()
+        authService: OIDCAuthService? = nil,
+        userSyncService: UserSyncService? = nil,
+        keychain: KeychainStore? = nil
     ) {
-        self.authService = authService
-        self.userSyncService = userSyncService
-        self.keychain = keychain
+        self.authService = authService ?? OIDCAuthService()
+        self.userSyncService = userSyncService ?? UserSyncService()
+        self.keychain = keychain ?? KeychainStore()
     }
 
     func bootstrap() async {
@@ -84,6 +85,7 @@ final class AuthManager: ObservableObject {
                 errorMessage = profileVerificationMessage(for: error)
             } else {
                 phase = .signedOut
+                errorMessage = error.localizedDescription
             }
         } catch {
             AuthDebugLog.log("SSO sign-in failed: \(error.localizedDescription)")
@@ -123,6 +125,7 @@ final class AuthManager: ObservableObject {
         AuthDebugLog.log("Signing out and clearing tokens.")
         tokens = nil
         lastAccessTokenClaims = nil
+        currentUserProfile = nil
         errorMessage = nil
         phase = .signedOut
 
@@ -141,7 +144,11 @@ final class AuthManager: ObservableObject {
         do {
             try await refreshIfNeeded()
         } catch {
-            await signOut()
+            // Do not erase a durable session for a transient refresh failure. Bootstrap can retry it on the
+            // next launch; only an explicit token rejection requires a new interactive login.
+            if refreshTokenWasRejected(error) {
+                await signOut()
+            }
             throw error
         }
 
@@ -164,6 +171,26 @@ final class AuthManager: ObservableObject {
         phase == .signedIn
     }
 
+    var currentUserID: String? {
+        currentUserProfile?.id ?? lastAccessTokenClaims?.subject
+    }
+
+    /// The preferred username supplied by the authenticated KTP identity provider.
+    /// Empty or whitespace-only claims are treated as unavailable for user-facing copy.
+    var currentUserPreferredUsername: String? {
+        guard let preferredUsername = (currentUserProfile?.preferredName ?? lastAccessTokenClaims?.preferredUsername)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !preferredUsername.isEmpty else {
+            return nil
+        }
+
+        return preferredUsername
+    }
+
+    func updateCurrentUserProfile(_ profile: UserProfile) {
+        currentUserProfile = profile
+    }
+
     private func updateProfileState() async throws {
         AuthDebugLog.log("Updating profile state via /users/sync.")
         let accessToken = try await validAccessToken()
@@ -182,12 +209,19 @@ final class AuthManager: ObservableObject {
             throw AuthManagerError.notAuthenticated
         }
 
-        guard currentTokens.expiresAt.timeIntervalSinceNow < 60 else {
+        let secondsRemaining = currentTokens.expiresAt.timeIntervalSinceNow
+
+        guard secondsRemaining < 60 else {
             AuthDebugLog.log("Access token still valid. Seconds remaining=\(Int(currentTokens.expiresAt.timeIntervalSinceNow))")
             return
         }
 
         guard let refreshToken = currentTokens.refreshToken else {
+            if secondsRemaining > 0 {
+                AuthDebugLog.log("Access token is near expiry, but no refresh token is available. Using the current token until it expires.")
+                return
+            }
+
             throw AuthManagerError.notAuthenticated
         }
 
@@ -201,6 +235,18 @@ final class AuthManager: ObservableObject {
         try keychain.saveTokens(tokens)
     }
 
+    private func refreshTokenWasRejected(_ error: Error) -> Bool {
+        guard case let AuthServiceError.badStatusCode(statusCode, body) = error,
+              statusCode == 400 || statusCode == 401 else {
+            return false
+        }
+
+        let response = body.lowercased()
+        return response.contains("invalid_grant") ||
+            response.contains("invalid_token") ||
+            response.contains("refresh token") && response.contains("expired")
+    }
+
     private func profileVerificationMessage(for error: Error) -> String {
         var message: String
         if let localizedError = error as? LocalizedError,
@@ -211,9 +257,11 @@ final class AuthManager: ObservableObject {
             message = "Could not verify profile status. Your login worked, but the app could not confirm profile completion from the API."
         }
 
+#if DEBUG
         if let lastAccessTokenClaims {
             message += "\n\nToken claims: \(lastAccessTokenClaims.description)"
         }
+#endif
 
         return message
     }

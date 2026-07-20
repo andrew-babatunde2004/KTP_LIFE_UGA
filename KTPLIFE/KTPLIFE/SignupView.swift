@@ -55,8 +55,10 @@ struct SignupView: View {
     }
 }
 
+#if DEBUG
 #Preview("Sign Up") {
     SignupView(showLogin: {})
         .padding(20)
         .background(AppTab.home.theme.previewBackground())
 }
+#endif

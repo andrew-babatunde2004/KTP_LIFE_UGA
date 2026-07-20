@@ -6,6 +6,8 @@
 import SwiftUI
 
 struct CalendarView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var authManager: AuthManager
     @State private var viewModel = CalendarViewModel()
     @State private var displayedMonth = Date()
     @State private var selectedDate = Date()
@@ -57,7 +59,7 @@ struct CalendarView: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .background(CalendarDesign.background)
+        .background(CalendarDesign.background(for: colorScheme))
         .task {
             await loadCalendarEvents()
         }
@@ -74,7 +76,7 @@ struct CalendarView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Upcoming")
                 .font(AppFont.largeTitle(20))
-                .foregroundStyle(CalendarDesign.title)
+                .foregroundStyle(CalendarDesign.title(for: colorScheme))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 14)
 
@@ -115,14 +117,18 @@ struct CalendarView: View {
 
     @MainActor
     private func loadCalendarEvents() async {
+#if DEBUG
         if isPreview {
             viewModel.events = CalendarEvent.previewSamples
             viewModel.errorMessage = nil
             syncSelectionToNextEventIfNeeded()
             return
         }
+#endif
 
-        await viewModel.fetchEvents()
+        await viewModel.fetchEvents(accessTokenProvider: { [authManager] in
+            try await authManager.validAccessToken()
+        })
         syncSelectionToNextEventIfNeeded()
     }
 
@@ -137,6 +143,7 @@ struct CalendarView: View {
 }
 
 private struct CalendarMonthPanel: View {
+    @Environment(\.colorScheme) private var colorScheme
     let displayedMonth: Date
     let selectedDate: Date
     let events: [CalendarEvent]
@@ -160,27 +167,26 @@ private struct CalendarMonthPanel: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            KTPLogoMark(maxWidth: 76, maxHeight: 32)
-                .padding(.top, 2)
-
-            HStack {
-                MonthButton(systemName: "chevron.left", action: previousMonth)
-
-                Spacer()
-
+            ZStack {
                 VStack(spacing: 2) {
                     Text(monthTitle)
                         .font(AppFont.title(23))
-                        .foregroundStyle(CalendarDesign.title)
+                        .foregroundStyle(CalendarDesign.title(for: colorScheme))
 
                     Text(yearTitle)
                         .font(AppFont.caption(weight: .medium))
-                        .foregroundStyle(CalendarDesign.muted)
+                        .foregroundStyle(CalendarDesign.muted(for: colorScheme))
                 }
 
-                Spacer()
+                GlassEffectContainer(spacing: 16) {
+                    HStack {
+                        MonthButton(systemName: "chevron.left", action: previousMonth)
 
-                MonthButton(systemName: "chevron.right", action: nextMonth)
+                        Spacer()
+
+                        MonthButton(systemName: "chevron.right", action: nextMonth)
+                    }
+                }
             }
 
             VStack(spacing: 10) {
@@ -188,7 +194,7 @@ private struct CalendarMonthPanel: View {
                     ForEach(CalendarDay.weekdaySymbols, id: \.self) { weekday in
                         Text(weekday)
                             .font(AppFont.footnote(weight: .medium))
-                            .foregroundStyle(CalendarDesign.muted)
+                            .foregroundStyle(CalendarDesign.muted(for: colorScheme))
                             .frame(maxWidth: .infinity)
                     }
                 }
@@ -223,6 +229,7 @@ private struct CalendarMonthPanel: View {
 }
 
 private struct MonthButton: View {
+    @Environment(\.colorScheme) private var colorScheme
     let systemName: String
     let action: () -> Void
 
@@ -230,20 +237,20 @@ private struct MonthButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(CalendarDesign.title)
+                .foregroundStyle(CalendarDesign.title(for: colorScheme))
                 .frame(width: 34, height: 34)
-                .background(CalendarDesign.element, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(CalendarDesign.border, lineWidth: 1)
-                }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(systemName == "chevron.left" ? "Previous month" : "Next month")
+        .glassEffect(
+            .regular.tint(CalendarDesign.element(for: colorScheme)).interactive(),
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
     }
 }
 
 private struct CalendarDayCell: View {
+    @Environment(\.colorScheme) private var colorScheme
     let day: CalendarDay
     let isSelected: Bool
     let eventCount: Int
@@ -256,7 +263,7 @@ private struct CalendarDayCell: View {
                 ZStack {
                     if isSelected {
                         Circle()
-                            .fill(Color.black)
+                            .fill(CalendarDesign.selectedDay(for: colorScheme))
                             .frame(width: 30, height: 30)
                     }
 
@@ -285,10 +292,10 @@ private struct CalendarDayCell: View {
 
     private var textColor: Color {
         if isSelected {
-            return .white
+            return CalendarDesign.selectedText(for: colorScheme)
         }
 
-        return day.isInDisplayedMonth ? CalendarDesign.title : CalendarDesign.muted
+        return day.isInDisplayedMonth ? CalendarDesign.title(for: colorScheme) : CalendarDesign.muted(for: colorScheme)
     }
 
     private var accessibilityLabel: String {
@@ -297,6 +304,7 @@ private struct CalendarDayCell: View {
 }
 
 private struct CalendarEventRow: View {
+    @Environment(\.colorScheme) private var colorScheme
     let event: CalendarEvent
     let accent: Color
 
@@ -318,13 +326,13 @@ private struct CalendarEventRow: View {
             VStack(alignment: .leading, spacing: 7) {
                 Text(timeRange)
                     .font(AppFont.footnote(weight: .medium))
-                    .foregroundStyle(CalendarDesign.muted)
+                    .foregroundStyle(CalendarDesign.muted(for: colorScheme))
                     .lineLimit(1)
                     .minimumScaleFactor(0.76)
 
                 Text(event.title)
                     .font(AppFont.subheadline())
-                    .foregroundStyle(CalendarDesign.title)
+                    .foregroundStyle(CalendarDesign.title(for: colorScheme))
                     .lineLimit(2)
                     .minimumScaleFactor(0.78)
                     .fixedSize(horizontal: false, vertical: true)
@@ -334,16 +342,16 @@ private struct CalendarEventRow: View {
 
             Image(systemName: "ellipsis")
                 .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(CalendarDesign.muted)
+                .foregroundStyle(CalendarDesign.muted(for: colorScheme))
                 .padding(.top, 3)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CalendarDesign.element, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(CalendarDesign.element(for: colorScheme), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(CalendarDesign.border.opacity(0.42))
+                .fill(CalendarDesign.border(for: colorScheme).opacity(0.42))
                 .frame(height: 1)
                 .padding(.leading, 36)
         }
@@ -351,16 +359,17 @@ private struct CalendarEventRow: View {
 }
 
 private struct CalendarStatusRow: View {
+    @Environment(\.colorScheme) private var colorScheme
     let message: String
 
     var body: some View {
         Text(message)
             .font(AppFont.subheadline())
-            .foregroundStyle(CalendarDesign.muted)
+            .foregroundStyle(CalendarDesign.muted(for: colorScheme))
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.vertical, 18)
-            .background(CalendarDesign.element, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(CalendarDesign.element(for: colorScheme), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -375,16 +384,39 @@ private struct CalendarDay: Identifiable {
 }
 
 private enum CalendarDesign {
-    static let background = Color.white
-    static let element = Color(red: 0.96, green: 0.97, blue: 0.98)
-    static let title = Color(red: 0.13, green: 0.17, blue: 0.28)
-    static let muted = Color(red: 0.56, green: 0.62, blue: 0.72)
-    static let border = Color(red: 0.88, green: 0.91, blue: 0.94)
     static let dotColors = [
         Color(red: 0.14, green: 0.38, blue: 1.00),
         Color(red: 0.00, green: 0.68, blue: 0.45),
         Color(red: 0.48, green: 0.32, blue: 1.00)
     ]
+
+    static func background(for colorScheme: ColorScheme) -> Color {
+        AppSystemColor.background
+    }
+
+    static func element(for colorScheme: ColorScheme) -> Color {
+        AppSystemColor.elevatedBackground
+    }
+
+    static func title(for colorScheme: ColorScheme) -> Color {
+        AppSystemColor.primaryLabel
+    }
+
+    static func muted(for colorScheme: ColorScheme) -> Color {
+        AppSystemColor.secondaryLabel
+    }
+
+    static func border(for colorScheme: ColorScheme) -> Color {
+        AppSystemColor.separator
+    }
+
+    static func selectedDay(for colorScheme: ColorScheme) -> Color {
+        AppSurfaceColor.primaryControl
+    }
+
+    static func selectedText(for colorScheme: ColorScheme) -> Color {
+        .white
+    }
 }
 
 private extension Calendar {
@@ -420,9 +452,11 @@ private extension Calendar {
     }
 }
 
+#if DEBUG
 #Preview("Calendar") {
     CalendarView()
         .padding(20)
         .background(AppTab.calendar.theme.previewBackground())
         .environment(\.pageTheme, AppTab.calendar.theme)
 }
+#endif

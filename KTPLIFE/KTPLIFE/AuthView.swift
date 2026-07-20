@@ -142,6 +142,7 @@ struct AuthView: View {
     }
 }
 
+#if DEBUG
 #Preview("Auth") {
     AuthView(
         email: .constant(""),
@@ -154,3 +155,4 @@ struct AuthView: View {
     .background(PageTheme.auth.previewBackground())
     .environment(\.pageTheme, PageTheme.auth)
 }
+#endif

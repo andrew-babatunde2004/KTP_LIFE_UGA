@@ -38,6 +38,80 @@ final class KTPAPIService {
         }
     }
 
+    /// Fetches the authenticated member profile from protected `GET /users/me`.
+    func fetchCurrentUserProfile() async throws -> UserProfile {
+        let url = baseURL.appendingPathComponent("users/me")
+        let data = try await fetchProtectedData(from: url, logLabel: "current user profile")
+
+        do {
+            return try UserProfile.decodeResponse(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Current profile decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Updates editable fields through protected `PUT /users/me/profile`.
+    func updateCurrentUserProfile(_ profile: UpdateUserProfileRequest) async throws -> UserProfile {
+        let url = baseURL.appendingPathComponent("users/me/profile")
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(profile)
+
+        let data = try await fetchProtectedData(for: request, logLabel: "update current user profile")
+        if !data.isEmpty, let updatedProfile = try? UserProfile.decodeResponse(from: data) {
+            return updatedProfile
+        }
+
+        return try await fetchCurrentUserProfile()
+    }
+
+    /// Anonymizes the authenticated user's account through protected `DELETE /users/me`.
+    func deleteCurrentUser() async throws {
+        let url = baseURL.appendingPathComponent("users/me")
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await fetchProtectedData(for: request, logLabel: "delete current user")
+    }
+
+    /// Fetches the authenticated user's block list through protected `GET /users/blocked`.
+    func fetchBlockedUserIDs() async throws -> Set<String> {
+        let url = baseURL.appendingPathComponent("users/blocked")
+        let data = try await fetchProtectedData(from: url, logLabel: "blocked users")
+
+        do {
+            return try BlockedUsersResponse.decodeIDs(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Blocked users decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Blocks a member through protected `POST /users/:id/block`.
+    func blockUser(id: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("users")
+            .appendingPathComponent(id)
+            .appendingPathComponent("block")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        _ = try await fetchProtectedData(for: request, logLabel: "block user \(id)")
+    }
+
+    /// Unblocks a member through protected `DELETE /users/:id/block`.
+    func unblockUser(id: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("users")
+            .appendingPathComponent(id)
+            .appendingPathComponent("block")
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await fetchProtectedData(for: request, logLabel: "unblock user \(id)")
+    }
+
     /// Fetches message conversations from protected `GET /messages/conversations`.
     func fetchMessageConversations() async throws -> [MessageConversation] {
         let url = baseURL.appendingPathComponent("messages/conversations")
@@ -48,6 +122,20 @@ final class KTPAPIService {
         } catch {
             let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
             AuthDebugLog.log("Message conversations decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches group chats from protected `GET /group-chats`.
+    func fetchGroupChats() async throws -> [GroupChat] {
+        let url = baseURL.appendingPathComponent("group-chats")
+        let data = try await fetchProtectedData(from: url, logLabel: "group chats")
+
+        do {
+            return try GroupChatsResponse.decodeChats(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Group chats decode failed: \(error.localizedDescription). Body=\(responseBody)")
             throw KTPAPIError.decodeFailed(error.localizedDescription)
         }
     }
@@ -68,6 +156,23 @@ final class KTPAPIService {
         }
     }
 
+    /// Fetches messages from protected `GET /group-chats/:id/messages`.
+    func fetchGroupChatMessages(chatId: String) async throws -> [KTPMessage] {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatId)
+            .appendingPathComponent("messages")
+        let data = try await fetchProtectedData(from: url, logLabel: "group chat \(chatId) messages")
+
+        do {
+            return try ConversationMessagesResponse.decodeMessages(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Group chat messages decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
     /// Marks one direct conversation read via protected `PUT /messages/conversations/:userId/read`.
     func markConversationRead(with userId: String) async throws {
         let url = baseURL
@@ -77,6 +182,17 @@ final class KTPAPIService {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         _ = try await fetchProtectedData(for: request, logLabel: "mark conversation read for \(userId)")
+    }
+
+    /// Marks one group chat read via protected `PUT /group-chats/:id/read`.
+    func markGroupChatRead(chatId: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatId)
+            .appendingPathComponent("read")
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        _ = try await fetchProtectedData(for: request, logLabel: "mark group chat \(chatId) read")
     }
 
     /// Sends a direct message via protected `POST /messages`.
@@ -101,6 +217,112 @@ final class KTPAPIService {
             AuthDebugLog.log("Send message decode failed: \(error.localizedDescription). Body=\(responseBody)")
             throw KTPAPIError.decodeFailed(error.localizedDescription)
         }
+    }
+
+    /// Sends a group chat message via protected `POST /group-chats/:id/messages`.
+    func sendGroupChatMessage(chatId: String, body: String) async throws -> KTPMessage {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatId)
+            .appendingPathComponent("messages")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(SendGroupChatMessageRequest(body: body))
+
+        let data = try await fetchProtectedData(for: request, logLabel: "send group chat \(chatId) message")
+        do {
+            if let message = try? JSONDecoder().decode(KTPMessage.self, from: data) {
+                return message
+            }
+
+            return try ConversationMessagesResponse.decodeMessages(from: data).last ?? {
+                throw KTPAPIError.emptyResponse
+            }()
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Send group chat message decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Submits a member, message, group-message, or photo report via protected `POST /reports`.
+    func submitReport(_ report: SubmitReportRequest) async throws {
+        let url = baseURL.appendingPathComponent("reports")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(report)
+        _ = try await fetchProtectedData(for: request, logLabel: "submit \(report.contentType.rawValue) report")
+    }
+
+    /// Fetches moderation reports through eboard-only `GET /reports`.
+    func fetchReports(status: ReportStatus? = nil) async throws -> [ContentReport] {
+        var components = URLComponents(url: baseURL.appendingPathComponent("reports"), resolvingAgainstBaseURL: false)
+        if let status {
+            components?.queryItems = [URLQueryItem(name: "status", value: status.rawValue)]
+        }
+        guard let url = components?.url else { throw URLError(.badURL) }
+
+        let data = try await fetchProtectedData(from: url, logLabel: "moderation reports")
+        do {
+            return try ContentReport.decodeReports(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Reports decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Updates a moderation decision through eboard-only `PUT /reports/:id/status`.
+    func updateReportStatus(
+        reportID: String,
+        status: ReportStatus,
+        moderatorResponse: String?
+    ) async throws {
+        let url = baseURL
+            .appendingPathComponent("reports")
+            .appendingPathComponent(reportID)
+            .appendingPathComponent("status")
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            UpdateReportStatusRequest(status: status, moderatorResponse: moderatorResponse)
+        )
+        _ = try await fetchProtectedData(for: request, logLabel: "update report \(reportID) status")
+    }
+
+    /// Fetches a member profile picture from protected `GET /users/:id/profile-picture/media`.
+    func fetchProfilePictureData(for userId: String) async throws -> Data {
+        let url = baseURL
+            .appendingPathComponent("users")
+            .appendingPathComponent(userId)
+            .appendingPathComponent("profile-picture/media")
+        return try await fetchProtectedData(from: url, logLabel: "profile picture for \(userId)")
+    }
+
+    /// Fetches visible homepage highlights from authenticated `GET /ios-homepage-photos`.
+    func fetchHomepageSlides() async throws -> [HomepageSlide] {
+        let url = baseURL.appendingPathComponent("ios-homepage-photos")
+        let data = try await fetchProtectedData(from: url, logLabel: "homepage slides")
+
+        do {
+            return try JSONDecoder().decode(HomepageSlidesResponse.self, from: data).slides
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Homepage slides decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches the protected image for a homepage highlight from `/:id/media`.
+    func fetchHomepageSlideMediaData(for slide: HomepageSlide) async throws -> Data {
+        let url = baseURL
+            .appendingPathComponent("ios-homepage-photos")
+            .appendingPathComponent(slide.id)
+            .appendingPathComponent("media")
+        return try await fetchProtectedData(from: url, logLabel: "homepage slide media for \(slide.id)")
     }
 
     private func fetchProtectedData(from url: URL, logLabel: String) async throws -> Data {
@@ -134,11 +356,67 @@ final class KTPAPIService {
 
 private struct SendMessageRequest: Encodable {
     let recipientId: String
-    let content: String
+    let body: String
+
+    init(recipientId: String, content: String) {
+        self.recipientId = recipientId
+        self.body = content
+    }
 
     enum CodingKeys: String, CodingKey {
         case recipientId = "recipient_id"
-        case content
+        case body
+    }
+}
+
+private struct SendGroupChatMessageRequest: Encodable {
+    let body: String
+}
+
+private enum BlockedUsersResponse {
+    static func decodeIDs(from data: Data) throws -> Set<String> {
+        let object = try JSONSerialization.jsonObject(with: data)
+        let values: [Any]
+
+        if let directValues = object as? [Any] {
+            values = directValues
+        } else if let envelope = object as? [String: Any] {
+            values = (envelope["blocked_users"] as? [Any])
+                ?? (envelope["blocked_user_ids"] as? [Any])
+                ?? (envelope["users"] as? [Any])
+                ?? (envelope["data"] as? [Any])
+                ?? []
+        } else {
+            values = []
+        }
+
+        var ids = Set<String>()
+        for value in values {
+            if let id = userID(from: value) {
+                ids.insert(id)
+            }
+        }
+        return ids
+    }
+
+    private static func userID(from value: Any) -> String? {
+        if let value = value as? String, !value.isEmpty {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return value.stringValue
+        }
+        guard let object = value as? [String: Any] else { return nil }
+
+        for key in ["blocked_user_id", "user_id", "id", "authentik_id"] {
+            if let id = object[key] as? String, !id.isEmpty {
+                return id
+            }
+            if let id = object[key] as? NSNumber {
+                return id.stringValue
+            }
+        }
+        return nil
     }
 }
 

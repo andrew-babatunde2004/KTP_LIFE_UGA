@@ -4,6 +4,7 @@ import Foundation
 struct DirectoryMember: Identifiable, Codable {
     let id: String
     let name: String
+    let email: String?
     let role: String
     let year: String?
     let group: MemberGroup
@@ -18,6 +19,8 @@ struct DirectoryMember: Identifiable, Codable {
         case lastName = "last_name"
         case preferredName = "preferred_name"
         case username
+        case email
+        case emailAddress = "email_address"
         case role
         case title
         case major
@@ -30,9 +33,10 @@ struct DirectoryMember: Identifiable, Codable {
         case status
     }
 
-    init(id: String, name: String, role: String, year: String?, group: MemberGroup) {
+    init(id: String, name: String, email: String? = nil, role: String, year: String?, group: MemberGroup) {
         self.id = id
         self.name = name
+        self.email = email
         self.role = role
         self.year = year
         self.group = group
@@ -64,6 +68,8 @@ struct DirectoryMember: Identifiable, Codable {
                 : composedName
         }
 
+        email = try container.decodeFirstPresentStringIfPresent(for: [.email, .emailAddress])
+
         role = try container.decodeFirstPresentString(
             for: [.role, .title, .major, .memberGroup],
             fallback: "Member"
@@ -86,6 +92,7 @@ struct DirectoryMember: Identifiable, Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(email, forKey: .email)
         try container.encode(role, forKey: .role)
         try container.encodeIfPresent(year, forKey: .year)
         try container.encode(group, forKey: .group)

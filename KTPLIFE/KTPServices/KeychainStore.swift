@@ -4,9 +4,10 @@ import Security
 final class KeychainStore {
     private let service = "com.ktplife.auth"
     private let account = "auth-tokens"
+    private let accessibleAttribute = kSecAttrAccessibleAfterFirstUnlock as String
 
     func loadTokens() throws -> AuthTokens? {
-        var query: [String: Any] = [
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
@@ -34,11 +35,15 @@ final class KeychainStore {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
+            kSecAttrAccessible as String: accessibleAttribute,
+            kSecAttrSynchronizable as String: false
         ]
 
         let attributes: [String: Any] = [
-            kSecValueData as String: data
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: accessibleAttribute,
+            kSecAttrSynchronizable as String: false
         ]
 
         let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)

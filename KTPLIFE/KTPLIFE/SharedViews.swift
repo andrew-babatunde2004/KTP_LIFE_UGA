@@ -79,3 +79,14 @@ enum AppSurfaceColor {
     static let darkPill = Color(red: 0.14, green: 0.16, blue: 0.20)
     static let mutedPill = Color(red: 0.60, green: 0.64, blue: 0.72)
 }
+
+/// Semantic system surfaces shared by the standard app pages.
+/// Branded authentication and opportunity panels intentionally use AppSurfaceColor instead.
+enum AppSystemColor {
+    static let background = Color(uiColor: .systemBackground)
+    static let elevatedBackground = Color(uiColor: .secondarySystemBackground)
+    static let insetBackground = Color(uiColor: .tertiarySystemFill)
+    static let primaryLabel = Color(uiColor: .label)
+    static let secondaryLabel = Color(uiColor: .secondaryLabel)
+    static let separator = Color(uiColor: .separator)
+}
