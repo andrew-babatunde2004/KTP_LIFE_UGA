@@ -36,7 +36,7 @@ private struct OpportunitiesHeader: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Opportunities")
                     .font(AppFont.largeTitle())
-                    .foregroundStyle(Color.blue.opacity(0.88))
+                    .appTextOnPanel()
                     .multilineTextAlignment(.center)
             }
             // HStack (alignment: top, center, bottom)
@@ -72,7 +72,7 @@ private struct OpportunityTypeButton: View {
         Button(action: select) {
             Text(type.title)
                 .font(AppFont.footnote(weight: .bold))
-                .foregroundStyle(isSelected ? Color.white : Color.black.opacity(0.66))
+                .foregroundStyle(isSelected ? Color.white : AppTextColor.color(.onPanelMuted, theme: .opportunities, colorScheme: .light))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background {
@@ -93,23 +93,23 @@ private struct OpportunityCard: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(opportunity.title)
                         .font(AppFont.headline())
-                        .foregroundStyle(Color.black.opacity(0.86))
+                        .appTextOnPanel()
 
                     Spacer(minLength: 10)
 
                     Text(opportunity.category)
                         .font(AppFont.caption(weight: .bold))
-                        .foregroundStyle(Color.black.opacity(0.52))
+                        .appTextOnPanelMuted()
                 }
 
                 Text(opportunity.description)
                     .font(AppFont.subheadline())
-                    .foregroundStyle(Color.black.opacity(0.62))
+                    .appTextOnPanelSecondary()
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(opportunity.detail)
                     .font(AppFont.footnote(weight: .semibold))
-                    .foregroundStyle(Color.black.opacity(0.46))
+                    .appTextOnPanelMuted()
             }
         }
         .padding(20)
@@ -184,8 +184,10 @@ private struct Opportunity: Identifiable {
     let detail: String
 }
 
+#if DEBUG
 #Preview("Opportunities") {
     OpportunitiesView()
         .padding(20)
         .background(AppTab.opportunities.theme.previewBackground())
 }
+#endif

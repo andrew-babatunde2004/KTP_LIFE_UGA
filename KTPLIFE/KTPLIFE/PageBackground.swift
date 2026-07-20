@@ -7,6 +7,7 @@ import SwiftUI
 
 struct PageBackground: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let theme: PageTheme
     let animationValue: AppTab
@@ -14,6 +15,6 @@ struct PageBackground: View {
     var body: some View {
         theme.backgroundColor(for: colorScheme)
             .ignoresSafeArea()
-            .animation(.easeInOut(duration: 0.35), value: animationValue)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.16), value: animationValue)
     }
 }

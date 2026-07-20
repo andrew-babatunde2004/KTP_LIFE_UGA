@@ -18,7 +18,7 @@ struct SignupView: View {
             VStack(alignment: .center, spacing: 10) {
                 Text("Create an account or log in to continue.")
                     .font(AppFont.subheadline())
-                    .foregroundStyle(.white.opacity(0.68))
+                    .appTextSecondary()
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
                     .frame(maxWidth: .infinity)
@@ -28,7 +28,7 @@ struct SignupView: View {
                 Button(action: {}) {
                     Text("Sign Up")
                         .font(AppFont.headline())
-                        .foregroundStyle(.white)
+                        .appTextOnCard()
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 18)
                 }
@@ -42,7 +42,7 @@ struct SignupView: View {
                 Button(action: showLogin) {
                     Text("Log In")
                         .font(AppFont.headline())
-                        .foregroundStyle(.white.opacity(0.82))
+                        .appTextOnCardSecondary()
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 18)
                 }
@@ -55,8 +55,10 @@ struct SignupView: View {
     }
 }
 
+#if DEBUG
 #Preview("Sign Up") {
     SignupView(showLogin: {})
         .padding(20)
         .background(AppTab.home.theme.previewBackground())
 }
+#endif

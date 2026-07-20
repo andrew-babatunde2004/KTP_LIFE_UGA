@@ -6,6 +6,47 @@ struct CalendarEvent: Identifiable, Codable {
     let startDate: Date
     let endDate: Date
     let description: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case startDate
+        case endDate
+        case description
+    }
+
+    init(id: String, title: String, startDate: Date, endDate: Date, description: String?) {
+        self.id = id
+        self.title = title
+        self.startDate = startDate
+        self.endDate = endDate
+        self.description = description
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        if let stringId = try container.decodeIfPresent(String.self, forKey: .id) {
+            id = stringId
+        } else {
+            id = String(try container.decode(Int.self, forKey: .id))
+        }
+
+        title = try container.decode(String.self, forKey: .title)
+        let decodedStartDate = try container.decode(Date.self, forKey: .startDate)
+        startDate = decodedStartDate
+        endDate = try container.decodeIfPresent(Date.self, forKey: .endDate) ?? decodedStartDate
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(startDate, forKey: .startDate)
+        try container.encode(endDate, forKey: .endDate)
+        try container.encodeIfPresent(description, forKey: .description)
+    }
 }
 
 #if DEBUG

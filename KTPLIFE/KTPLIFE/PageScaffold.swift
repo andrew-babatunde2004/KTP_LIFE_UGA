@@ -54,7 +54,7 @@ struct PageScaffold<Content: View>: View {
                 if let title {
                     Text(title)
                         .font(AppFont.largeTitle())
-                        .foregroundStyle(.white)
+                        .appTextPrimary()
                 } else {
                     header
                 }
@@ -62,7 +62,7 @@ struct PageScaffold<Content: View>: View {
                 if let subtitle {
                     Text(subtitle)
                         .font(AppFont.subheadline())
-                        .foregroundStyle(.white.opacity(0.72))
+                        .appTextSecondary()
                 }
             }
 
@@ -79,13 +79,13 @@ struct PageScaffold<Content: View>: View {
                 if let sectionTitle {
                     Text(sectionTitle)
                         .font(AppFont.title())
-                        .foregroundStyle(.white)
+                        .appTextOnCard()
                 }
 
                 if let sectionSubtitle {
                     Text(sectionSubtitle)
                         .font(AppFont.footnote(weight: .medium))
-                        .foregroundStyle(.white.opacity(0.66))
+                        .appTextOnCardSecondary()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

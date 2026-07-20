@@ -1,70 +1,137 @@
 # KTP_LIFE_UGA
 
-Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to a separate backend over HTTP — configure the base URL in `Secrets.plist` (see below). This repo contains the SwiftUI client only; the API is maintained outside this project.
+Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to the production KTP API at `https://api2.ugaktp.com` by default. This repo contains the SwiftUI client only; the API is maintained outside this project.
 
 ## Getting started
 
 ### Prerequisites
 
 - Xcode (open `KTPLIFE/KTPLIFE.xcodeproj`)
-- A running KTP backend that exposes the endpoints listed below
+- The KTP backend at `https://api2.ugaktp.com`
+- An Authentik login on `https://auth.ugaktp.com/application/o/ktpapp/`
 
 ### Configure the API URL
 
 1. Copy the secrets template (once per machine):
-   ```powershell
+   ```sh
    cd KTPLIFE/KTPLIFE
-   copy Secrets.example.plist Secrets.plist
+   cp Secrets.example.plist Secrets.plist
    ```
-2. Edit `Secrets.plist` and set `API_BASE_URL` to your backend:
-   - **Simulator (API on same Mac):** `http://127.0.0.1:3000/`
-   - **Physical iPhone:** your server or Mac LAN IP, e.g. `http://192.168.1.10:3000/`
-   - **Hosted backend:** your deployed URL, e.g. `https://api.example.com/`
+2. Edit `Secrets.plist` and set `API_BASE_URL` if you need to override production:
+   - **Production:** `https://api2.ugaktp.com`
+   - **Internal server/LXC network:** `http://10.0.0.53:4000`
+3. The app now performs native Authentik SSO. No manual access token is needed for normal use.
 
 `Secrets.plist` is gitignored. `Secrets.example.plist` is the committed template.
 
 ### Run the app
 
 1. Open `KTPLIFE/KTPLIFE.xcodeproj` and run on the **Simulator** or a device.
-2. Sign in (auth is still in progress) and use the tab bar to navigate.
-3. **Messages → Directory** loads members from `GET /members` when the backend is reachable.
+2. Sign in with SSO on the initial login screen.
+3. Complete your profile if prompted.
+4. Use the tab bar to navigate. Protected screens load members from `GET /members` after the app stores and refreshes your Authentik tokens.
 
 ### Key files
 
 | File | Role |
 |------|------|
 | `KTPLIFE/KTPLIFE/Secrets.example.plist` | Committed template for `API_BASE_URL` |
-| `KTPLIFE/KTPLIFE/Secrets.plist` | Local API URL (gitignored; copy from example) |
-| `KTPLIFE/KTPServices/APIConfig.swift` | Loads `API_BASE_URL` from Secrets plist |
-| `KTPLIFE/KTPServices/MemberAPIService.swift` | Fetches `/members` |
-| `KTPLIFE/KTPServices/PhotoService.swift` | Fetches `/photos` |
+| `KTPLIFE/KTPLIFE/Secrets.plist` | Local API override file (gitignored; copy from example) |
+| `KTPLIFE/KTPServices/APIConfig.swift` | Loads API config from Secrets plist |
+| `KTPLIFE/KTPServices/AuthConfiguration.swift` | Central Authentik issuer, client ID, redirect URI, and scopes |
+| `KTPLIFE/KTPServices/OIDCAuthService.swift` | Native OIDC login and token refresh |
+| `KTPLIFE/KTPServices/MemberAPIService.swift` | Fetches protected `/members` and `/messages` with a Bearer token |
+| `KTPLIFE/KTPViewModels/AuthManager.swift` | Coordinates login, token refresh, and profile gating |
+| `KTPLIFE/KTPServices/PhotoService.swift` | Fetches, uploads, deletes, and loads media from protected `/photos` |
 | `KTPLIFE/KTPServices/CalendarNetwork.swift` | Fetches `/events` |
 | `KTPLIFE/KTPModels/DirectoryMember.swift` | Swift model matching member JSON |
-| `KTPLIFE/KTPLIFE/MessagesView.swift` | Messages tab + directory routing |
+| `KTPLIFE/KTPLIFE/ContentView.swift` | Routes the app between SSO login, profile completion, and the main shell |
 
-### API contract (`GET /members`)
+### API contract
 
-The directory expects an array of objects shaped like:
+Current backend routes:
 
-```json
-{
-  "id": "1",
-  "name": "Andrew Babatunde",
-  "role": "Computer Science",
-  "year": "2027",
-  "group": "activeMembers"
-}
+```text
+GET /                 Health check
+GET /members
+GET /members/:id
+GET /photos
+GET /photos/:id/media
+POST /photos
+DELETE /photos/:id
+GET /albums
+POST /albums
+GET /ios-homepage-photos
+GET /ios-homepage-photos/:id/media
+POST /ios-homepage-photos
+POST /ios-homepage-photos/register
+PUT /ios-homepage-photos/reorder
+PUT /ios-homepage-photos/:id
+DELETE /ios-homepage-photos/:id
+GET /documents/folders
+POST /documents/folders
+DELETE /documents/folders/:id
+GET /documents
+GET /documents/:id/download
+GET /documents/:id/preview
+POST /documents
+DELETE /documents/:id
+GET /events
+GET /events/:id
+POST /events
+PUT /events/:id
+DELETE /events/:id
+POST /users/sync
+GET /users/me
+PUT /users/me/profile
+DELETE /users/me
+PUT /users/me/profile-picture
+GET /users/:id/profile-picture/media
+GET /users/blocked
+POST /users/:id/block
+DELETE /users/:id/block
+GET /admin/users
+POST /webhooks/authentik
+GET /messages/conversations
+GET /messages/conversations/:userId
+PUT /messages/conversations/:userId/read
+POST /messages
+GET /announcements
+POST /announcements
+DELETE /announcements/:id
+GET /group-chats
+POST /group-chats
+DELETE /group-chats/:id
+GET /group-chats/:id/messages
+POST /group-chats/:id/messages
+PUT /group-chats/:id/read
+GET /group-chats/:id/members
+POST /group-chats/:id/members
+DELETE /group-chats/:id/members/:userId
+POST /reports
+GET /reports
+PUT /reports/:id/status
 ```
 
-`group` must be one of: `activeMembers`, `pledges`, `eBoard`, `alumni`.
+Routes guarded by the backend auth middleware require:
 
-Other tabs use `GET /events`, `GET /photos`, and (planned) `GET /messages` against the same `API_BASE_URL`.
+```text
+Authorization: Bearer <access_token>
+```
+
+The Swift member model accepts production member groups: `active`, `pledge`, `eboard`, `chair`, and `alumni`.
+
+### Reports and moderation
+
+Members can report a directory profile, a direct or group message, or a chapter photo from the relevant detail screen. The report sheet sends `content_type`, the applicable `content_id`, the known `reported_user_id`, a reason, and optional details to `POST /reports`.
+
+Eboard members can review the backend-authorized queue from **Profile → Review Reports**. The queue supports filtering by report status and updating a report to `resolved` or `dismissed` with an optional moderator response. The client only exposes this entry point for the `eboard` member group; the API remains the authorization authority.
 
 ### Troubleshooting
 
-**Directory or other tabs show a load error** — confirm `API_BASE_URL` in `Secrets.plist` is correct, the backend is running, and the device can reach that host (Simulator vs physical device use different URLs).
+**Directory shows a sign-in screen** — complete the SSO flow first. The app stores Authentik tokens and refreshes them automatically.
 
-**Physical device cannot connect** — `127.0.0.1` only works on the Simulator. Use your Mac’s LAN IP or a hosted API URL on a real iPhone.
+**Public tabs show a load error** — confirm `API_BASE_URL` in `Secrets.plist` is correct and the device can reach that host.
 
 **App Transport Security** — local HTTP is allowed via `NSAllowsLocalNetworking` in `Info.plist`. Production HTTPS endpoints do not need extra ATS changes.
 

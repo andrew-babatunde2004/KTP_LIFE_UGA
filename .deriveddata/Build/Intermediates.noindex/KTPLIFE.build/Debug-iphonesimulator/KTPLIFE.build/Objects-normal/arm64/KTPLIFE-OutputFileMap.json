@@ -36,6 +36,26 @@
     "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTabBar.swiftdeps",
     "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTabBar~partial.swiftmodule"
   },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/AppTypography.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTypography.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTypography.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTypography.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTypography.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTypography.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTypography.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTypography.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AppTypography~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/AuthManager.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthManager.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthManager.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthManager.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthManager.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthManager.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthManager.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthManager.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthManager~partial.swiftmodule"
+  },
   "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/AuthView.swift" : {
     "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthView.swiftconstvalues",
     "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthView.d",
@@ -56,6 +76,16 @@
     "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarView.swiftdeps",
     "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarView~partial.swiftmodule"
   },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/CommitteesView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CommitteesView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CommitteesView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CommitteesView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CommitteesView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CommitteesView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CommitteesView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CommitteesView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CommitteesView~partial.swiftmodule"
+  },
   "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/ContentView.swift" : {
     "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ContentView.swiftconstvalues",
     "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ContentView.d",
@@ -65,6 +95,16 @@
     "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ContentView.o",
     "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ContentView.swiftdeps",
     "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/DocumentsView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DocumentsView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DocumentsView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DocumentsView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DocumentsView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DocumentsView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DocumentsView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DocumentsView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DocumentsView~partial.swiftmodule"
   },
   "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/HomeView.swift" : {
     "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/HomeView.swiftconstvalues",
@@ -95,6 +135,36 @@
     "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KTPLIFEApp.o",
     "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KTPLIFEApp.swiftdeps",
     "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KTPLIFEApp~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/MediaImageRepositories.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MediaImageRepositories.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MediaImageRepositories.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MediaImageRepositories.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MediaImageRepositories.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MediaImageRepositories.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MediaImageRepositories.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MediaImageRepositories.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MediaImageRepositories~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/MemberDirectoryView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberDirectoryView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberDirectoryView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberDirectoryView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberDirectoryView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberDirectoryView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberDirectoryView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberDirectoryView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberDirectoryView~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/MessageThreadsView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageThreadsView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageThreadsView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageThreadsView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageThreadsView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageThreadsView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageThreadsView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageThreadsView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageThreadsView~partial.swiftmodule"
   },
   "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/MessagesView.swift" : {
     "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessagesView.swiftconstvalues",
@@ -136,6 +206,16 @@
     "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PageScaffold.swiftdeps",
     "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PageScaffold~partial.swiftmodule"
   },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/PhotosView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotosView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotosView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotosView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotosView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotosView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotosView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotosView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotosView~partial.swiftmodule"
+  },
   "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/PreviewSupport.swift" : {
     "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PreviewSupport.swiftconstvalues",
     "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PreviewSupport.d",
@@ -146,6 +226,56 @@
     "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PreviewSupport.swiftdeps",
     "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PreviewSupport~partial.swiftmodule"
   },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/ProfileIncompleteView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileIncompleteView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileIncompleteView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileIncompleteView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileIncompleteView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileIncompleteView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileIncompleteView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileIncompleteView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileIncompleteView~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/ProfileView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ProfileView~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/QRCodeScannerView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/QRCodeScannerView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/QRCodeScannerView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/QRCodeScannerView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/QRCodeScannerView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/QRCodeScannerView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/QRCodeScannerView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/QRCodeScannerView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/QRCodeScannerView~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/ResetPasswordView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ResetPasswordView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ResetPasswordView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ResetPasswordView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ResetPasswordView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ResetPasswordView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ResetPasswordView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ResetPasswordView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ResetPasswordView~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/SSOLoginView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SSOLoginView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SSOLoginView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SSOLoginView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SSOLoginView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SSOLoginView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SSOLoginView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SSOLoginView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SSOLoginView~partial.swiftmodule"
+  },
   "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/SharedViews.swift" : {
     "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SharedViews.swiftconstvalues",
     "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SharedViews.d",
@@ -155,5 +285,185 @@
     "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SharedViews.o",
     "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SharedViews.swiftdeps",
     "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SharedViews~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/SignupView.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SignupView.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SignupView.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SignupView.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SignupView.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SignupView.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SignupView.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SignupView.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/SignupView~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPModels/CalendarEvent.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarEvent.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarEvent.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarEvent.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarEvent.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarEvent.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarEvent.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarEvent.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarEvent~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPModels/ChapterResourceModels.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourceModels.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourceModels.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourceModels.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourceModels.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourceModels.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourceModels.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourceModels.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourceModels~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPModels/DirectoryMember.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DirectoryMember.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DirectoryMember.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DirectoryMember.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DirectoryMember.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DirectoryMember.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DirectoryMember.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DirectoryMember.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/DirectoryMember~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPModels/MemberGroup.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberGroup.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberGroup.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberGroup.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberGroup.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberGroup.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberGroup.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberGroup.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberGroup~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPModels/MessageModels.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageModels.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageModels.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageModels.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageModels.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageModels.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageModels.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageModels.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MessageModels~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPModels/PhotoItem.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoItem.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoItem.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoItem.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoItem.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoItem.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoItem.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoItem.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoItem~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPModels/UserProfile.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserProfile.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserProfile.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserProfile.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserProfile.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserProfile.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserProfile.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserProfile.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserProfile~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPServices/APIConfig.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/APIConfig.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/APIConfig.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/APIConfig.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/APIConfig.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/APIConfig.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/APIConfig.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/APIConfig.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/APIConfig~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPServices/AuthConfiguration.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthConfiguration.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthConfiguration.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthConfiguration.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthConfiguration.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthConfiguration.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthConfiguration.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthConfiguration.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/AuthConfiguration~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPServices/CalendarNetwork.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarNetwork.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarNetwork.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarNetwork.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarNetwork.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarNetwork.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarNetwork.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarNetwork.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarNetwork~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPServices/ChapterResourcesService.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourcesService.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourcesService.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourcesService.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourcesService.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourcesService.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourcesService.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourcesService.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/ChapterResourcesService~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPServices/KeychainStore.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KeychainStore.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KeychainStore.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KeychainStore.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KeychainStore.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KeychainStore.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KeychainStore.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KeychainStore.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/KeychainStore~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPServices/MemberAPIService.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberAPIService.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberAPIService.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberAPIService.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberAPIService.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberAPIService.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberAPIService.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberAPIService.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/MemberAPIService~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPServices/OIDCAuthService.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/OIDCAuthService.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/OIDCAuthService.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/OIDCAuthService.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/OIDCAuthService.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/OIDCAuthService.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/OIDCAuthService.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/OIDCAuthService.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/OIDCAuthService~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPServices/PhotoService.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoService.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoService.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoService.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoService.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoService.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoService.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoService.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/PhotoService~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPServices/UserSyncService.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserSyncService.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserSyncService.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserSyncService.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserSyncService.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserSyncService.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserSyncService.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserSyncService.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/UserSyncService~partial.swiftmodule"
+  },
+  "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPViewModels/CalendarViewModel.swift" : {
+    "const-values" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarViewModel.swiftconstvalues",
+    "dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarViewModel.d",
+    "diagnostics" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarViewModel.dia",
+    "index-unit-output-path" : "/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarViewModel.o",
+    "llvm-bc" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarViewModel.bc",
+    "object" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarViewModel.o",
+    "swift-dependencies" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarViewModel.swiftdeps",
+    "swiftmodule" : "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/.deriveddata/Build/Intermediates.noindex/KTPLIFE.build/Debug-iphonesimulator/KTPLIFE.build/Objects-normal/arm64/CalendarViewModel~partial.swiftmodule"
   }
 }

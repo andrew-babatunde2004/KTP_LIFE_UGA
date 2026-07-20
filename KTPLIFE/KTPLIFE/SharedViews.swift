@@ -15,7 +15,7 @@ struct KTPLogoMark: View {
             .renderingMode(.template)
             .resizable()
             .scaledToFit()
-            .foregroundStyle(.white)
+            .appTextPrimary()
             .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: alignment)
     }
 }
@@ -28,11 +28,11 @@ struct EmptyState: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
                 .font(AppFont.headline())
-                .foregroundStyle(.white)
+                .appTextOnCard()
 
             Text(message)
                 .font(AppFont.subheadline())
-                .foregroundStyle(.white.opacity(0.7))
+                .appTextOnCardSecondary()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(22)
@@ -80,15 +80,13 @@ enum AppSurfaceColor {
     static let mutedPill = Color(red: 0.60, green: 0.64, blue: 0.72)
 }
 
-/// Semantic text colors for light/dark pages. Use instead of hard-coded `.white` on page backgrounds.
-enum AppTextColor {
-    static func primary(on theme: PageTheme, colorScheme: ColorScheme) -> Color {
-        theme.surfaceStyle == .light && colorScheme == .light
-            ? Color(red: 0.10, green: 0.12, blue: 0.16)
-            : .white
-    }
-
-    static func secondary(on theme: PageTheme, colorScheme: ColorScheme) -> Color {
-        primary(on: theme, colorScheme: colorScheme).opacity(0.72)
-    }
+/// Semantic system surfaces shared by the standard app pages.
+/// Branded authentication and opportunity panels intentionally use AppSurfaceColor instead.
+enum AppSystemColor {
+    static let background = Color(uiColor: .systemBackground)
+    static let elevatedBackground = Color(uiColor: .secondarySystemBackground)
+    static let insetBackground = Color(uiColor: .tertiarySystemFill)
+    static let primaryLabel = Color(uiColor: .label)
+    static let secondaryLabel = Color(uiColor: .secondaryLabel)
+    static let separator = Color(uiColor: .separator)
 }

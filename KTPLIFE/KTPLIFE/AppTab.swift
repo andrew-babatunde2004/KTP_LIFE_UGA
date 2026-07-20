@@ -5,13 +5,20 @@
 
 import SwiftUI
 
-// Add new cases here as you add pages to the tab bar.
+// Only `allCases` is rendered in the bottom tab bar. The retained legacy routes
+// keep their screens available to in-app entry points and previews.
 enum AppTab: CaseIterable, Identifiable {
     case home
-    case messages
-    case opportunities
+    case community
     case calendar
+
+    // Non-tab destinations.
+    case messages
+    case directory
+    case opportunities
     case photos
+
+    static var allCases: [AppTab] { [.home, .community, .calendar] }
 
     var id: Self { self }
 
@@ -19,8 +26,12 @@ enum AppTab: CaseIterable, Identifiable {
         switch self {
         case .home:
             return "house.fill"
+        case .community:
+            return "person.2.fill"
         case .messages:
-            return "person.fill"
+            return "bubble.left.and.bubble.right.fill"
+        case .directory:
+            return "person.2.fill"
         case .opportunities:
             return "briefcase.fill"
         case .calendar:
@@ -34,8 +45,12 @@ enum AppTab: CaseIterable, Identifiable {
         switch self {
         case .home:
             return "Home"
+        case .community:
+            return "Community"
         case .messages:
             return "Messages"
+        case .directory:
+            return "Directory"
         case .opportunities:
             return "Opportunities"
         case .calendar:
@@ -49,12 +64,16 @@ enum AppTab: CaseIterable, Identifiable {
         switch self {
         case .home:
             return .defaultWhite
+        case .community:
+            return .community
         case .messages:
+            return .community
+        case .directory:
             return .defaultWhite
         case .opportunities:
             return .opportunities
         case .calendar:
-            return .defaultWhite
+            return .calendar
         case .photos:
             return .defaultWhite
         }
@@ -86,6 +105,8 @@ struct PageTheme {
       return Color.white.opacity(0.12)
     case (.dark, _):
       return Color.white.opacity(0.10)
+    @unknown default:
+      return Color.white.opacity(0.10)
     }
   }
 
@@ -112,11 +133,19 @@ struct PageTheme {
     darkModeBackground: Color(red: 0.06, green: 0.10, blue: 0.22)
   )
 
-  // Home: warm off-white in light mode, charcoal in dark mode.
+  // Standard pages follow the user's system appearance exactly.
   static let defaultWhite = PageTheme(
     surfaceStyle: .light,
-    lightModeBackground: Color(red: 0.96, green: 0.96, blue: 0.94),
-    darkModeBackground: Color(red: 0.11, green: 0.12, blue: 0.14)
+    lightModeBackground: AppSystemColor.background,
+    darkModeBackground: AppSystemColor.background
+  )
+
+  static let calendar = defaultWhite
+
+  static let community = PageTheme(
+    surfaceStyle: .light,
+    lightModeBackground: AppSystemColor.background,
+    darkModeBackground: AppSystemColor.background
   )
 
   static let opportunities = defaultBlue
@@ -125,5 +154,16 @@ struct PageTheme {
   /// Use in `#Preview` blocks. Pass `.dark` to preview dark mode in the canvas.
   func previewBackground(_ colorScheme: ColorScheme = .light) -> Color {
     backgroundColor(for: colorScheme)
+  }
+}
+
+private struct PageThemeKey: EnvironmentKey {
+  static let defaultValue: PageTheme = .defaultWhite
+}
+
+extension EnvironmentValues {
+  var pageTheme: PageTheme {
+    get { self[PageThemeKey.self] }
+    set { self[PageThemeKey.self] = newValue }
   }
 }
