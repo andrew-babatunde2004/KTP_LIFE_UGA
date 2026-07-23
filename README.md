@@ -68,6 +68,12 @@ POST /ios-homepage-photos/register
 PUT /ios-homepage-photos/reorder
 PUT /ios-homepage-photos/:id
 DELETE /ios-homepage-photos/:id
+GET /homepage-photos
+GET /homepage-photos/:id/media
+POST /homepage-photos
+POST /homepage-photos/register
+PUT /homepage-photos/reorder
+DELETE /homepage-photos/:id
 GET /documents/folders
 POST /documents/folders
 DELETE /documents/folders/:id
@@ -81,6 +87,19 @@ GET /events/:id
 POST /events
 PUT /events/:id
 DELETE /events/:id
+GET /committees
+POST /committees
+DELETE /committees/:id
+POST /committees/:id/join
+DELETE /committees/:id/leave
+GET /committees/:id/members
+PUT /committees/:id/members/:userId/role
+GET /polls
+POST /polls
+DELETE /polls/:id
+PUT /polls/:id/close
+POST /polls/:id/vote
+GET /polls/:id/stats
 POST /users/sync
 GET /users/me
 PUT /users/me/profile
@@ -111,6 +130,10 @@ DELETE /group-chats/:id/members/:userId
 POST /reports
 GET /reports
 PUT /reports/:id/status
+POST /notifications/devices
+DELETE /notifications/devices/:token
+GET /notifications/preferences
+PUT /notifications/preferences
 ```
 
 Routes guarded by the backend auth middleware require:
