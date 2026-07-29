@@ -49,91 +49,148 @@ Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to the producti
 
 ### API contract
 
-Current backend routes:
+Full request/response detail, auth rules, and body shapes live in `ktp-api`'s own README — this list is the route surface only.
 
 ```text
-GET /                 Health check
-GET /members
-GET /members/:id
-GET /photos
-GET /photos/:id/media
-POST /photos
-DELETE /photos/:id
-GET /albums
-POST /albums
-GET /ios-homepage-photos
-GET /ios-homepage-photos/:id/media
-POST /ios-homepage-photos
-POST /ios-homepage-photos/register
-PUT /ios-homepage-photos/reorder
-PUT /ios-homepage-photos/:id
-DELETE /ios-homepage-photos/:id
-GET /homepage-photos
-GET /homepage-photos/:id/media
-POST /homepage-photos
-POST /homepage-photos/register
-PUT /homepage-photos/reorder
-DELETE /homepage-photos/:id
-GET /documents/folders
-POST /documents/folders
-DELETE /documents/folders/:id
-GET /documents
-GET /documents/:id/download
-GET /documents/:id/preview
-POST /documents
-DELETE /documents/:id
-GET /events
-GET /events/:id
-POST /events
-PUT /events/:id
-DELETE /events/:id
-GET /committees
-POST /committees
-DELETE /committees/:id
-POST /committees/:id/join
-DELETE /committees/:id/leave
-GET /committees/:id/members
-PUT /committees/:id/members/:userId/role
-GET /polls
-POST /polls
-DELETE /polls/:id
-PUT /polls/:id/close
-POST /polls/:id/vote
-GET /polls/:id/stats
-POST /users/sync
-GET /users/me
-PUT /users/me/profile
+GET    /                                        Health check
+
+# Directory
+GET    /members
+GET    /members/:id
+
+# Public roster (no auth — backs the public "meet the chapter" page)
+GET    /roster
+GET    /roster/:id/media
+
+# Profile & account
+POST   /users/sync
+GET    /users/me
+PUT    /users/me/profile
+PUT    /users/me/profile-picture
 DELETE /users/me
-PUT /users/me/profile-picture
-GET /users/:id/profile-picture/media
-GET /users/blocked
-POST /users/:id/block
+GET    /users/:id/profile-picture/media
+GET    /users/blocked
+POST   /users/:id/block
 DELETE /users/:id/block
-GET /admin/users
-POST /webhooks/authentik
-GET /messages/conversations
-GET /messages/conversations/:userId
-PUT /messages/conversations/:userId/read
-POST /messages
-GET /announcements
-POST /announcements
+
+# Events / calendar
+GET    /events
+GET    /events/:id
+POST   /events
+PUT    /events/:id
+DELETE /events/:id
+
+# Attendance (QR check-in)
+GET    /events/:id/attendance/code
+GET    /events/:id/attendance
+PUT    /events/:id/attendance/:userId
+POST   /checkin/:eventId/:token
+
+# Committees
+GET    /committees
+POST   /committees
+DELETE /committees/:id
+POST   /committees/:id/join
+DELETE /committees/:id/leave
+GET    /committees/:id/members
+PUT    /committees/:id/members/:userId/role
+
+# Polls
+GET    /polls
+POST   /polls
+DELETE /polls/:id
+PUT    /polls/:id/close
+POST   /polls/:id/vote
+GET    /polls/:id/stats
+
+# Announcements
+GET    /announcements
+POST   /announcements
+PUT    /announcements/:id
 DELETE /announcements/:id
-GET /group-chats
-POST /group-chats
+
+# Direct messages
+GET    /messages/unread-count
+GET    /messages/conversations
+GET    /messages/conversations/:userId
+PUT    /messages/conversations/:userId/read
+POST   /messages
+GET    /messages/:messageId/attachment
+POST   /messages/:messageId/reactions
+DELETE /messages/:messageId
+
+# Group chats
+GET    /group-chats
+GET    /group-chats/unread-count
+POST   /group-chats
 DELETE /group-chats/:id
-GET /group-chats/:id/messages
-POST /group-chats/:id/messages
-PUT /group-chats/:id/read
-GET /group-chats/:id/members
-POST /group-chats/:id/members
+PUT    /group-chats/:id/photo
+GET    /group-chats/:id/photo/media
+GET    /group-chats/:id/members
+POST   /group-chats/:id/members
 DELETE /group-chats/:id/members/:userId
-POST /reports
-GET /reports
-PUT /reports/:id/status
-POST /notifications/devices
+GET    /group-chats/:id/messages
+POST   /group-chats/:id/messages
+GET    /group-chats/:id/messages/:messageId/attachment
+POST   /group-chats/:id/messages/:messageId/reactions
+DELETE /group-chats/:id/messages/:messageId
+PUT    /group-chats/:id/read
+
+# Photos & albums
+GET    /photos
+GET    /photos/:id/media
+POST   /photos
+DELETE /photos/:id
+GET    /albums
+POST   /albums
+DELETE /albums/:id
+
+# Documents
+GET    /documents/folders
+POST   /documents/folders
+DELETE /documents/folders/:id
+GET    /documents
+GET    /documents/:id/download
+GET    /documents/:id/preview
+POST   /documents
+POST   /documents/link
+DELETE /documents/:id
+
+# iOS homepage slideshow
+GET    /ios-homepage-photos
+GET    /ios-homepage-photos/:id/media
+POST   /ios-homepage-photos
+POST   /ios-homepage-photos/register
+PUT    /ios-homepage-photos/reorder
+PUT    /ios-homepage-photos/:id
+DELETE /ios-homepage-photos/:id
+
+# Public homepage gallery (website's marketing gallery — distinct from the slideshow above)
+GET    /homepage-photos
+GET    /homepage-photos/:id/media
+POST   /homepage-photos
+POST   /homepage-photos/register
+PUT    /homepage-photos/reorder
+DELETE /homepage-photos/:id
+
+# Reports & moderation
+POST   /reports
+GET    /reports
+PUT    /reports/:id/status
+
+# Push notifications
+POST   /notifications/devices
 DELETE /notifications/devices/:token
-GET /notifications/preferences
-PUT /notifications/preferences
+GET    /notifications/preferences
+PUT    /notifications/preferences
+
+# Admin (eboard only)
+GET    /admin/users
+PUT    /admin/users/:authentikId/group
+PUT    /admin/users/:authentikId/exec-title
+
+# Authentik integration
+POST   /webhooks/authentik
 ```
 
 Routes guarded by the backend auth middleware require:
@@ -143,6 +200,22 @@ Authorization: Bearer <access_token>
 ```
 
 The Swift member model accepts production member groups: `active`, `pledge`, `eboard`, `chair`, and `alumni`.
+
+Two endpoints are public and take no token: `GET /roster` and `GET /roster/:id/media`. `GET /events` accepts a token optionally — anonymous callers get only untargeted public events, which is what keeps the calendar working before sign-in.
+
+### Attendance & check-in
+
+Events can opt into attendance tracking (`requiresAttendance`). When enabled, the API generates a one-time `attendance_token` for the event, retrievable only via `GET /events/:id/attendance/code` by an eboard member or the event's creator. That pair encodes into a QR code pointing at `<site>/checkin/:eventId/:token`.
+
+Scanning it while signed in hits `POST /checkin/:eventId/:token`, which validates the token against the event's real one and that the current time falls inside the event window plus a 30-minute grace period. Outside that window, or with a stale token, it 403s.
+
+Members have no attendance UI beyond the confirmation screen after a scan. Viewing the roster of who checked in, and manually correcting a status, is limited to eboard and the event creator.
+
+### Messaging capabilities
+
+Both DMs and group chat messages support **emoji reactions** (`POST .../reactions` toggles), **file attachments** (multipart on send, streamed back from the `/attachment` route), and **deletion** — a sender can always delete their own message, and eboard can delete any message within a conversation they're already part of.
+
+Message sends are rate-limited to 20/minute per user and run through a basic content filter, so a `400` on send isn't necessarily a client bug. Blocking is enforced server-side: a blocked user's messages are hidden from the blocker's view and new conversations can't start in either direction.
 
 ### Reports and moderation
 
