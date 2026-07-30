@@ -553,8 +553,8 @@ struct MemberDirectoryView: View {
     }
 
 private enum DirectoryDesign {
-    static let avatarBackground = AppSystemColor.insetBackground
-    static let avatarText = AppSystemColor.primaryLabel
+    static var avatarBackground: Color { AppSystemColor.insetBackground }
+    static var avatarText: Color { AppSystemColor.primaryLabel }
 
     static func primary(for colorScheme: ColorScheme) -> Color {
         AppSystemColor.primaryLabel

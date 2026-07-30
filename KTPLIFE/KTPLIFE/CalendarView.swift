@@ -12,8 +12,13 @@ struct CalendarView: View {
     @State private var displayedMonth = Date()
     @State private var selectedDate = Date()
     @State private var userSelectedDate = false
+    @Binding private var deepLinkedEventID: String?
 
     private let calendar = Calendar.ktpCalendar
+
+    init(deepLinkedEventID: Binding<String?> = .constant(nil)) {
+        _deepLinkedEventID = deepLinkedEventID
+    }
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -65,7 +70,9 @@ struct CalendarView: View {
         }
         .onChange(of: viewModel.events.count) { _, _ in
             syncSelectionToNextEventIfNeeded()
+            selectDeepLinkedEventIfNeeded()
         }
+        .onChange(of: deepLinkedEventID) { _, _ in selectDeepLinkedEventIfNeeded() }
         .animation(.spring(response: 0.34, dampingFraction: 0.86), value: viewModel.events.count)
         .animation(.spring(response: 0.32, dampingFraction: 0.9), value: displayedMonth)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: selectedDate)
@@ -130,6 +137,7 @@ struct CalendarView: View {
             try await authManager.validAccessToken()
         })
         syncSelectionToNextEventIfNeeded()
+        selectDeepLinkedEventIfNeeded()
     }
 
     private func syncSelectionToNextEventIfNeeded() {
@@ -139,6 +147,17 @@ struct CalendarView: View {
 
         selectedDate = nextEvent.startDate
         displayedMonth = calendar.startOfMonth(for: nextEvent.startDate)
+    }
+
+    private func selectDeepLinkedEventIfNeeded() {
+        guard let eventID = deepLinkedEventID,
+              let event = viewModel.events.first(where: { $0.id == eventID })
+        else { return }
+
+        selectedDate = event.startDate
+        displayedMonth = calendar.startOfMonth(for: event.startDate)
+        userSelectedDate = true
+        deepLinkedEventID = nil
     }
 }
 

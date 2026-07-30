@@ -15,8 +15,6 @@ struct HomeView: View {
     @State private var homepageSlides: [HomepageSlide] = []
     @State private var isLoadingHomepageSlides = false
 
-    let showPhotos: () -> Void
-    let showEvents: () -> Void
     let showDocuments: () -> Void
     let showCommittees: () -> Void
 
@@ -131,23 +129,7 @@ struct HomeView: View {
     }
 
     private var actionButtons: some View {
-        VStack(spacing: 14) {
-            HomeActionButton(
-                title: "Photo Gallery",
-                systemImage: "photo.stack.fill",
-                colorScheme: colorScheme,
-                reduceTransparency: reduceTransparency,
-                action: showPhotos
-            )
-
-            HomeActionButton(
-                title: "Events",
-                systemImage: "calendar.badge.clock",
-                colorScheme: colorScheme,
-                reduceTransparency: reduceTransparency,
-                action: showEvents
-            )
-
+        HStack(spacing: 14) {
             HomeActionButton(
                 title: "Documents",
                 systemImage: "doc.on.doc.fill",
@@ -271,7 +253,7 @@ private struct HomeSlideshow: View {
     let apiService: KTPAPIService
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        VStack(spacing: 10) {
             TabView(selection: $selectedSlide) {
                 ForEach(Array(slides.enumerated()), id: \.element.id) { index, slide in
                     HomepageSlideView(slide: slide, apiService: apiService)
@@ -279,17 +261,18 @@ private struct HomeSlideshow: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(height: 238)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: Color.black.opacity(0.12), radius: 9, x: 0, y: 4)
 
-            HomePageControl(
-                pageCount: slides.count,
-                selectedPage: selectedSlide,
-                reduceTransparency: reduceTransparency
-            )
-            .padding(.bottom, 13)
+            if slides.count > 1 {
+                HomePageControl(
+                    pageCount: slides.count,
+                    selectedPage: selectedSlide,
+                    reduceTransparency: reduceTransparency
+                )
+            }
         }
-        .frame(height: 238)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: Color.black.opacity(0.12), radius: 9, x: 0, y: 4)
         .task {
             await rotateSlidesAutomatically()
         }
@@ -374,7 +357,7 @@ private struct HomepageSlideView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if !slide.title.isEmpty {
                         Text(slide.title)
-                            .font(AppFont.title(24))
+                            .font(AppFont.title(20))
                             .foregroundStyle(.white)
                     }
 
@@ -386,7 +369,6 @@ private struct HomepageSlideView: View {
                     }
                 }
                 .padding(22)
-                .padding(.bottom, 28)
             }
         }
     }
@@ -431,7 +413,11 @@ private struct HomePageControl: View {
         HStack(spacing: 8) {
             ForEach(0..<pageCount, id: \.self) { index in
                 Circle()
-                    .fill(index == selectedPage ? Color.white : Color.white.opacity(0.45))
+                    .fill(
+                        index == selectedPage
+                            ? HomeDesign.accent
+                            : HomeDesign.tertiaryText.opacity(0.5)
+                    )
                     .frame(width: 7, height: 7)
             }
         }
@@ -464,28 +450,31 @@ private struct HomeActionButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 16) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 23, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(HomeDesign.accent)
-                    .frame(width: 42, height: 42)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 22, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(HomeDesign.accent)
+                        .frame(width: 42, height: 42)
+                        .background(
+                            HomeDesign.accent.opacity(colorScheme == .dark ? 0.18 : 0.10),
+                            in: Circle()
+                        )
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(AppFont.headline())
-                        .foregroundStyle(HomeDesign.primaryText)
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(HomeDesign.tertiaryText)
                 }
 
-                Spacer(minLength: 8)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(HomeDesign.tertiaryText)
+                Text(title)
+                    .font(AppFont.headline())
+                    .foregroundStyle(HomeDesign.primaryText)
             }
-            .padding(.horizontal, 19)
-            .padding(.vertical, 15)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
+            .frame(maxWidth: .infinity, minHeight: 118, alignment: .leading)
             .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .modifier(HomeGlassActionSurface(
@@ -592,8 +581,6 @@ private enum HomeSlideshowConfiguration {
 #if DEBUG
 #Preview("Home — Light") {
     HomeView(
-        showPhotos: {},
-        showEvents: {},
         showDocuments: {},
         showCommittees: {}
     )
@@ -606,8 +593,6 @@ private enum HomeSlideshowConfiguration {
 
 #Preview("Home — Dark") {
     HomeView(
-        showPhotos: {},
-        showEvents: {},
         showDocuments: {},
         showCommittees: {}
     )

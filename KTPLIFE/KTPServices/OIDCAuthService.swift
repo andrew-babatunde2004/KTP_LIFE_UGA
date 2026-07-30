@@ -289,9 +289,19 @@ private final class PresentationContextProvider: NSObject, ASWebAuthenticationPr
     static let shared = PresentationContextProvider()
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        UIApplication.shared.connectedScenes
+        let windowScenes = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow } ?? ASPresentationAnchor()
+
+        if let keyWindow = windowScenes
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow) {
+            return keyWindow
+        }
+
+        guard let windowScene = windowScenes.first else {
+            preconditionFailure("A window scene is required to present the authentication session.")
+        }
+
+        return ASPresentationAnchor(windowScene: windowScene)
     }
 }

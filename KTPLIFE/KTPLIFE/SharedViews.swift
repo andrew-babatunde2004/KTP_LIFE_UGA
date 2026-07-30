@@ -3,7 +3,61 @@
 //  KTPLIFE
 //
 
+import Foundation
 import SwiftUI
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    static let storageKey = "appAppearance"
+
+    case light
+    case dark
+    case gray
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .light: "Light"
+        case .dark: "Dark"
+        case .gray: "Gray"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .light: "A bright white background with dark text."
+        case .dark: "A true-black background designed for low-light use."
+        case .gray: "A softer blue-gray background inspired by classic social-app themes."
+        }
+    }
+
+    var preferredColorScheme: ColorScheme {
+        switch self {
+        case .light: .light
+        case .dark, .gray: .dark
+        }
+    }
+
+    static var current: AppAppearance {
+        guard let rawValue = UserDefaults.standard.string(forKey: storageKey),
+              let appearance = AppAppearance(rawValue: rawValue)
+        else {
+            return .light
+        }
+        return appearance
+    }
+}
+
+private struct AppAppearanceKey: EnvironmentKey {
+    static let defaultValue = AppAppearance.light
+}
+
+extension EnvironmentValues {
+    var appAppearance: AppAppearance {
+        get { self[AppAppearanceKey.self] }
+        set { self[AppAppearanceKey.self] = newValue }
+    }
+}
 
 struct KTPLogoMark: View {
     var maxWidth: CGFloat = 220
@@ -83,10 +137,69 @@ enum AppSurfaceColor {
 /// Semantic system surfaces shared by the standard app pages.
 /// Branded authentication and opportunity panels intentionally use AppSurfaceColor instead.
 enum AppSystemColor {
-    static let background = Color(uiColor: .systemBackground)
-    static let elevatedBackground = Color(uiColor: .secondarySystemBackground)
-    static let insetBackground = Color(uiColor: .tertiarySystemFill)
-    static let primaryLabel = Color(uiColor: .label)
-    static let secondaryLabel = Color(uiColor: .secondaryLabel)
-    static let separator = Color(uiColor: .separator)
+    static var background: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .systemBackground)
+        case .dark:
+            Color.black
+        case .gray:
+            Color(red: 0.082, green: 0.125, blue: 0.169)
+        }
+    }
+
+    static var elevatedBackground: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .secondarySystemBackground)
+        case .dark:
+            Color(white: 0.09)
+        case .gray:
+            Color(red: 0.118, green: 0.176, blue: 0.227)
+        }
+    }
+
+    static var insetBackground: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .tertiarySystemFill)
+        case .dark:
+            Color.white.opacity(0.12)
+        case .gray:
+            Color(red: 0.165, green: 0.231, blue: 0.286)
+        }
+    }
+
+    static var primaryLabel: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .label)
+        case .dark:
+            Color.white
+        case .gray:
+            Color(red: 0.961, green: 0.973, blue: 0.980)
+        }
+    }
+
+    static var secondaryLabel: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .secondaryLabel)
+        case .dark:
+            Color.white.opacity(0.68)
+        case .gray:
+            Color(red: 0.667, green: 0.722, blue: 0.761)
+        }
+    }
+
+    static var separator: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .separator)
+        case .dark:
+            Color.white.opacity(0.18)
+        case .gray:
+            Color(red: 0.220, green: 0.267, blue: 0.302)
+        }
+    }
 }

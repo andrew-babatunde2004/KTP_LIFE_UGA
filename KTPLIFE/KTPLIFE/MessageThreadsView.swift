@@ -6,10 +6,18 @@
 import SwiftUI
 
 struct MessageThreadsView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var authManager: AuthManager
     @State private var threads: [MessageThread] = []
     @State private var isLoading = false
+    @State private var isRefreshing = false
     @State private var loadError: String?
+
+    let refreshVersion: Int
+
+    init(refreshVersion: Int = 0) {
+        self.refreshVersion = refreshVersion
+    }
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -32,7 +40,7 @@ struct MessageThreadsView: View {
             } else {
                 VStack(alignment: .leading, spacing: MessageThreadLayout.sectionSpacing) {
                     if !directThreads.isEmpty {
-                        MessageThreadSection(title: "Direct Messages", threads: directThreads, apiService: apiService)
+                        MessageThreadSection(title: nil, threads: directThreads, apiService: apiService)
                     }
 
                     if !groupThreads.isEmpty {
@@ -41,8 +49,15 @@ struct MessageThreadsView: View {
                 }
             }
         }
-        .task {
-            await loadConversations()
+        .task(id: refreshVersion) {
+            await monitorConversations()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task { await loadConversations(showsLoadingState: false) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .messageThreadShouldRefresh)) { _ in
+            Task { await loadConversations(showsLoadingState: false) }
         }
     }
 
@@ -55,7 +70,22 @@ struct MessageThreadsView: View {
     }
 
     @MainActor
-    private func loadConversations() async {
+    private func monitorConversations() async {
+        await loadConversations(showsLoadingState: true)
+
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(nanoseconds: 8_000_000_000)
+            } catch {
+                return
+            }
+
+            await loadConversations(showsLoadingState: false)
+        }
+    }
+
+    @MainActor
+    private func loadConversations(showsLoadingState: Bool) async {
 #if DEBUG
         if isPreview {
             threads = MessageConversation.previewSamples.map(MessageThread.direct) + GroupChat.previewSamples.map(MessageThread.group)
@@ -64,33 +94,87 @@ struct MessageThreadsView: View {
         }
 #endif
 
-        isLoading = true
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        if showsLoadingState, threads.isEmpty {
+            isLoading = true
+        }
         loadError = nil
 
-        do {
-            async let directConversations = apiService.fetchMessageConversations()
-            async let groupChats = apiService.fetchGroupChats()
-            let loadedDirectConversations = try await directConversations
-            let loadedGroupChats = try await groupChats
-            let loadedThreads = loadedDirectConversations.map(MessageThread.direct) + loadedGroupChats.map(MessageThread.group)
-            threads = loadedThreads.sorted { left, right in
-                switch (left.lastMessageDate, right.lastMessageDate) {
-                case let (leftDate?, rightDate?):
-                    return leftDate > rightDate
-                case (.some, .none):
-                    return true
-                case (.none, .some):
-                    return false
-                case (.none, .none):
-                    return left.displayName < right.displayName
-                }
-            }
-        } catch {
-            threads = []
+        async let directResult = fetchDirectConversationsResult()
+        async let groupResult = fetchGroupChatsResult()
+        let (loadedDirectResult, loadedGroupResult) = await (directResult, groupResult)
+
+        guard !Task.isCancelled else {
+            isLoading = false
+            isRefreshing = false
+            return
+        }
+
+        let previousDirectThreads = directThreads
+        let previousGroupThreads = groupThreads
+        let resolvedDirectThreads: [MessageThread]
+        let resolvedGroupThreads: [MessageThread]
+        var loadFailures: [Error] = []
+
+        switch loadedDirectResult {
+        case .success(let conversations):
+            resolvedDirectThreads = conversations.map(MessageThread.direct)
+        case .failure(let error):
+            resolvedDirectThreads = previousDirectThreads
+            loadFailures.append(error)
+        }
+
+        switch loadedGroupResult {
+        case .success(let chats):
+            resolvedGroupThreads = chats.map(MessageThread.group)
+        case .failure(let error):
+            resolvedGroupThreads = previousGroupThreads
+            loadFailures.append(error)
+        }
+
+        threads = sortedThreads(resolvedDirectThreads + resolvedGroupThreads)
+
+        // A group-chat outage should not erase working direct messages (or vice
+        // versa). Only replace the inbox with an error when neither request
+        // succeeded and there is no previously loaded content to preserve.
+        if loadFailures.count == 2, threads.isEmpty, let error = loadFailures.first {
             loadError = messagesErrorMessage(for: error)
         }
 
         isLoading = false
+        isRefreshing = false
+    }
+
+    private func fetchDirectConversationsResult() async -> Result<[MessageConversation], Error> {
+        do {
+            return .success(try await apiService.fetchMessageConversations())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private func fetchGroupChatsResult() async -> Result<[GroupChat], Error> {
+        do {
+            return .success(try await apiService.fetchGroupChats())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    private func sortedThreads(_ threads: [MessageThread]) -> [MessageThread] {
+        threads.sorted { left, right in
+            switch (left.lastMessageDate, right.lastMessageDate) {
+            case let (leftDate?, rightDate?):
+                return leftDate > rightDate
+            case (.some, .none):
+                return true
+            case (.none, .some):
+                return false
+            case (.none, .none):
+                return left.displayName < right.displayName
+            }
+        }
     }
 }
 
@@ -106,15 +190,17 @@ private enum MessageThreadLayout {
 /// A labeled inbox section that keeps one-to-one conversations distinct from group chats.
 private struct MessageThreadSection: View {
     @Environment(\.colorScheme) private var colorScheme
-    let title: String
+    let title: String?
     let threads: [MessageThread]
     let apiService: KTPAPIService
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(AppFont.headline())
-                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+            if let title {
+                Text(title)
+                    .font(AppFont.headline())
+                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
+            }
 
             threadRows
         }
@@ -269,6 +355,7 @@ struct MessageConversationView: View {
     @State private var messages: [KTPMessage] = []
     @State private var draftMessage = ""
     @State private var isLoading = false
+    @State private var isRefreshingConversation = false
     @State private var isSending = false
     @State private var loadError: String?
     @State private var sentMessageIDs: Set<String> = []
@@ -280,6 +367,10 @@ struct MessageConversationView: View {
     @State private var isUpdatingBlock = false
     @State private var showsBlockConfirmation = false
     @State private var blockErrorMessage: String?
+    @State private var reactionsByMessageID: [String: [String: MessageReactionSummary]] = [:]
+    @State private var updatingReactionKeys: Set<String> = []
+    @State private var reactionErrorMessage: String?
+    @State private var sendErrorMessage: String?
     @FocusState private var isComposerFocused: Bool
 
     let thread: MessageThread
@@ -315,8 +406,10 @@ struct MessageConversationView: View {
         .navigationTitle(thread.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            await loadBlockState()
-            await loadConversation()
+            await monitorConversation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .messageThreadShouldRefresh)) { _ in
+            Task { await loadConversation(showsLoadingState: false) }
         }
         .toolbar {
             if directConversation != nil {
@@ -373,6 +466,22 @@ struct MessageConversationView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(blockErrorMessage ?? "Please try again.")
+        }
+        .alert("Couldn’t Update Reaction", isPresented: Binding(
+            get: { reactionErrorMessage != nil },
+            set: { if !$0 { reactionErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(reactionErrorMessage ?? "Please try again.")
+        }
+        .alert("Couldn’t Send Message", isPresented: Binding(
+            get: { sendErrorMessage != nil },
+            set: { if !$0 { sendErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(sendErrorMessage ?? "Please try again.")
         }
     }
 
@@ -442,6 +551,11 @@ struct MessageConversationView: View {
                 ScrollView(showsIndicators: false) {
                     messageStack
                 }
+                // The timeline is inserted only after the initial API load, so
+                // an earlier scroll request can predate the ScrollViewReader.
+                // Giving the scroll view a bottom default guarantees that a
+                // newly opened thread begins at its most recent message.
+                .defaultScrollAnchor(.bottom)
                 .scrollDismissesKeyboard(.interactively)
                 .onScrollGeometryChange(for: Bool.self, of: { geometry in
                     geometry.contentOffset.y + geometry.containerSize.height < geometry.contentSize.height - 32
@@ -514,6 +628,12 @@ struct MessageConversationView: View {
                     sender: sender(for: message),
                     isSentByCurrentUser: isSentByCurrentUser(message),
                     apiService: apiService,
+                    allowsReactions: directConversation != nil,
+                    reactions: reactionSummaries(for: message),
+                    updatingEmojis: updatingEmojis(for: message),
+                    toggleReaction: { emoji in
+                        Task { await toggleReaction(emoji, on: message) }
+                    },
                     reportMessage: isSentByCurrentUser(message) ? nil : {
                         reportTarget = ReportTarget.message(
                             message,
@@ -630,10 +750,28 @@ struct MessageConversationView: View {
     }
 
     @MainActor
-    private func loadConversation() async {
+    private func monitorConversation() async {
+        await loadBlockState()
+        await loadConversation(showsLoadingState: true)
+
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(nanoseconds: 3_000_000_000)
+            } catch {
+                return
+            }
+
+            guard !isBlocked else { continue }
+            await loadConversation(showsLoadingState: false)
+        }
+    }
+
+    @MainActor
+    private func loadConversation(showsLoadingState: Bool = true) async {
 #if DEBUG
         if isPreview {
             messages = KTPMessage.previewSamples
+            seedReactionState(from: messages)
             renderWindow.reset(totalCount: messages.count)
             scrollRequest = .latest(UUID())
             loadError = nil
@@ -641,32 +779,57 @@ struct MessageConversationView: View {
         }
 #endif
 
-        isLoading = true
-        loadError = nil
+        guard !isRefreshingConversation else { return }
+        isRefreshingConversation = true
+        defer { isRefreshingConversation = false }
 
-        do {
-            switch thread {
-            case .direct(let conversation):
-                async let fetchedMessages = apiService.fetchConversation(with: conversation.userId)
-                async let markRead: Void = apiService.markConversationRead(with: conversation.userId)
-                messages = try await fetchedMessages
-                _ = try? await markRead
-            case .group(let chat):
-                async let fetchedMessages = apiService.fetchGroupChatMessages(chatId: chat.id)
-                async let markRead: Void = apiService.markGroupChatRead(chatId: chat.id)
-                messages = try await fetchedMessages
-                _ = try? await markRead
-            }
-            messages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
-            // TODO: Replace this temporary client-side render window when the API exposes cursor/limit message pagination.
-            renderWindow.reset(totalCount: messages.count)
-            scrollRequest = .latest(UUID())
-        } catch {
-            messages = []
-            loadError = messagesErrorMessage(for: error)
+        if showsLoadingState {
+            isLoading = true
+            loadError = nil
         }
 
-        isLoading = false
+        do {
+            let loadedMessages: [KTPMessage]
+            switch thread {
+            case .direct(let conversation):
+                loadedMessages = try await apiService.fetchConversation(with: conversation.userId)
+            case .group(let chat):
+                loadedMessages = try await apiService.fetchGroupChatMessages(chatId: chat.id)
+            }
+
+            let existingMessageIDs = Set(messages.map(\.id))
+            let hasNewMessages = loadedMessages.contains { !existingMessageIDs.contains($0.id) }
+            messages = loadedMessages
+            messages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+            seedReactionState(from: messages)
+            // TODO: Replace this temporary client-side render window when the API exposes cursor/limit message pagination.
+            renderWindow.reset(totalCount: messages.count)
+            if showsLoadingState || (hasNewMessages && !isAwayFromLatest) {
+                scrollRequest = .latest(UUID())
+            }
+
+            if showsLoadingState || hasNewMessages {
+                switch thread {
+                case .direct(let conversation):
+                    try? await apiService.markConversationRead(with: conversation.userId)
+                case .group(let chat):
+                    try? await apiService.markGroupChatRead(chatId: chat.id)
+                }
+            }
+        } catch is CancellationError {
+            if showsLoadingState {
+                isLoading = false
+            }
+            return
+        } catch {
+            if showsLoadingState, messages.isEmpty {
+                loadError = messagesErrorMessage(for: error)
+            }
+        }
+
+        if showsLoadingState {
+            isLoading = false
+        }
     }
 
     @MainActor
@@ -675,7 +838,7 @@ struct MessageConversationView: View {
         guard !content.isEmpty, !isSending else { return }
 
         isSending = true
-        loadError = nil
+        sendErrorMessage = nil
 
         do {
             let sentMessage: KTPMessage
@@ -691,11 +854,80 @@ struct MessageConversationView: View {
             renderWindow.reset(totalCount: messages.count)
             scrollRequest = .latest(UUID())
             draftMessage = ""
+            loadError = nil
+        } catch is CancellationError {
+            isSending = false
+            return
         } catch {
-            loadError = messagesErrorMessage(for: error)
+            sendErrorMessage = messageSendErrorMessage(for: error)
         }
 
         isSending = false
+    }
+
+    private func reactionSummaries(for message: KTPMessage) -> [MessageReactionSummary] {
+        Array(reactionsByMessageID[message.id, default: [:]].values)
+            .filter { $0.count > 0 }
+            .sorted { left, right in
+                let leftIndex = MessageReactionPicker.emojis.firstIndex(of: left.emoji) ?? .max
+                let rightIndex = MessageReactionPicker.emojis.firstIndex(of: right.emoji) ?? .max
+                return leftIndex == rightIndex ? left.emoji < right.emoji : leftIndex < rightIndex
+            }
+    }
+
+    private func updatingEmojis(for message: KTPMessage) -> Set<String> {
+        Set(MessageReactionPicker.emojis.filter {
+            updatingReactionKeys.contains(reactionKey(messageID: message.id, emoji: $0))
+        })
+    }
+
+    private func seedReactionState(from messages: [KTPMessage]) {
+        reactionsByMessageID = Dictionary(uniqueKeysWithValues: messages.map { message in
+            (
+                message.id,
+                Dictionary(uniqueKeysWithValues: message.reactions.map { ($0.emoji, $0) })
+            )
+        })
+    }
+
+    @MainActor
+    private func toggleReaction(_ emoji: String, on message: KTPMessage) async {
+        guard directConversation != nil else { return }
+
+        let updateKey = reactionKey(messageID: message.id, emoji: emoji)
+        guard updatingReactionKeys.insert(updateKey).inserted else { return }
+        defer { updatingReactionKeys.remove(updateKey) }
+
+        let previous = reactionsByMessageID[message.id]?[emoji]
+            ?? MessageReactionSummary(emoji: emoji, count: 0, reactedByCurrentUser: false)
+        let isAdding = !previous.reactedByCurrentUser
+        let updated = MessageReactionSummary(
+            emoji: emoji,
+            count: max(0, previous.count + (isAdding ? 1 : -1)),
+            reactedByCurrentUser: isAdding
+        )
+        setReaction(updated, on: message.id)
+
+        do {
+            try await apiService.toggleMessageReaction(messageId: message.id, emoji: emoji)
+        } catch is CancellationError {
+            setReaction(previous, on: message.id)
+        } catch {
+            setReaction(previous, on: message.id)
+            reactionErrorMessage = "The reaction could not be saved. Please try again."
+        }
+    }
+
+    private func setReaction(_ reaction: MessageReactionSummary, on messageID: String) {
+        if reaction.count == 0 {
+            reactionsByMessageID[messageID]?[reaction.emoji] = nil
+        } else {
+            reactionsByMessageID[messageID, default: [:]][reaction.emoji] = reaction
+        }
+    }
+
+    private func reactionKey(messageID: String, emoji: String) -> String {
+        "\(messageID)|\(emoji)"
     }
 }
 
@@ -739,6 +971,10 @@ private struct MessageBubble: View {
     let sender: MessageSender
     let isSentByCurrentUser: Bool
     let apiService: KTPAPIService
+    let allowsReactions: Bool
+    let reactions: [MessageReactionSummary]
+    let updatingEmojis: Set<String>
+    let toggleReaction: (String) -> Void
     let reportMessage: (() -> Void)?
 
     var body: some View {
@@ -764,6 +1000,10 @@ private struct MessageBubble: View {
                 colorScheme: colorScheme,
                 reduceTransparency: reduceTransparency
             ))
+
+            if allowsReactions, !reactions.isEmpty {
+                reactionBar
+            }
         }
         .frame(maxWidth: .infinity, alignment: isSentByCurrentUser ? .trailing : .leading)
     }
@@ -800,7 +1040,85 @@ private struct MessageBubble: View {
                 }
                 .accessibilityLabel("Report message options")
             }
+
+            if allowsReactions {
+                MessageReactionPicker(
+                    reactions: reactions,
+                    updatingEmojis: updatingEmojis,
+                    toggleReaction: toggleReaction
+                )
+            }
         }
+    }
+
+    private var reactionBar: some View {
+        HStack(spacing: 6) {
+            ForEach(reactions) { reaction in
+                Button {
+                    toggleReaction(reaction.emoji)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(reaction.emoji)
+                        Text("\(reaction.count)")
+                            .font(AppFont.caption(weight: .semibold))
+                    }
+                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                    .padding(.horizontal, 9)
+                    .frame(height: 30)
+                    .background(
+                        reaction.reactedByCurrentUser
+                            ? MessageDesign.selectionTint(for: colorScheme)
+                            : MessageDesign.card(for: colorScheme),
+                        in: Capsule()
+                    )
+                    .overlay {
+                        Capsule()
+                            .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(updatingEmojis.contains(reaction.emoji))
+                .accessibilityLabel(
+                    "\(reaction.emoji) reaction, \(reaction.count), "
+                    + (reaction.reactedByCurrentUser ? "selected" : "not selected")
+                )
+            }
+        }
+    }
+}
+
+private struct MessageReactionPicker: View {
+    static let emojis = ["👍", "❤️", "😂", "🎉", "😮"]
+
+    let reactions: [MessageReactionSummary]
+    let updatingEmojis: Set<String>
+    let toggleReaction: (String) -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(Self.emojis, id: \.self) { emoji in
+                Button {
+                    toggleReaction(emoji)
+                } label: {
+                    HStack {
+                        Text(emoji)
+                        if selectedEmojis.contains(emoji) {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                .disabled(updatingEmojis.contains(emoji))
+            }
+        } label: {
+            Image(systemName: "face.smiling")
+                .font(AppFont.caption(weight: .bold))
+                .frame(width: 28, height: 28)
+        }
+        .accessibilityLabel("React to message")
+    }
+
+    private var selectedEmojis: Set<String> {
+        Set(reactions.filter(\.reactedByCurrentUser).map(\.emoji))
     }
 }
 
@@ -1046,6 +1364,26 @@ private func messagesErrorMessage(for error: Error) -> String {
     }
 
     return "Could not load messages. Please check your connection and try again."
+}
+
+private func messageSendErrorMessage(for error: Error) -> String {
+    if case AuthManagerError.notAuthenticated = error {
+        return "Sign in with SSO before sending a message."
+    }
+
+    if case KTPAPIError.missingAccessToken = error {
+        return "Sign in with SSO before sending a message."
+    }
+
+    if case KTPAPIError.badStatusCode(let statusCode, _) = error {
+        if statusCode == 401 || statusCode == 403 {
+            return "Your message access has expired. Sign out and sign in again."
+        }
+
+        return "The server could not send this message. Your conversation is still available—please try again."
+    }
+
+    return "The message could not be sent. Check your connection and try again."
 }
 
 private extension Date {
