@@ -22,6 +22,10 @@ final class AuthManager: ObservableObject {
     private var tokens: AuthTokens?
     private var lastAccessTokenClaims: TokenClaimSummary?
 
+    /// The single in-flight refresh, if one is running. Concurrent callers await
+    /// this instead of starting their own — see refreshIfNeeded().
+    private var refreshTask: Task<Void, Error>?
+
     init(
         authService: OIDCAuthService? = nil,
         userSyncService: UserSyncService? = nil,
@@ -225,9 +229,37 @@ final class AuthManager: ObservableObject {
             throw AuthManagerError.notAuthenticated
         }
 
+        // Authentik ROTATES the refresh token on every use: redeeming one
+        // invalidates it and issues a replacement. Views call validAccessToken()
+        // from ~14 places and several load in parallel (HomeView alone does it
+        // twice), so without this guard two screens can both see the token near
+        // expiry and both POST the same refresh token. The first wins, the
+        // second is rejected as already-used, and refreshTokenWasRejected()
+        // signs the member out — which reads as "I keep having to log in again".
+        //
+        // @MainActor does not prevent this on its own: an async function
+        // suspends at every await, so another task interleaves between the
+        // expiry check above and the save below.
+        //
+        // Same bug and same fix as the website's auth.ts (inFlightRefreshes).
+        if let existingRefresh = refreshTask {
+            AuthDebugLog.log("Refresh already in flight. Awaiting it instead of starting a second.")
+            try await existingRefresh.value
+            return
+        }
+
         AuthDebugLog.log("Access token near expiry. Refreshing.")
-        let refreshedTokens = try await authService.refresh(refreshToken: refreshToken)
-        try save(tokens: refreshedTokens)
+
+        let task = Task { @MainActor in
+            let refreshedTokens = try await self.authService.refresh(refreshToken: refreshToken)
+            try self.save(tokens: refreshedTokens)
+        }
+        refreshTask = task
+
+        // Cleared by whoever started it, and only after the task settles, so a
+        // later caller either joins this refresh or sees an already-valid token.
+        defer { refreshTask = nil }
+        try await task.value
     }
 
     private func save(tokens: AuthTokens) throws {
