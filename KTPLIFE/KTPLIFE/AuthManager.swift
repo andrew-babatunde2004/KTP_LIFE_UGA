@@ -23,6 +23,10 @@ final class AuthManager: ObservableObject {
     private var lastAccessTokenClaims: TokenClaimSummary?
     private var refreshTask: Task<Void, Error>?
 
+    /// The single in-flight refresh, if one is running. Concurrent callers await
+    /// this instead of starting their own — see refreshIfNeeded().
+    private var refreshTask: Task<Void, Error>?
+
     init(
         authService: OIDCAuthService? = nil,
         userSyncService: UserSyncService? = nil,

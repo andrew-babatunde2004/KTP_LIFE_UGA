@@ -181,6 +181,34 @@ struct ContentView: View {
                 .accessibilityLabel("Checking in to event")
             }
         }
+        // Universal Link entry point: an attendance QR scanned with the iOS
+        // Camera arrives here instead of opening Safari, provided the app has
+        // the Associated Domains entitlement for ugaktp.com.
+        .onOpenURL { url in
+            handleIncomingURL(url)
+        }
+        .alert(
+            checkInResult?.title ?? "",
+            isPresented: Binding(
+                get: { checkInResult != nil },
+                set: { if !$0 { checkInResult = nil } }
+            )
+        ) {
+            Button("Done") { checkInResult = nil }
+        } message: {
+            Text(checkInResult?.message ?? "")
+        }
+        .overlay {
+            if isCheckingIn {
+                ZStack {
+                    Color.black.opacity(0.35).ignoresSafeArea()
+                    ProgressView("Checking you in…")
+                        .padding(20)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                }
+                .transition(.opacity)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             isKeyboardPresented = true
         }
@@ -372,6 +400,58 @@ private enum AppSheetDestination: String, Identifiable {
     case qrScanner
 
     var id: String { rawValue }
+}
+
+private struct CheckInAlert: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+}
+
+private extension ContentView {
+    /// Routes a scanned code. Attendance links check the member in directly;
+    /// anything else keeps the previous generic behaviour (open/copy), since
+    /// the scanner is a general-purpose QR reader, not attendance-only.
+    func handleScannedPayload(_ payload: String) {
+        if let link = CheckInLink(payload: payload) {
+            performCheckIn(link)
+        } else {
+            scannedQRCode = ScannedQRCode(payload: payload)
+        }
+    }
+
+    /// Universal Link arrivals. Non-check-in URLs are ignored rather than
+    /// shown as a scan result — the app only claims /checkin/* in its
+    /// apple-app-site-association, so nothing else should reach this.
+    func handleIncomingURL(_ url: URL) {
+        guard let link = CheckInLink(url: url) else { return }
+        performCheckIn(link)
+    }
+
+    func performCheckIn(_ link: CheckInLink) {
+        guard !isCheckingIn else { return }
+        isCheckingIn = true
+
+        Task { @MainActor in
+            defer { isCheckingIn = false }
+            do {
+                let accessToken = try await authManager.validAccessToken()
+                let result = try await CheckInService.checkIn(link, accessToken: accessToken)
+                checkInResult = CheckInAlert(
+                    title: "You're checked in",
+                    message: result.eventTitle ?? result.message
+                )
+            } catch {
+                // CheckInError carries the server's own member-facing wording
+                // ("Check-in isn't open for this event right now"), which is
+                // more useful than anything generic we'd write here.
+                checkInResult = CheckInAlert(
+                    title: "Check-in failed",
+                    message: error.localizedDescription
+                )
+            }
+        }
+    }
 }
 
 private struct ScannedQRCode {
