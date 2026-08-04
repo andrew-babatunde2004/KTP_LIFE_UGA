@@ -34,9 +34,8 @@ struct MemberDirectoryView: View {
     
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 DirectorySearchBar(searchText: $directorySearchText)
-                    .padding(.bottom, 2)
 
                 if isLoadingDirectory {
                     DirectoryStatusCard(message: "Loading directory...")
@@ -49,7 +48,7 @@ struct MemberDirectoryView: View {
                         : "No members found matching '\(directorySearchText)'."
                     )
                 } else {
-                    LazyVStack(spacing: 7) {
+                    LazyVStack(spacing: 10) {
                         ForEach(filteredMembers) { member in
                             DirectoryMemberCard(
                                 member: member,
@@ -62,7 +61,6 @@ struct MemberDirectoryView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
-            .padding(.top, 2)
         }
         .task {
             await loadDirectoryMembers()
@@ -184,9 +182,16 @@ struct MemberDirectoryView: View {
                 .autocorrectionDisabled()
                 .foregroundStyle(DirectoryDesign.primary(for: colorScheme))
             }
-            .padding(.horizontal, 15)
-            .frame(height: 40)
-            .background(DirectoryDesign.searchBackground(for: colorScheme), in: Capsule())
+            .padding(.horizontal, 16)
+            .frame(height: 48)
+            .background(
+                DirectoryDesign.searchBackground(for: colorScheme),
+                in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    .stroke(AppSystemColor.separator.opacity(0.32), lineWidth: 1)
+            }
         }
     }
     
@@ -195,12 +200,7 @@ struct MemberDirectoryView: View {
         let message: String
         
         var body: some View {
-            Text(message)
-                .font(AppFont.subheadline())
-                .foregroundStyle(DirectoryDesign.secondary(for: colorScheme))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
-                .background(DirectoryDesign.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            AppStatusSurface(message: message, systemImage: "person.2.slash")
         }
     }
     
@@ -237,8 +237,8 @@ struct MemberDirectoryView: View {
         
         var body: some View {
             HStack(alignment: .center, spacing: 12) {
-                DirectoryProfilePictureView(member: member, apiService: apiService, initials: initials)
-                    .frame(width: 40, height: 40)
+                DirectoryProfilePictureView(member: member, apiService: apiService, initials: initials, size: 46)
+                    .frame(width: 46, height: 46)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(member.name)
@@ -280,12 +280,10 @@ struct MemberDirectoryView: View {
                     )
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
-            .background(DirectoryDesign.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .clipped()
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            .appElevatedSurface(radius: 20)
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .onTapGesture(perform: selectMember)
         }
 
@@ -311,8 +309,15 @@ struct MemberDirectoryView: View {
                 Image(systemName: systemImage)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(DirectoryDesign.actionIcon(for: colorScheme))
-                    .frame(width: 34, height: 34)
-                    .background(DirectoryDesign.actionBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .frame(width: 40, height: 40)
+                    .background(
+                        DirectoryDesign.actionBackground(for: colorScheme),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(AppSystemColor.separator.opacity(0.28), lineWidth: 1)
+                    }
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
@@ -394,21 +399,22 @@ struct MemberDirectoryView: View {
         var body: some View {
             NavigationStack {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        HStack(spacing: 16) {
-                            DirectoryProfilePictureView(member: member, apiService: apiService, initials: initials, size: 76)
-                                .frame(width: 76, height: 76)
+                    VStack(spacing: 24) {
+                        VStack(spacing: 10) {
+                            DirectoryProfilePictureView(member: member, apiService: apiService, initials: initials, size: 116)
+                                .frame(width: 116, height: 116)
 
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(member.name)
-                                    .font(AppFont.title())
-                                    .foregroundStyle(DirectoryDesign.name(for: colorScheme))
+                            Text(member.name)
+                                .font(AppFont.largeTitle(30))
+                                .foregroundStyle(DirectoryDesign.name(for: colorScheme))
+                                .multilineTextAlignment(.center)
 
-                                Text(member.role)
-                                    .font(AppFont.subheadline())
-                                    .foregroundStyle(DirectoryDesign.secondary(for: colorScheme))
-                            }
+                            Text(member.role)
+                                .font(AppFont.subheadline(weight: .medium))
+                                .foregroundStyle(DirectoryDesign.secondary(for: colorScheme))
+                                .multilineTextAlignment(.center)
                         }
+                        .frame(maxWidth: .infinity)
 
                         detailCard
 
@@ -417,20 +423,22 @@ struct MemberDirectoryView: View {
                                 messageMember(member)
                                 dismiss()
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.glassProminent)
                             .disabled(isBlocked || isUpdatingBlock)
+                            .frame(maxWidth: .infinity)
 
                             Button("Email") {
                                 if let mailURL {
                                     openURL(mailURL)
                                 }
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.glass)
                             .disabled(mailURL == nil)
+                            .frame(maxWidth: .infinity)
                         }
 
                         if member.id != authManager.currentUserID {
-                            VStack(alignment: .leading, spacing: 12) {
+                            VStack(spacing: 12) {
                                 Button(isBlocked ? "Unblock Member" : "Block Member", role: isBlocked ? nil : .destructive) {
                                     if isBlocked {
                                         Task { await setBlocked(false) }
@@ -450,11 +458,13 @@ struct MemberDirectoryView: View {
                                     Text(blockErrorMessage)
                                         .font(AppFont.footnote())
                                         .foregroundStyle(.red)
+                                        .multilineTextAlignment(.center)
                                 }
                             }
+                            .frame(maxWidth: .infinity)
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity)
                     .padding(20)
                 }
                 .navigationTitle("Member Profile")
@@ -535,8 +545,9 @@ struct MemberDirectoryView: View {
                     detailRow("Email", email)
                 }
             }
-            .padding(16)
-            .background(DirectoryDesign.cardBackground(for: colorScheme), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .appElevatedSurface(radius: 22)
         }
 
         private func detailRow(_ title: String, _ value: String) -> some View {

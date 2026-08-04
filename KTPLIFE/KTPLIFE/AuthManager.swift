@@ -21,6 +21,7 @@ final class AuthManager: ObservableObject {
 
     private var tokens: AuthTokens?
     private var lastAccessTokenClaims: TokenClaimSummary?
+    private var refreshTask: Task<Void, Error>?
 
     init(
         authService: OIDCAuthService? = nil,
@@ -123,6 +124,8 @@ final class AuthManager: ObservableObject {
 
     func signOut() async {
         AuthDebugLog.log("Signing out and clearing tokens.")
+        refreshTask?.cancel()
+        refreshTask = nil
         tokens = nil
         lastAccessTokenClaims = nil
         currentUserProfile = nil
@@ -225,9 +228,21 @@ final class AuthManager: ObservableObject {
             throw AuthManagerError.notAuthenticated
         }
 
+        if let refreshTask {
+            AuthDebugLog.log("Refresh already in flight. Waiting for its result.")
+            try await refreshTask.value
+            return
+        }
+
         AuthDebugLog.log("Access token near expiry. Refreshing.")
-        let refreshedTokens = try await authService.refresh(refreshToken: refreshToken)
-        try save(tokens: refreshedTokens)
+        let newRefreshTask = Task { @MainActor [authService] in
+            let refreshedTokens = try await authService.refresh(refreshToken: refreshToken)
+            try Task.checkCancellation()
+            try save(tokens: refreshedTokens)
+        }
+        refreshTask = newRefreshTask
+        defer { refreshTask = nil }
+        try await newRefreshTask.value
     }
 
     private func save(tokens: AuthTokens) throws {

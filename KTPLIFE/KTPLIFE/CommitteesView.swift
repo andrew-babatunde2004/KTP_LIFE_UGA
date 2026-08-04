@@ -18,6 +18,14 @@ struct CommitteesView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 14) {
+                    AppSectionHeading(
+                        eyebrow: "Get Involved",
+                        title: "Find your team",
+                        subtitle: "Join a committee, meet the members, and help shape the chapter.",
+                        systemImage: "person.3.fill"
+                    )
+                    .padding(.bottom, 6)
+
                     if isLoading {
                         CommitteeStatusView(message: "Loading committees...")
                     } else if let loadError {
@@ -102,17 +110,28 @@ private struct CommitteeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(committee.name)
-                    .font(AppFont.headline())
-                    .foregroundStyle(AppSystemColor.primaryLabel)
+            HStack(alignment: .center, spacing: 14) {
+                AppIconBadge(systemImage: "person.2.fill")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(committee.name)
+                        .font(AppFont.headline())
+                        .foregroundStyle(AppSystemColor.primaryLabel)
+
+                    Text(committee.isMember ? "You’re part of this committee" : "Open to chapter members")
+                        .font(AppFont.caption())
+                        .foregroundStyle(AppSystemColor.secondaryLabel)
+                }
 
                 Spacer(minLength: 8)
 
                 if let role = committee.role, committee.isMember {
                     Text(role.capitalized)
-                        .font(AppFont.caption(weight: .semibold))
-                        .foregroundStyle(AppSystemColor.secondaryLabel)
+                        .font(AppFont.caption(weight: .bold))
+                        .foregroundStyle(AppSurfaceColor.primaryControl)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(AppSystemColor.insetBackground, in: Capsule())
                 }
             }
 
@@ -124,7 +143,7 @@ private struct CommitteeCard: View {
                         Text("View Members")
                             .font(AppFont.footnote(weight: .semibold))
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.glass)
                 }
 
                 Spacer(minLength: 0)
@@ -138,14 +157,7 @@ private struct CommitteeCard: View {
             }
         }
         .padding(18)
-        .background(
-            AppSystemColor.elevatedBackground,
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppSystemColor.separator.opacity(0.45), lineWidth: 1)
-        }
+        .appElevatedSurface(radius: 24)
         .accessibilityElement(children: .contain)
     }
 }
@@ -156,9 +168,9 @@ private struct CommitteeMembershipButtonStyle: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if isMember {
-            content.buttonStyle(.bordered)
+            content.buttonStyle(.glass)
         } else {
-            content.buttonStyle(.borderedProminent)
+            content.buttonStyle(.glassProminent)
         }
     }
 }
@@ -183,22 +195,23 @@ private struct CommitteeMembersView: View {
                 } else {
                     ForEach(members) { member in
                         HStack(spacing: 12) {
-                            Text(member.name)
-                                .font(AppFont.subheadline(weight: .semibold))
-                                .foregroundStyle(AppSystemColor.primaryLabel)
+                            AppIconBadge(systemImage: "person.fill", size: 38)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(member.name)
+                                    .font(AppFont.subheadline(weight: .semibold))
+                                    .foregroundStyle(AppSystemColor.primaryLabel)
+
+                                Text(member.role.capitalized)
+                                    .font(AppFont.caption())
+                                    .foregroundStyle(AppSystemColor.secondaryLabel)
+                            }
 
                             Spacer(minLength: 8)
-
-                            Text(member.role.capitalized)
-                                .font(AppFont.caption())
-                                .foregroundStyle(AppSystemColor.secondaryLabel)
                         }
-                        .padding(.horizontal, 18)
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                        .background(
-                            AppSystemColor.elevatedBackground,
-                            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        )
+                        .padding(14)
+                        .frame(maxWidth: .infinity, minHeight: 62)
+                        .appElevatedSurface(radius: 20)
                     }
                 }
             }
@@ -237,14 +250,6 @@ private struct CommitteeStatusView: View {
     let message: String
 
     var body: some View {
-        Text(message)
-            .font(AppFont.subheadline())
-            .foregroundStyle(AppSystemColor.secondaryLabel)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-            .background(
-                AppSystemColor.elevatedBackground,
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-            )
+        AppStatusSurface(message: message, systemImage: "person.3.sequence.fill")
     }
 }

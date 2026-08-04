@@ -304,6 +304,7 @@
 				INFOPLIST_FILE = KTPLIFE/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "KTP Me";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Allow KTP Me to add chapter events to your calendar.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Allow KTP Me to use the camera to scan QR codes.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow KTP Me to save chapter photos and videos to your photo library when you choose Save to Photos.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Allow KTP Me to access photos and videos you choose to share with the chapter gallery.";
@@ -344,6 +345,7 @@
 				INFOPLIST_FILE = KTPLIFE/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "KTP Me";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Allow KTP Me to add chapter events to your calendar.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Allow KTP Me to use the camera to scan QR codes.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow KTP Me to save chapter photos and videos to your photo library when you choose Save to Photos.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Allow KTP Me to access photos and videos you choose to share with the chapter gallery.";

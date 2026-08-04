@@ -27,7 +27,13 @@ struct ProfileIncompleteView: View {
                 KTPLogoMark()
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                VStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .center, spacing: 12) {
+                    Image(systemName: errorMessage == nil ? "person.crop.circle.badge.checkmark" : "arrow.triangle.2.circlepath")
+                        .font(.system(size: 28, weight: .semibold))
+                        .appTextOnCard()
+                        .frame(width: 60, height: 60)
+                        .background(AppSurfaceColor.primaryControl, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+
                     Text(title)
                         .font(AppFont.largeTitle(30))
                         .appTextOnCard()
@@ -40,6 +46,9 @@ struct ProfileIncompleteView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }
+                .frame(maxWidth: .infinity)
+                .padding(24)
+                .loginCard(radius: 28)
 
                 VStack(spacing: 14) {
                     Button(action: retrySync) {
@@ -47,24 +56,19 @@ struct ProfileIncompleteView: View {
                             .font(AppFont.headline())
                             .appTextOnCard()
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
+                            .frame(height: 56)
                     }
-                    .buttonStyle(.plain)
-                    .background(AppSurfaceColor.primaryControl, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(AppSurfaceColor.cardBorder, lineWidth: 1)
-                    }
+                    .buttonStyle(.glassProminent)
+                    .tint(AppSurfaceColor.primaryControl)
 
                     Button(action: signOut) {
                         Text("Sign Out")
                             .font(AppFont.headline())
                             .appTextOnCardSecondary()
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
+                            .frame(height: 56)
                     }
-                    .buttonStyle(.plain)
-                    .loginCard(radius: 24)
+                    .buttonStyle(.glass)
                 }
 
                 Spacer(minLength: 24)

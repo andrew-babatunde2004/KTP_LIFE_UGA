@@ -93,8 +93,11 @@ struct ProfileView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .padding(.vertical, 24)
+                .appElevatedSurface(radius: 28)
             }
+            .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+            .listRowBackground(Color.clear)
 
             Section("Editable profile") {
                 TextField("Preferred name", text: $preferredName)
@@ -107,11 +110,18 @@ struct ProfileView: View {
                 TextField("Graduation year", text: $graduationYear)
                     .keyboardType(.numberPad)
             }
+            .listRowBackground(AppSystemColor.elevatedBackground)
 
             if let memberGroup = profile?.memberGroup?.nonEmptyTrimmed {
                 Section("Membership") {
-                    LabeledContent("Group", value: memberGroup.capitalized)
+                    Label {
+                        LabeledContent("Group", value: memberGroup.capitalized)
+                    } icon: {
+                        Image(systemName: "person.3.fill")
+                            .foregroundStyle(AppSurfaceColor.primaryControl)
+                    }
                 }
+                .listRowBackground(AppSystemColor.elevatedBackground)
             }
 
             if let errorMessage {
@@ -120,6 +130,7 @@ struct ProfileView: View {
                         .font(AppFont.footnote())
                         .foregroundStyle(.red)
                 }
+                .listRowBackground(AppSystemColor.elevatedBackground)
             }
 
             Section("Support and community") {
@@ -131,13 +142,17 @@ struct ProfileView: View {
                     Label("Contact Support", systemImage: "envelope.fill")
                 }
             }
+            .listRowBackground(AppSystemColor.elevatedBackground)
 
             if profile?.memberGroup?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "eboard" {
                 Section("Chapter leadership") {
-                    NavigationLink("Review Reports") {
+                    NavigationLink {
                         ReportsView()
+                    } label: {
+                        Label("Review Reports", systemImage: "checklist")
                     }
                 }
+                .listRowBackground(AppSystemColor.elevatedBackground)
             }
 
             Section("Settings") {
@@ -153,6 +168,7 @@ struct ProfileView: View {
                     Label("Notifications", systemImage: "bell.fill")
                 }
             }
+            .listRowBackground(AppSystemColor.elevatedBackground)
 
             Section("Account") {
                 Button("Sign Out") {
@@ -171,7 +187,10 @@ struct ProfileView: View {
                 .disabled(isDeletingAccount)
                 .frame(maxWidth: .infinity)
             }
+            .listRowBackground(AppSystemColor.elevatedBackground)
         }
+        .tint(AppSurfaceColor.primaryControl)
+        .listSectionSpacing(20)
         .scrollContentBackground(.hidden)
         .background(AppSystemColor.background)
     }
@@ -296,6 +315,8 @@ private struct AppearanceSettingsView: View {
             }
             .listRowBackground(AppSystemColor.elevatedBackground)
         }
+        .tint(AppSurfaceColor.primaryControl)
+        .listSectionSpacing(20)
         .navigationTitle("Appearance")
         .navigationBarTitleDisplayMode(.inline)
         .scrollContentBackground(.hidden)

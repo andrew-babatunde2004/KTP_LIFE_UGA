@@ -140,6 +140,16 @@ final class KTPAPIService {
         }
     }
 
+    /// Fetches a group chat's member-only profile image.
+    func fetchGroupChatPhotoData(chatID: String) async throws -> Data {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatID)
+            .appendingPathComponent("photo")
+            .appendingPathComponent("media")
+        return try await fetchProtectedData(from: url, logLabel: "group chat photo for \(chatID)")
+    }
+
     /// Fetches one direct conversation from protected `GET /messages/conversations/:userId`.
     func fetchConversation(with userId: String) async throws -> [KTPMessage] {
         let url = baseURL
@@ -234,6 +244,89 @@ final class KTPAPIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(MessageReactionRequest(emoji: emoji))
         _ = try await fetchProtectedData(for: request, logLabel: "toggle reaction on message \(messageId)")
+    }
+
+    /// Toggles the authenticated user's emoji reaction on one group-chat message.
+    func toggleGroupChatMessageReaction(chatId: String, messageId: String, emoji: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatId)
+            .appendingPathComponent("messages")
+            .appendingPathComponent(messageId)
+            .appendingPathComponent("reactions")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(MessageReactionRequest(emoji: emoji))
+        _ = try await fetchProtectedData(for: request, logLabel: "toggle reaction on group chat \(chatId) message \(messageId)")
+    }
+
+    /// Fetches polls visible to the authenticated member.
+    func fetchPolls() async throws -> [Poll] {
+        let url = baseURL.appendingPathComponent("polls")
+        let data = try await fetchProtectedData(from: url, logLabel: "polls")
+
+        do {
+            return try Poll.decodePolls(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Polls decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches announcements visible to the authenticated member.
+    func fetchAnnouncements() async throws -> [Announcement] {
+        let url = baseURL.appendingPathComponent("announcements")
+        let data = try await fetchProtectedData(from: url, logLabel: "announcements")
+
+        do {
+            return try Announcement.decodeAnnouncements(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Announcements decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches meetings organized by or inviting the authenticated member.
+    func fetchMeetings() async throws -> [Meeting] {
+        let url = baseURL.appendingPathComponent("meetings")
+        let data = try await fetchProtectedData(from: url, logLabel: "meetings")
+
+        do {
+            return try Meeting.decodeMeetings(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Meetings decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Sets or changes the caller's RSVP on a meeting invitation.
+    func respond(to meetingID: String, response: MeetingResponse) async throws {
+        let url = baseURL
+            .appendingPathComponent("meetings")
+            .appendingPathComponent(meetingID)
+            .appendingPathComponent("respond")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["response": response.rawValue])
+        _ = try await fetchProtectedData(for: request, logLabel: "respond to meeting \(meetingID)")
+    }
+
+    /// Replaces the caller's vote selection for one open poll.
+    func vote(on pollID: String, optionIDs: [String]) async throws {
+        let url = baseURL
+            .appendingPathComponent("polls")
+            .appendingPathComponent(pollID)
+            .appendingPathComponent("vote")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(PollVoteRequest(optionIDs: optionIDs))
+        _ = try await fetchProtectedData(for: request, logLabel: "vote on poll \(pollID)")
     }
 
     /// Sends a group chat message via protected `POST /group-chats/:id/messages`.
@@ -476,6 +569,14 @@ private struct SentMessageResponse: Decodable {
 
 private struct MessageReactionRequest: Encodable {
     let emoji: String
+}
+
+private struct PollVoteRequest: Encodable {
+    let optionIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case optionIDs = "option_ids"
+    }
 }
 
 private struct SendGroupChatMessageRequest: Encodable {

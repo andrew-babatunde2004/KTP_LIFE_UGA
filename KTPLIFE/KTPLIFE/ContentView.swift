@@ -106,14 +106,6 @@ struct ContentView: View {
                 )
             }
         }
-        // The branded masthead belongs to Home only. Other tabs reclaim this top space.
-        .safeAreaBar(edge: .top, spacing: 0) {
-            if authManager.profileIsComplete && selectedTab == .home {
-                KTPAppHeader(
-                    openQRScanner: { presentedSheet = .qrScanner }
-                )
-            }
-        }
         .fullScreenCover(item: $presentedFullScreen) { destination in
             switch destination {
             case .documents:
@@ -121,6 +113,15 @@ struct ContentView: View {
                     .environmentObject(authManager)
             case .committees:
                 CommitteesView()
+                    .environmentObject(authManager)
+            case .polls:
+                PollsView()
+                    .environmentObject(authManager)
+            case .announcements:
+                AnnouncementsView()
+                    .environmentObject(authManager)
+            case .meetings:
+                MeetingsView()
                     .environmentObject(authManager)
             }
         }
@@ -225,11 +226,11 @@ struct ContentView: View {
                 // inset for its inbox, which allows a pushed conversation to transition
                 // across the entire screen instead of inside the app-shell margins.
                 .contentShellPadding(
-                    top: selectedTab == .photos ? 0 : 16,
+                    top: selectedTab == .photos || selectedTab == .home ? 0 : 16,
                     bottom: selectedTab == .photos
                         ? 0
                         : (isKeyboardPresented || isMessageConversationPresented ? 24 : 122),
-                    horizontal: selectedTab.isMessagesTab || selectedTab == .photos ? 0 : 24
+                    horizontal: selectedTab.isMessagesTab || selectedTab == .photos || selectedTab == .home ? 0 : 24
                 )
         }
     }
@@ -244,7 +245,11 @@ struct ContentView: View {
         case .home:
             HomeView(
                 showDocuments: { presentedFullScreen = .documents },
-                showCommittees: { presentedFullScreen = .committees }
+                showCommittees: { presentedFullScreen = .committees },
+                showPolls: { presentedFullScreen = .polls },
+                showAnnouncements: { presentedFullScreen = .announcements },
+                showMeetings: { presentedFullScreen = .meetings },
+                openQRScanner: { presentedSheet = .qrScanner }
             )
         case .community:
             MessagesView(
@@ -406,6 +411,9 @@ private struct QRAlert: Identifiable {
 private enum AppFullScreenDestination: String, Identifiable {
     case documents
     case committees
+    case polls
+    case announcements
+    case meetings
 
     var id: String { rawValue }
 }

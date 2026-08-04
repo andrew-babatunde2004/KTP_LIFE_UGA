@@ -94,6 +94,95 @@ struct EmptyState: View {
     }
 }
 
+struct AppSectionHeading: View {
+    let eyebrow: String?
+    let title: String
+    let subtitle: String?
+    let systemImage: String?
+
+    init(
+        eyebrow: String? = nil,
+        title: String,
+        subtitle: String? = nil,
+        systemImage: String? = nil
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 7) {
+                if let eyebrow {
+                    Text(eyebrow)
+                        .font(AppFont.caption(weight: .bold))
+                        .tracking(1.2)
+                        .textCase(.uppercase)
+                        .foregroundStyle(AppSurfaceColor.primaryControl)
+                }
+
+                Text(title)
+                    .font(AppFont.largeTitle())
+                    .foregroundStyle(AppSystemColor.primaryLabel)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(AppFont.subheadline())
+                        .foregroundStyle(AppSystemColor.secondaryLabel)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if let systemImage {
+                AppIconBadge(systemImage: systemImage, size: 48)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct AppIconBadge: View {
+    let systemImage: String
+    var size: CGFloat = 42
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: size * 0.4, weight: .semibold))
+            .foregroundStyle(AppSurfaceColor.primaryControl)
+            .frame(width: size, height: size)
+            .background(AppSystemColor.insetBackground, in: RoundedRectangle(cornerRadius: size * 0.34, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: size * 0.34, style: .continuous)
+                    .stroke(AppSystemColor.separator.opacity(0.32), lineWidth: 1)
+            }
+    }
+}
+
+struct AppStatusSurface: View {
+    let message: String
+    var systemImage: String = "info.circle"
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            AppIconBadge(systemImage: systemImage)
+
+            Text(message)
+                .font(AppFont.subheadline())
+                .foregroundStyle(AppSystemColor.secondaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .appElevatedSurface()
+    }
+}
+
 extension View {
 
     func loginCard(radius: CGFloat = 24) -> some View {
@@ -118,6 +207,18 @@ extension View {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(AppSurfaceColor.cardBorder, lineWidth: 1)
         }
+    }
+
+    func appElevatedSurface(radius: CGFloat = 22) -> some View {
+        background(
+            AppSystemColor.elevatedBackground,
+            in: RoundedRectangle(cornerRadius: radius, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(AppSystemColor.separator.opacity(0.38), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.055), radius: 14, y: 6)
     }
 }
 

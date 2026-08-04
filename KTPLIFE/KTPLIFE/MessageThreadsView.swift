@@ -230,14 +230,7 @@ private struct MessageThreadCard: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
-            ProfileAvatarView(
-                imageURL: thread.profileImageURL,
-                profileID: profileID,
-                name: thread.displayName,
-                isGroup: thread.isGroup,
-                size: 51,
-                apiService: apiService
-            )
+            threadAvatar
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(thread.displayName)
@@ -265,6 +258,74 @@ private struct MessageThreadCard: View {
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var threadAvatar: some View {
+        if case .group(let chat) = thread {
+            GroupChatAvatar(chat: chat, size: 51, apiService: apiService)
+        } else {
+            ProfileAvatarView(
+                imageURL: thread.profileImageURL,
+                profileID: profileID,
+                name: thread.displayName,
+                isGroup: false,
+                size: 51,
+                apiService: apiService
+            )
+        }
+    }
+}
+
+private struct GroupChatAvatar: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
+    @EnvironmentObject private var avatarRepository: AvatarRepository
+    let chat: GroupChat
+    let size: CGFloat
+    let apiService: KTPAPIService
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(MessageDesign.avatarBackground(for: colorScheme))
+
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: size * 0.34, weight: .semibold))
+                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .accessibilityLabel("\(chat.name) group photo")
+        // The asset ID is part of the cache key. A replacement upload creates a
+        // different asset, so this task and its URL-equivalent cache key update too.
+        .task(id: "\(chat.id)-\(chat.photoAssetID ?? "no-photo")-\(Int(size * displayScale))") {
+            await loadImage()
+        }
+    }
+
+    @MainActor
+    private func loadImage() async {
+        guard let photoAssetID = chat.photoAssetID, !photoAssetID.isEmpty else {
+            image = nil
+            return
+        }
+
+        image = nil
+        image = await avatarRepository.image(
+            for: "group-chat-\(chat.id)-\(photoAssetID)",
+            pointSize: size,
+            displayScale: displayScale,
+            loadData: { try await apiService.fetchGroupChatPhotoData(chatID: chat.id) }
+        )
     }
 }
 
@@ -386,7 +447,7 @@ struct MessageConversationView: View {
     }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 12) {
             if isBlocked {
                 MessagesStatusCard(message: "You blocked \(thread.displayName). Unblock them to resume this conversation.")
             } else if isLoading {
@@ -432,8 +493,20 @@ struct MessageConversationView: View {
                 }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 18)
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .onChange(of: isComposerFocused) { _, isFocused in
+            guard isFocused, !messages.isEmpty else { return }
+
+            // Let the keyboard finish resizing the timeline before aligning the
+            // newest bubble. Scrolling during the transition can place content
+            // underneath the composer.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                guard isComposerFocused else { return }
+                scrollRequest = .latest(UUID())
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !isBlocked {
                 messageComposer
@@ -523,7 +596,11 @@ struct MessageConversationView: View {
             } label: {
                 Image(systemName: "paperplane.fill")
                     .font(AppFont.footnote(weight: .semibold))
-                    .foregroundStyle(composerCanSend ? .white : MessageDesign.muted(for: colorScheme))
+                    .foregroundStyle(
+                        composerCanSend
+                            ? MessageDesign.sendForeground
+                            : MessageDesign.muted(for: colorScheme)
+                    )
                     .frame(width: 34, height: 34)
             }
             .buttonStyle(.plain)
@@ -584,9 +661,23 @@ struct MessageConversationView: View {
                     case .preservePosition(let messageID):
                         proxy.scrollTo(messageID, anchor: .top)
                     case .latest:
-                        withAnimation {
-                            proxy.scrollTo(ConversationScrollAnchor.latest, anchor: .bottom)
+                        if let latestMessageID = visibleMessages.last?.id {
+                            withAnimation {
+                                proxy.scrollTo(latestMessageID, anchor: .bottom)
+                            }
                         }
+                    }
+                }
+            }
+            .onAppear {
+                // The initial request is set while the loading state is still
+                // displayed, before this reader exists. Scroll explicitly once
+                // the timeline has been laid out so opening a conversation always
+                // lands on its newest message.
+                Task { @MainActor in
+                    await Task.yield()
+                    if let latestMessageID = visibleMessages.last?.id {
+                        proxy.scrollTo(latestMessageID, anchor: .bottom)
                     }
                 }
             }
@@ -605,7 +696,7 @@ struct MessageConversationView: View {
     }
 
     private var messageStackContent: some View {
-        LazyVStack(spacing: 16) {
+        LazyVStack(spacing: 10) {
             if renderWindow.hasEarlierMessages(totalCount: messages.count) {
                 Button("Load earlier messages") {
                     let preservedMessageID = visibleMessages.first?.id
@@ -627,8 +718,9 @@ struct MessageConversationView: View {
                     message: message,
                     sender: sender(for: message),
                     isSentByCurrentUser: isSentByCurrentUser(message),
+                    showsSenderIdentity: startsMessageGroup(for: message),
                     apiService: apiService,
-                    allowsReactions: directConversation != nil,
+                    allowsReactions: true,
                     reactions: reactionSummaries(for: message),
                     updatingEmojis: updatingEmojis(for: message),
                     toggleReaction: { emoji in
@@ -644,12 +736,45 @@ struct MessageConversationView: View {
                 )
             }
 
-            Color.clear
-                .frame(height: 1)
-                .id(ConversationScrollAnchor.latest)
         }
         .padding(.top, 8)
-        .padding(.bottom, 10)
+        .padding(.bottom, 6)
+    }
+
+    private func startsMessageGroup(for message: KTPMessage) -> Bool {
+        guard let messageIndex = messages.firstIndex(where: { $0.id == message.id }) else {
+            return true
+        }
+
+        // A visible window can begin in the middle of a run. Show its sender so
+        // the truncated timeline still has useful context.
+        guard message.id != visibleMessages.first?.id, messageIndex > 0 else {
+            return true
+        }
+
+        let previousMessage = messages[messageIndex - 1]
+        guard isSameMessageSender(previousMessage, message) else {
+            return true
+        }
+
+        guard let previousDate = previousMessage.createdAt,
+              let messageDate = message.createdAt else {
+            return false
+        }
+
+        return messageDate.timeIntervalSince(previousDate) > MessageGrouping.maximumInterval
+    }
+
+    private func isSameMessageSender(_ left: KTPMessage, _ right: KTPMessage) -> Bool {
+        let leftIsCurrentUser = isSentByCurrentUser(left)
+        guard leftIsCurrentUser == isSentByCurrentUser(right) else { return false }
+        guard !leftIsCurrentUser else { return true }
+
+        if let leftSenderID = left.senderId, let rightSenderID = right.senderId {
+            return leftSenderID == rightSenderID
+        }
+
+        return sender(for: left).name.caseInsensitiveCompare(sender(for: right).name) == .orderedSame
     }
 
     private func sender(for message: KTPMessage) -> MessageSender {
@@ -869,14 +994,14 @@ struct MessageConversationView: View {
         Array(reactionsByMessageID[message.id, default: [:]].values)
             .filter { $0.count > 0 }
             .sorted { left, right in
-                let leftIndex = MessageReactionPicker.emojis.firstIndex(of: left.emoji) ?? .max
-                let rightIndex = MessageReactionPicker.emojis.firstIndex(of: right.emoji) ?? .max
+                let leftIndex = MessageReactionOptions.emojis.firstIndex(of: left.emoji) ?? .max
+                let rightIndex = MessageReactionOptions.emojis.firstIndex(of: right.emoji) ?? .max
                 return leftIndex == rightIndex ? left.emoji < right.emoji : leftIndex < rightIndex
             }
     }
 
     private func updatingEmojis(for message: KTPMessage) -> Set<String> {
-        Set(MessageReactionPicker.emojis.filter {
+        Set(MessageReactionOptions.emojis.filter {
             updatingReactionKeys.contains(reactionKey(messageID: message.id, emoji: $0))
         })
     }
@@ -892,8 +1017,6 @@ struct MessageConversationView: View {
 
     @MainActor
     private func toggleReaction(_ emoji: String, on message: KTPMessage) async {
-        guard directConversation != nil else { return }
-
         let updateKey = reactionKey(messageID: message.id, emoji: emoji)
         guard updatingReactionKeys.insert(updateKey).inserted else { return }
         defer { updatingReactionKeys.remove(updateKey) }
@@ -909,7 +1032,16 @@ struct MessageConversationView: View {
         setReaction(updated, on: message.id)
 
         do {
-            try await apiService.toggleMessageReaction(messageId: message.id, emoji: emoji)
+            switch thread {
+            case .direct:
+                try await apiService.toggleMessageReaction(messageId: message.id, emoji: emoji)
+            case .group(let chat):
+                try await apiService.toggleGroupChatMessageReaction(
+                    chatId: chat.id,
+                    messageId: message.id,
+                    emoji: emoji
+                )
+            }
         } catch is CancellationError {
             setReaction(previous, on: message.id)
         } catch {
@@ -949,8 +1081,10 @@ private struct ConversationRenderWindow {
     }
 }
 
-private enum ConversationScrollAnchor {
-    static let latest = "conversation-latest"
+private enum MessageGrouping {
+    /// Consecutive messages from one person remain a single visual group unless
+    /// there has been a meaningful pause in the conversation.
+    static let maximumInterval: TimeInterval = 5 * 60
 }
 
 private enum ConversationScrollRequest: Equatable {
@@ -967,9 +1101,12 @@ private struct MessageSender {
 private struct MessageBubble: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @State private var showsMessageActions = false
+    @State private var holdFeedbackTrigger = 0
     let message: KTPMessage
     let sender: MessageSender
     let isSentByCurrentUser: Bool
+    let showsSenderIdentity: Bool
     let apiService: KTPAPIService
     let allowsReactions: Bool
     let reactions: [MessageReactionSummary]
@@ -978,75 +1115,134 @@ private struct MessageBubble: View {
     let reportMessage: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: isSentByCurrentUser ? .trailing : .leading, spacing: 10) {
+        VStack(alignment: isSentByCurrentUser ? .trailing : .leading, spacing: 6) {
             messageHeader
 
-            VStack(alignment: .leading, spacing: 10) {
-                Text(message.body)
-                    .font(AppFont.subheadline())
-                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let createdAt = message.createdAt {
-                    Text(createdAt.relativeMessageTime)
-                        .font(AppFont.caption(weight: .medium))
-                        .foregroundStyle(MessageDesign.muted(for: colorScheme))
+            messageSurface
+                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.35, maximumDistance: 22)
+                        .onEnded { _ in
+                            holdFeedbackTrigger += 1
+                            showsMessageActions = true
+                        }
+                )
+                .sensoryFeedback(.impact(weight: .medium), trigger: holdFeedbackTrigger)
+                .popover(
+                    isPresented: $showsMessageActions,
+                    attachmentAnchor: .rect(.bounds),
+                    arrowEdge: isSentByCurrentUser ? .trailing : .leading
+                ) {
+                    messageActionsPopover
+                        .presentationCompactAdaptation(.popover)
                 }
-            }
-            .padding(16)
-            .frame(maxWidth: 290, alignment: .leading)
-            .modifier(MessageBubbleSurface(
-                isSentByCurrentUser: isSentByCurrentUser,
-                colorScheme: colorScheme,
-                reduceTransparency: reduceTransparency
-            ))
 
             if allowsReactions, !reactions.isEmpty {
                 reactionBar
             }
         }
         .frame(maxWidth: .infinity, alignment: isSentByCurrentUser ? .trailing : .leading)
+        .accessibilityHint("Touch and hold for reactions and reporting options")
+    }
+
+    private var messageSurface: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(message.body)
+                .font(AppFont.subheadline())
+                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let createdAt = message.createdAt {
+                Text(createdAt.relativeMessageTime)
+                    .font(AppFont.caption(weight: .medium))
+                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 260, alignment: .leading)
+        .modifier(MessageBubbleSurface(
+            isSentByCurrentUser: isSentByCurrentUser,
+            colorScheme: colorScheme,
+            reduceTransparency: reduceTransparency
+        ))
+    }
+
+    private var messageActionsPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if allowsReactions {
+                HStack(spacing: 4) {
+                    ForEach(MessageReactionOptions.emojis, id: \.self) { emoji in
+                        Button {
+                            showsMessageActions = false
+                            toggleReaction(emoji)
+                        } label: {
+                            Text(emoji)
+                                .font(.system(size: 22))
+                                .frame(width: 38, height: 38)
+                                .background(
+                                    hasCurrentUserReaction(emoji)
+                                        ? MessageDesign.selectionTint(for: colorScheme)
+                                        : Color.clear,
+                                    in: Circle()
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(updatingEmojis.contains(emoji))
+                        .accessibilityLabel(
+                            hasCurrentUserReaction(emoji)
+                                ? "Remove \(emoji) reaction"
+                                : "React with \(emoji)"
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+            }
+
+            if let reportMessage {
+                Divider()
+
+                Button(role: .destructive) {
+                    showsMessageActions = false
+                    reportMessage()
+                } label: {
+                    Label("Report Message", systemImage: "exclamationmark.bubble")
+                        .font(AppFont.footnote(weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: 230)
+    }
+
+    private func hasCurrentUserReaction(_ emoji: String) -> Bool {
+        reactions.contains { $0.emoji == emoji && $0.reactedByCurrentUser }
     }
 
     @ViewBuilder
     private var messageHeader: some View {
-        HStack(spacing: 10) {
-            if isSentByCurrentUser {
-                Text(sender.name)
-                    .font(AppFont.caption(weight: .bold))
-                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
-                    .lineLimit(1)
-
-                AuthenticatedMessageAvatar(sender: sender, apiService: apiService)
-                    .frame(width: 28, height: 28)
-            } else {
-                AuthenticatedMessageAvatar(sender: sender, apiService: apiService)
-                    .frame(width: 28, height: 28)
-
-                Text(sender.name)
-                    .font(AppFont.caption(weight: .bold))
-                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
-                    .lineLimit(1)
-            }
-
-            if let reportMessage {
-                Menu {
-                    Button("Report Message", role: .destructive, action: reportMessage)
-                } label: {
-                    Image(systemName: "ellipsis")
+        if showsSenderIdentity {
+            HStack(spacing: 6) {
+                if showsSenderIdentity, isSentByCurrentUser {
+                    Text(sender.name)
                         .font(AppFont.caption(weight: .bold))
                         .foregroundStyle(MessageDesign.muted(for: colorScheme))
-                        .frame(width: 28, height: 28)
-                }
-                .accessibilityLabel("Report message options")
-            }
+                        .lineLimit(1)
 
-            if allowsReactions {
-                MessageReactionPicker(
-                    reactions: reactions,
-                    updatingEmojis: updatingEmojis,
-                    toggleReaction: toggleReaction
-                )
+                    AuthenticatedMessageAvatar(sender: sender, apiService: apiService)
+                        .frame(width: 24, height: 24)
+                } else if showsSenderIdentity {
+                    AuthenticatedMessageAvatar(sender: sender, apiService: apiService)
+                        .frame(width: 24, height: 24)
+
+                    Text(sender.name)
+                        .font(AppFont.caption(weight: .bold))
+                        .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                        .lineLimit(1)
+                }
+
             }
         }
     }
@@ -1054,30 +1250,24 @@ private struct MessageBubble: View {
     private var reactionBar: some View {
         HStack(spacing: 6) {
             ForEach(reactions) { reaction in
-                Button {
-                    toggleReaction(reaction.emoji)
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(reaction.emoji)
-                        Text("\(reaction.count)")
-                            .font(AppFont.caption(weight: .semibold))
-                    }
-                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                    .padding(.horizontal, 9)
-                    .frame(height: 30)
-                    .background(
-                        reaction.reactedByCurrentUser
-                            ? MessageDesign.selectionTint(for: colorScheme)
-                            : MessageDesign.card(for: colorScheme),
-                        in: Capsule()
-                    )
-                    .overlay {
-                        Capsule()
-                            .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
-                    }
+                HStack(spacing: 4) {
+                    Text(reaction.emoji)
+                    Text("\(reaction.count)")
+                        .font(AppFont.caption(weight: .semibold))
                 }
-                .buttonStyle(.plain)
-                .disabled(updatingEmojis.contains(reaction.emoji))
+                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                .padding(.horizontal, 9)
+                .frame(height: 30)
+                .background(
+                    reaction.reactedByCurrentUser
+                        ? MessageDesign.selectionTint(for: colorScheme)
+                        : MessageDesign.card(for: colorScheme),
+                    in: Capsule()
+                )
+                .overlay {
+                    Capsule()
+                        .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
+                }
                 .accessibilityLabel(
                     "\(reaction.emoji) reaction, \(reaction.count), "
                     + (reaction.reactedByCurrentUser ? "selected" : "not selected")
@@ -1087,39 +1277,8 @@ private struct MessageBubble: View {
     }
 }
 
-private struct MessageReactionPicker: View {
+private enum MessageReactionOptions {
     static let emojis = ["👍", "❤️", "😂", "🎉", "😮"]
-
-    let reactions: [MessageReactionSummary]
-    let updatingEmojis: Set<String>
-    let toggleReaction: (String) -> Void
-
-    var body: some View {
-        Menu {
-            ForEach(Self.emojis, id: \.self) { emoji in
-                Button {
-                    toggleReaction(emoji)
-                } label: {
-                    HStack {
-                        Text(emoji)
-                        if selectedEmojis.contains(emoji) {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-                .disabled(updatingEmojis.contains(emoji))
-            }
-        } label: {
-            Image(systemName: "face.smiling")
-                .font(AppFont.caption(weight: .bold))
-                .frame(width: 28, height: 28)
-        }
-        .accessibilityLabel("React to message")
-    }
-
-    private var selectedEmojis: Set<String> {
-        Set(reactions.filter(\.reactedByCurrentUser).map(\.emoji))
-    }
 }
 
 private struct AuthenticatedMessageAvatar: View {
@@ -1151,7 +1310,7 @@ private struct AuthenticatedMessageAvatar: View {
             }
         }
         .clipShape(Circle())
-        .task(id: "\(sender.id ?? sender.imageURL?.absoluteString ?? sender.name)-\(Int(28 * displayScale))") {
+        .task(id: "\(sender.id ?? sender.imageURL?.absoluteString ?? sender.name)-\(Int(24 * displayScale))") {
             await loadImage()
         }
         .accessibilityLabel("\(sender.name) profile picture")
@@ -1162,7 +1321,7 @@ private struct AuthenticatedMessageAvatar: View {
         let sourceID = sender.id ?? sender.imageURL?.absoluteString ?? sender.name
         let avatar = await avatarRepository.image(
             for: sourceID,
-            pointSize: 28,
+            pointSize: 24,
             displayScale: displayScale,
             loadData: {
                 if let imageURL = sender.imageURL {
@@ -1234,15 +1393,19 @@ enum MessageDesign {
     }
 
     static func sentBubble(for colorScheme: ColorScheme) -> Color {
-        AppSurfaceColor.primaryControl.opacity(colorScheme == .dark ? 0.40 : 0.18)
+        AppSystemColor.primaryLabel.opacity(colorScheme == .dark ? 0.20 : 0.10)
     }
 
     static func selectionTint(for colorScheme: ColorScheme) -> Color {
-        AppSurfaceColor.primaryControl.opacity(colorScheme == .dark ? 0.38 : 0.20)
+        AppSystemColor.primaryLabel.opacity(colorScheme == .dark ? 0.18 : 0.12)
     }
 
     static func glassTint(for colorScheme: ColorScheme) -> Color {
         colorScheme == .dark ? Color.white.opacity(0.06) : Color.white.opacity(0.32)
+    }
+
+    static var sendForeground: Color {
+        AppSystemColor.background
     }
 }
 
@@ -1257,7 +1420,7 @@ private struct MessageBubbleSurface: ViewModifier {
             content.glassEffect(
                 .regular.tint(
                     isSentByCurrentUser
-                        ? AppSurfaceColor.primaryControl.opacity(colorScheme == .dark ? 0.34 : 0.20)
+                        ? AppSystemColor.primaryLabel.opacity(colorScheme == .dark ? 0.18 : 0.12)
                         : MessageDesign.glassTint(for: colorScheme)
                 ),
                 in: .rect(cornerRadius: 18)
@@ -1309,13 +1472,13 @@ private struct MessageSendButtonSurface: ViewModifier {
         if #available(iOS 26.0, *), !reduceTransparency {
             content.glassEffect(
                 .regular
-                    .tint(canSend ? AppSurfaceColor.primaryControl : AppSurfaceColor.disabledControl)
+                    .tint(canSend ? AppSystemColor.primaryLabel : AppSystemColor.secondaryLabel)
                     .interactive(canSend),
                 in: .circle
             )
         } else {
             content.background(
-                canSend ? AppSurfaceColor.primaryControl : AppSurfaceColor.disabledControl,
+                canSend ? AppSystemColor.primaryLabel : AppSystemColor.secondaryLabel,
                 in: Circle()
             )
         }
