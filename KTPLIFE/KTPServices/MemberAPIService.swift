@@ -140,6 +140,16 @@ final class KTPAPIService {
         }
     }
 
+    /// Fetches a group chat's member-only profile image.
+    func fetchGroupChatPhotoData(chatID: String) async throws -> Data {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatID)
+            .appendingPathComponent("photo")
+            .appendingPathComponent("media")
+        return try await fetchProtectedData(from: url, logLabel: "group chat photo for \(chatID)")
+    }
+
     /// Fetches one direct conversation from protected `GET /messages/conversations/:userId`.
     func fetchConversation(with userId: String) async throws -> [KTPMessage] {
         let url = baseURL
@@ -204,19 +214,119 @@ final class KTPAPIService {
         request.httpBody = try JSONEncoder().encode(SendMessageRequest(recipientId: userId, content: content))
 
         let data = try await fetchProtectedData(for: request, logLabel: "send message to \(userId)")
-        do {
-            if let message = try? JSONDecoder().decode(KTPMessage.self, from: data) {
-                return message
-            }
+        if let message = try? SentMessageResponse.decodeMessage(from: data) {
+            return message
+        }
 
-            return try ConversationMessagesResponse.decodeMessages(from: data).last ?? {
-                throw KTPAPIError.emptyResponse
-            }()
+        // Some successful API versions return an acknowledgement or an empty
+        // body instead of the created message. The 2xx status still means the
+        // send succeeded, so render a local copy until the next inbox refresh.
+        let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+        AuthDebugLog.log("Send message returned no decodable message. Using a local copy. Body=\(responseBody)")
+        return KTPMessage(
+            id: "local-\(UUID().uuidString)",
+            senderId: nil,
+            recipientId: userId,
+            body: content,
+            createdAt: Date(),
+            isRead: true
+        )
+    }
+
+    /// Toggles the authenticated user's emoji reaction on one direct message.
+    func toggleMessageReaction(messageId: String, emoji: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("messages")
+            .appendingPathComponent(messageId)
+            .appendingPathComponent("reactions")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(MessageReactionRequest(emoji: emoji))
+        _ = try await fetchProtectedData(for: request, logLabel: "toggle reaction on message \(messageId)")
+    }
+
+    /// Toggles the authenticated user's emoji reaction on one group-chat message.
+    func toggleGroupChatMessageReaction(chatId: String, messageId: String, emoji: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatId)
+            .appendingPathComponent("messages")
+            .appendingPathComponent(messageId)
+            .appendingPathComponent("reactions")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(MessageReactionRequest(emoji: emoji))
+        _ = try await fetchProtectedData(for: request, logLabel: "toggle reaction on group chat \(chatId) message \(messageId)")
+    }
+
+    /// Fetches polls visible to the authenticated member.
+    func fetchPolls() async throws -> [Poll] {
+        let url = baseURL.appendingPathComponent("polls")
+        let data = try await fetchProtectedData(from: url, logLabel: "polls")
+
+        do {
+            return try Poll.decodePolls(from: data)
         } catch {
             let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
-            AuthDebugLog.log("Send message decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            AuthDebugLog.log("Polls decode failed: \(error.localizedDescription). Body=\(responseBody)")
             throw KTPAPIError.decodeFailed(error.localizedDescription)
         }
+    }
+
+    /// Fetches announcements visible to the authenticated member.
+    func fetchAnnouncements() async throws -> [Announcement] {
+        let url = baseURL.appendingPathComponent("announcements")
+        let data = try await fetchProtectedData(from: url, logLabel: "announcements")
+
+        do {
+            return try Announcement.decodeAnnouncements(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Announcements decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches meetings organized by or inviting the authenticated member.
+    func fetchMeetings() async throws -> [Meeting] {
+        let url = baseURL.appendingPathComponent("meetings")
+        let data = try await fetchProtectedData(from: url, logLabel: "meetings")
+
+        do {
+            return try Meeting.decodeMeetings(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Meetings decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Sets or changes the caller's RSVP on a meeting invitation.
+    func respond(to meetingID: String, response: MeetingResponse) async throws {
+        let url = baseURL
+            .appendingPathComponent("meetings")
+            .appendingPathComponent(meetingID)
+            .appendingPathComponent("respond")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["response": response.rawValue])
+        _ = try await fetchProtectedData(for: request, logLabel: "respond to meeting \(meetingID)")
+    }
+
+    /// Replaces the caller's vote selection for one open poll.
+    func vote(on pollID: String, optionIDs: [String]) async throws {
+        let url = baseURL
+            .appendingPathComponent("polls")
+            .appendingPathComponent(pollID)
+            .appendingPathComponent("vote")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(PollVoteRequest(optionIDs: optionIDs))
+        _ = try await fetchProtectedData(for: request, logLabel: "vote on poll \(pollID)")
     }
 
     /// Sends a group chat message via protected `POST /group-chats/:id/messages`.
@@ -325,6 +435,50 @@ final class KTPAPIService {
         return try await fetchProtectedData(from: url, logLabel: "homepage slide media for \(slide.id)")
     }
 
+    /// Registers the current iOS device with protected `POST /notifications/devices`.
+    func registerNotificationDevice(_ device: NotificationDeviceRegistration) async throws {
+        let url = baseURL.appendingPathComponent("notifications/devices")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(device)
+        _ = try await fetchProtectedData(for: request, logLabel: "register push device")
+    }
+
+    /// Removes this device's APNs registration through `DELETE /notifications/devices/:token`.
+    func unregisterNotificationDevice(token: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("notifications/devices")
+            .appendingPathComponent(token)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await fetchProtectedData(for: request, logLabel: "unregister push device")
+    }
+
+    func fetchNotificationPreferences() async throws -> NotificationPreferences {
+        let url = baseURL.appendingPathComponent("notifications/preferences")
+        let data = try await fetchProtectedData(from: url, logLabel: "notification preferences")
+        do {
+            return try JSONDecoder().decode(NotificationPreferences.self, from: data)
+        } catch {
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    func updateNotificationPreferences(_ preferences: NotificationPreferences) async throws -> NotificationPreferences {
+        let url = baseURL.appendingPathComponent("notifications/preferences")
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(preferences)
+        let data = try await fetchProtectedData(for: request, logLabel: "update notification preferences")
+        do {
+            return try JSONDecoder().decode(NotificationPreferences.self, from: data)
+        } catch {
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
     private func fetchProtectedData(from url: URL, logLabel: String) async throws -> Data {
         try await fetchProtectedData(for: URLRequest(url: url), logLabel: logLabel)
     }
@@ -366,6 +520,62 @@ private struct SendMessageRequest: Encodable {
     enum CodingKeys: String, CodingKey {
         case recipientId = "recipient_id"
         case body
+    }
+}
+
+private struct SentMessageResponse: Decodable {
+    let message: KTPMessage
+
+    enum CodingKeys: String, CodingKey {
+        case message
+        case data
+        case result
+    }
+
+    static func decodeMessage(from data: Data) throws -> KTPMessage {
+        let decoder = JSONDecoder()
+        if let directMessage = try? decoder.decode(KTPMessage.self, from: data),
+           hasContent(directMessage) {
+            return directMessage
+        }
+
+        if let messages = try? ConversationMessagesResponse.decodeMessages(from: data),
+           let message = messages.last(where: hasContent) {
+            return message
+        }
+
+        let message = try decoder.decode(SentMessageResponse.self, from: data).message
+        guard hasContent(message) else {
+            throw KTPAPIError.emptyResponse
+        }
+        return message
+    }
+
+    nonisolated private static func hasContent(_ message: KTPMessage) -> Bool {
+        !message.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let message = try container.decodeIfPresent(KTPMessage.self, forKey: .message) {
+            self.message = message
+        } else if let message = try container.decodeIfPresent(KTPMessage.self, forKey: .data) {
+            self.message = message
+        } else {
+            self.message = try container.decode(KTPMessage.self, forKey: .result)
+        }
+    }
+}
+
+private struct MessageReactionRequest: Encodable {
+    let emoji: String
+}
+
+private struct PollVoteRequest: Encodable {
+    let optionIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case optionIDs = "option_ids"
     }
 }
 

@@ -81,6 +81,10 @@ struct ReportContentSheet: View {
                     }
                 }
             }
+            .tint(AppSurfaceColor.primaryControl)
+            .listSectionSpacing(20)
+            .scrollContentBackground(.hidden)
+            .background(AppSystemColor.background)
             .navigationTitle("Report Content")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -144,30 +148,42 @@ struct ReportsView: View {
     }
 
     var body: some View {
-        Group {
-            if isLoading {
-                ProgressView("Loading reports...")
-            } else if let errorMessage {
-                ContentUnavailableView(
-                    "Reports unavailable",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(errorMessage)
+        ScrollView(showsIndicators: false) {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                AppSectionHeading(
+                    eyebrow: "Chapter Leadership",
+                    title: "Report queue",
+                    subtitle: "Review member reports and record a clear decision.",
+                    systemImage: "checklist"
                 )
-            } else if reports.isEmpty {
-                ContentUnavailableView(
-                    "No reports",
-                    systemImage: "checkmark.circle",
-                    description: Text("There are no \(filter.title.lowercased()) reports."))
-            } else {
-                List(reports) { report in
-                    Button { selectedReport = report } label: {
-                        ReportRow(report: report)
+                .padding(.bottom, 6)
+
+                if isLoading {
+                    AppStatusSurface(message: "Loading reports...", systemImage: "arrow.triangle.2.circlepath")
+                } else if let errorMessage {
+                    AppStatusSurface(message: errorMessage, systemImage: "exclamationmark.triangle.fill")
+                } else if reports.isEmpty {
+                    AppStatusSurface(
+                        message: "There are no \(filter.title.lowercased()) reports.",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                } else {
+                    ForEach(reports) { report in
+                        Button {
+                            selectedReport = report
+                        } label: {
+                            ReportRow(report: report)
+                                .padding(18)
+                                .appElevatedSurface()
+                                .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
-                .listStyle(.plain)
             }
+            .padding(20)
         }
+        .background(AppSystemColor.background)
         .navigationTitle("Reports")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -232,22 +248,32 @@ private struct ReportRow: View {
     let report: ContentReport
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(report.reason)
-                .font(AppFont.headline())
+        HStack(alignment: .top, spacing: 14) {
+            AppIconBadge(systemImage: "exclamationmark.bubble.fill")
 
-            Text(report.reportedUserName ?? "Reported content")
-                .font(AppFont.subheadline())
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(report.reason)
+                    .font(AppFont.headline())
+                    .foregroundStyle(AppSystemColor.primaryLabel)
 
-            if let createdAt = report.createdAt {
-                Text(createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(AppFont.caption())
-                    .foregroundStyle(.secondary)
+                Text(report.reportedUserName ?? "Reported content")
+                    .font(AppFont.subheadline())
+                    .foregroundStyle(AppSystemColor.secondaryLabel)
+
+                if let createdAt = report.createdAt {
+                    Text(createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(AppFont.caption())
+                        .foregroundStyle(AppSystemColor.secondaryLabel)
+                }
             }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.right")
+                .font(AppFont.caption(weight: .bold))
+                .foregroundStyle(AppSystemColor.secondaryLabel)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 }
 
@@ -304,6 +330,10 @@ private struct ReportResolutionSheet: View {
                     }
                 }
             }
+            .tint(AppSurfaceColor.primaryControl)
+            .listSectionSpacing(20)
+            .scrollContentBackground(.hidden)
+            .background(AppSystemColor.background)
             .navigationTitle("Review Report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

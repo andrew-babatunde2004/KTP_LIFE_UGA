@@ -127,6 +127,7 @@ struct GroupChat: Identifiable, Hashable, Decodable {
     let preview: String
     let lastMessageDate: Date?
     let unreadCount: Int
+    let photoAssetID: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -137,14 +138,23 @@ struct GroupChat: Identifiable, Hashable, Decodable {
         case lastMessageAt = "last_message_at"
         case createdAt = "created_at"
         case unreadCount = "unread_count"
+        case photoAssetID = "photo_asset_id"
     }
 
-    init(id: String, name: String, preview: String, lastMessageDate: Date?, unreadCount: Int) {
+    init(
+        id: String,
+        name: String,
+        preview: String,
+        lastMessageDate: Date?,
+        unreadCount: Int,
+        photoAssetID: String? = nil
+    ) {
         self.id = id
         self.name = name
         self.preview = preview
         self.lastMessageDate = lastMessageDate
         self.unreadCount = unreadCount
+        self.photoAssetID = photoAssetID
     }
 
     init(from decoder: Decoder) throws {
@@ -168,6 +178,8 @@ struct GroupChat: Identifiable, Hashable, Decodable {
         } else {
             unreadCount = 0
         }
+
+        photoAssetID = try container.decodeFirstPresentStringIfPresent(for: [.photoAssetID])
     }
 }
 
@@ -246,6 +258,7 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
     let body: String
     let createdAt: Date?
     let isRead: Bool
+    let reactions: [MessageReactionSummary]
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -270,6 +283,7 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         case timestamp
         case isRead = "is_read"
         case read
+        case reactions
     }
 
     init(
@@ -280,7 +294,8 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         senderProfileImageURL: URL? = nil,
         body: String,
         createdAt: Date?,
-        isRead: Bool
+        isRead: Bool,
+        reactions: [MessageReactionSummary] = []
     ) {
         self.id = id
         self.senderId = senderId
@@ -290,6 +305,7 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         self.body = body
         self.createdAt = createdAt
         self.isRead = isRead
+        self.reactions = reactions
     }
 
     init(from decoder: Decoder) throws {
@@ -316,6 +332,76 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         let directReadValue = try container.decodeIfPresent(Bool.self, forKey: .isRead)
         let fallbackReadValue = try container.decodeIfPresent(Bool.self, forKey: .read)
         isRead = directReadValue ?? fallbackReadValue ?? false
+        reactions = MessageReactionSummary.decode(from: container, forKey: .reactions)
+    }
+}
+
+struct MessageReactionSummary: Identifiable, Hashable, Decodable {
+    let emoji: String
+    let count: Int
+    let reactedByCurrentUser: Bool
+
+    var id: String { emoji }
+
+    enum CodingKeys: String, CodingKey {
+        case emoji
+        case reaction
+        case count
+        case total
+        case reactedByCurrentUser = "reacted_by_current_user"
+        case userReacted = "user_reacted"
+        case reacted
+    }
+
+    init(emoji: String, count: Int, reactedByCurrentUser: Bool) {
+        self.emoji = emoji
+        self.count = count
+        self.reactedByCurrentUser = reactedByCurrentUser
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        emoji = try container.decodeIfPresent(String.self, forKey: .emoji)
+            ?? container.decode(String.self, forKey: .reaction)
+        count = try container.decodeIfPresent(Int.self, forKey: .count)
+            ?? container.decodeIfPresent(Int.self, forKey: .total)
+            ?? 1
+        reactedByCurrentUser = try container.decodeIfPresent(Bool.self, forKey: .reactedByCurrentUser)
+            ?? container.decodeIfPresent(Bool.self, forKey: .userReacted)
+            ?? container.decodeIfPresent(Bool.self, forKey: .reacted)
+            ?? false
+    }
+
+    fileprivate static func decode(
+        from container: KeyedDecodingContainer<KTPMessage.CodingKeys>,
+        forKey key: KTPMessage.CodingKeys
+    ) -> [MessageReactionSummary] {
+        if let summaries = try? container.decode([MessageReactionSummary].self, forKey: key) {
+            return normalize(summaries)
+        }
+
+        if let counts = try? container.decode([String: Int].self, forKey: key) {
+            return counts
+                .map { MessageReactionSummary(emoji: $0.key, count: $0.value, reactedByCurrentUser: false) }
+                .sorted { $0.emoji < $1.emoji }
+        }
+
+        return []
+    }
+
+    private static func normalize(_ reactions: [MessageReactionSummary]) -> [MessageReactionSummary] {
+        var values: [String: MessageReactionSummary] = [:]
+
+        for reaction in reactions {
+            let existing = values[reaction.emoji]
+            values[reaction.emoji] = MessageReactionSummary(
+                emoji: reaction.emoji,
+                count: (existing?.count ?? 0) + reaction.count,
+                reactedByCurrentUser: (existing?.reactedByCurrentUser ?? false) || reaction.reactedByCurrentUser
+            )
+        }
+
+        return values.values.sorted { $0.emoji < $1.emoji }
     }
 }
 
@@ -454,7 +540,11 @@ extension KTPMessage {
             recipientId: "2",
             body: "Chapter updates are live for this week.",
             createdAt: Date(),
-            isRead: false
+            isRead: false,
+            reactions: [
+                MessageReactionSummary(emoji: "👍", count: 2, reactedByCurrentUser: true),
+                MessageReactionSummary(emoji: "🎉", count: 1, reactedByCurrentUser: false),
+            ]
         )
     ]
 }

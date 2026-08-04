@@ -47,13 +47,20 @@ struct QRCodeScannerView: View {
                     becameUnavailable: { message in scannerError = message }
                 )
                 .ignoresSafeArea()
+                .overlay {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(0.82), lineWidth: 2)
+                        .frame(width: 252, height: 252)
+                        .shadow(color: .black.opacity(0.28), radius: 10)
+                        .allowsHitTesting(false)
+                }
                 .overlay(alignment: .bottom) {
-                    Text("Point the camera at a QR code")
+                    Label("Center the event QR code", systemImage: "viewfinder")
                         .font(AppFont.subheadline(weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 18)
-                        .padding(.vertical, 12)
-                        .background(.black.opacity(0.64), in: Capsule())
+                        .padding(.vertical, 13)
+                        .glassEffect(.clear.tint(.black.opacity(0.46)), in: Capsule())
                         .padding(.bottom, 30)
                 }
             } else {
@@ -77,6 +84,12 @@ struct QRCodeScannerView: View {
 
     private func scannerUnavailableView(message: String, showsSettingsButton: Bool = false) -> some View {
         VStack(spacing: 18) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 26, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 58, height: 58)
+                .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+
             Text(message)
                 .font(AppFont.subheadline())
                 .foregroundStyle(.white)
@@ -88,7 +101,7 @@ struct QRCodeScannerView: View {
                     openURL(settingsURL)
                 }
                 .font(AppFont.subheadline(weight: .semibold))
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
             }
         }
         .padding(28)
@@ -184,4 +197,3 @@ private struct QRDataScanner: UIViewControllerRepresentable {
         }
     }
 }
-

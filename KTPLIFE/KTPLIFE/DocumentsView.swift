@@ -92,7 +92,17 @@ private struct DocumentLevelView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: 12) {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                if folder == nil {
+                    AppSectionHeading(
+                        eyebrow: "Chapter Library",
+                        title: "Shared resources",
+                        subtitle: "Browse the latest chapter files and folders in one organized place.",
+                        systemImage: "doc.on.doc.fill"
+                    )
+                    .padding(.bottom, 6)
+                }
+
                 if isLoading {
                     ChapterResourceStatusView(message: "Loading documents...")
                 } else if let loadError {
@@ -182,6 +192,8 @@ private struct DocumentFolderRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
+            AppIconBadge(systemImage: "folder.fill")
+
             Text(folder.name)
                 .font(AppFont.headline())
                 .foregroundStyle(AppSystemColor.primaryLabel)
@@ -193,13 +205,10 @@ private struct DocumentFolderRow: View {
                 .font(AppFont.caption(weight: .semibold))
                 .foregroundStyle(AppSystemColor.secondaryLabel)
         }
-        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
-        .padding(.horizontal, 18)
-        .background(
-            AppSystemColor.elevatedBackground,
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .padding(16)
+        .appElevatedSurface()
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 
@@ -209,6 +218,8 @@ private struct DocumentRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 14) {
+            AppIconBadge(systemImage: documentSystemImage)
+
             VStack(alignment: .leading, spacing: 5) {
                 Text(document.name)
                     .font(AppFont.headline())
@@ -227,21 +238,32 @@ private struct DocumentRow: View {
             if isOpening {
                 ProgressView()
                     .controlSize(.small)
+            } else {
+                Image(systemName: "arrow.up.right")
+                    .font(AppFont.caption(weight: .semibold))
+                    .foregroundStyle(AppSystemColor.secondaryLabel)
             }
         }
         .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 8)
-        .background(
-            AppSystemColor.elevatedBackground,
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(16)
+        .appElevatedSurface()
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var detailText: String? {
         guard let byteCount = document.byteCount else { return document.mimeType }
         return ByteCountFormatter.string(fromByteCount: Int64(byteCount), countStyle: .file)
+    }
+
+    private var documentSystemImage: String {
+        let loweredName = document.name.lowercased()
+        if loweredName.hasSuffix(".pdf") {
+            return "doc.richtext.fill"
+        }
+        if loweredName.hasSuffix(".jpg") || loweredName.hasSuffix(".jpeg") || loweredName.hasSuffix(".png") {
+            return "photo.fill"
+        }
+        return "doc.fill"
     }
 }
 
@@ -249,15 +271,7 @@ private struct ChapterResourceStatusView: View {
     let message: String
 
     var body: some View {
-        Text(message)
-            .font(AppFont.subheadline())
-            .foregroundStyle(AppSystemColor.secondaryLabel)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-            .background(
-                AppSystemColor.elevatedBackground,
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-            )
+        AppStatusSurface(message: message, systemImage: "doc.text.magnifyingglass")
     }
 }
 
@@ -311,4 +325,3 @@ func chapterResourceErrorMessage(for error: Error) -> String {
     }
     return "Could not load this resource. Please try again."
 }
-

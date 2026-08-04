@@ -3,7 +3,61 @@
 //  KTPLIFE
 //
 
+import Foundation
 import SwiftUI
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    static let storageKey = "appAppearance"
+
+    case light
+    case dark
+    case gray
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .light: "Light"
+        case .dark: "Dark"
+        case .gray: "Gray"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .light: "A bright white background with dark text."
+        case .dark: "A true-black background designed for low-light use."
+        case .gray: "A softer blue-gray background inspired by classic social-app themes."
+        }
+    }
+
+    var preferredColorScheme: ColorScheme {
+        switch self {
+        case .light: .light
+        case .dark, .gray: .dark
+        }
+    }
+
+    static var current: AppAppearance {
+        guard let rawValue = UserDefaults.standard.string(forKey: storageKey),
+              let appearance = AppAppearance(rawValue: rawValue)
+        else {
+            return .light
+        }
+        return appearance
+    }
+}
+
+private struct AppAppearanceKey: EnvironmentKey {
+    static let defaultValue = AppAppearance.light
+}
+
+extension EnvironmentValues {
+    var appAppearance: AppAppearance {
+        get { self[AppAppearanceKey.self] }
+        set { self[AppAppearanceKey.self] = newValue }
+    }
+}
 
 struct KTPLogoMark: View {
     var maxWidth: CGFloat = 220
@@ -40,6 +94,95 @@ struct EmptyState: View {
     }
 }
 
+struct AppSectionHeading: View {
+    let eyebrow: String?
+    let title: String
+    let subtitle: String?
+    let systemImage: String?
+
+    init(
+        eyebrow: String? = nil,
+        title: String,
+        subtitle: String? = nil,
+        systemImage: String? = nil
+    ) {
+        self.eyebrow = eyebrow
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 7) {
+                if let eyebrow {
+                    Text(eyebrow)
+                        .font(AppFont.caption(weight: .bold))
+                        .tracking(1.2)
+                        .textCase(.uppercase)
+                        .foregroundStyle(AppSurfaceColor.primaryControl)
+                }
+
+                Text(title)
+                    .font(AppFont.largeTitle())
+                    .foregroundStyle(AppSystemColor.primaryLabel)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(AppFont.subheadline())
+                        .foregroundStyle(AppSystemColor.secondaryLabel)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if let systemImage {
+                AppIconBadge(systemImage: systemImage, size: 48)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct AppIconBadge: View {
+    let systemImage: String
+    var size: CGFloat = 42
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: size * 0.4, weight: .semibold))
+            .foregroundStyle(AppSurfaceColor.primaryControl)
+            .frame(width: size, height: size)
+            .background(AppSystemColor.insetBackground, in: RoundedRectangle(cornerRadius: size * 0.34, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: size * 0.34, style: .continuous)
+                    .stroke(AppSystemColor.separator.opacity(0.32), lineWidth: 1)
+            }
+    }
+}
+
+struct AppStatusSurface: View {
+    let message: String
+    var systemImage: String = "info.circle"
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            AppIconBadge(systemImage: systemImage)
+
+            Text(message)
+                .font(AppFont.subheadline())
+                .foregroundStyle(AppSystemColor.secondaryLabel)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .appElevatedSurface()
+    }
+}
+
 extension View {
 
     func loginCard(radius: CGFloat = 24) -> some View {
@@ -65,6 +208,18 @@ extension View {
                 .stroke(AppSurfaceColor.cardBorder, lineWidth: 1)
         }
     }
+
+    func appElevatedSurface(radius: CGFloat = 22) -> some View {
+        background(
+            AppSystemColor.elevatedBackground,
+            in: RoundedRectangle(cornerRadius: radius, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(AppSystemColor.separator.opacity(0.38), lineWidth: 1)
+        }
+        .shadow(color: Color.black.opacity(0.055), radius: 14, y: 6)
+    }
 }
 
 enum AppSurfaceColor {
@@ -83,10 +238,69 @@ enum AppSurfaceColor {
 /// Semantic system surfaces shared by the standard app pages.
 /// Branded authentication and opportunity panels intentionally use AppSurfaceColor instead.
 enum AppSystemColor {
-    static let background = Color(uiColor: .systemBackground)
-    static let elevatedBackground = Color(uiColor: .secondarySystemBackground)
-    static let insetBackground = Color(uiColor: .tertiarySystemFill)
-    static let primaryLabel = Color(uiColor: .label)
-    static let secondaryLabel = Color(uiColor: .secondaryLabel)
-    static let separator = Color(uiColor: .separator)
+    static var background: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .systemBackground)
+        case .dark:
+            Color.black
+        case .gray:
+            Color(red: 0.082, green: 0.125, blue: 0.169)
+        }
+    }
+
+    static var elevatedBackground: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .secondarySystemBackground)
+        case .dark:
+            Color(white: 0.09)
+        case .gray:
+            Color(red: 0.118, green: 0.176, blue: 0.227)
+        }
+    }
+
+    static var insetBackground: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .tertiarySystemFill)
+        case .dark:
+            Color.white.opacity(0.12)
+        case .gray:
+            Color(red: 0.165, green: 0.231, blue: 0.286)
+        }
+    }
+
+    static var primaryLabel: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .label)
+        case .dark:
+            Color.white
+        case .gray:
+            Color(red: 0.961, green: 0.973, blue: 0.980)
+        }
+    }
+
+    static var secondaryLabel: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .secondaryLabel)
+        case .dark:
+            Color.white.opacity(0.68)
+        case .gray:
+            Color(red: 0.667, green: 0.722, blue: 0.761)
+        }
+    }
+
+    static var separator: Color {
+        switch AppAppearance.current {
+        case .light:
+            Color(uiColor: .separator)
+        case .dark:
+            Color.white.opacity(0.18)
+        case .gray:
+            Color(red: 0.220, green: 0.267, blue: 0.302)
+        }
+    }
 }

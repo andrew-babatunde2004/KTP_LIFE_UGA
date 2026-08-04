@@ -16,7 +16,7 @@ struct PhotosView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var photos: [PhotoItem] = []
     @State private var selectedItems: [PhotosPickerItem] = []
-    @State private var selectedMedia: PhotoItem?
+    @State private var selectedMedia: MediaSelection?
     @State private var isUploading = false
     @State private var loadError: String?
 
@@ -38,17 +38,20 @@ struct PhotosView: View {
     }
     
     private let columns = [
-        GridItem(.flexible(minimum: 0), spacing: 3),
-        GridItem(.flexible(minimum: 0), spacing: 3),
-        GridItem(.flexible(minimum: 0), spacing: 3),
+        GridItem(.flexible(minimum: 0), spacing: 0),
+        GridItem(.flexible(minimum: 0), spacing: 0),
+        GridItem(.flexible(minimum: 0), spacing: 0),
     ]
     
     var body: some View {
         PageScaffold(showsPageHeader: false) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
+                galleryToolbar
+
                 if let loadError {
                     PhotosStatusCard(message: loadError)
                         .padding(.horizontal, 20)
+                        .padding(.bottom, 16)
                 } else if photos.isEmpty {
                     ContentUnavailableView(
                         "No chapter media yet",
@@ -59,18 +62,21 @@ struct PhotosView: View {
                     .padding(.horizontal, 20)
                 }
                 
-                // A dense, full-width three-column gallery keeps every thumbnail easy to scan.
-                LazyVGrid(columns: columns, spacing: 3) {
-                    ForEach(photos) { photo in
-                        AuthenticatedPhotoTile(
-                            photo: photo,
-                            photoService: photoService,
-                            select: { selectedMedia = photo }
-                        )
+                // Zero row and column spacing creates one continuous, edge-to-edge grid.
+                LazyVGrid(columns: columns, spacing: 0) {
+                    ForEach(photos.indices, id: \.self) { index in
+                        GeometryReader { proxy in
+                            AuthenticatedPhotoTile(
+                                photo: photos[index],
+                                photoService: photoService,
+                                select: { selectedMedia = MediaSelection(index: index) }
+                            )
+                            .frame(width: proxy.size.width, height: proxy.size.width)
+                        }
+                        .aspectRatio(1, contentMode: .fit)
                     }
                 }
             }
-            .padding(.bottom, 92)
         }
         // The dismiss control occupies its own top safe-area region, so the first photo
         // cannot receive a tap intended for the back control.
@@ -107,20 +113,29 @@ struct PhotosView: View {
                     dismiss()
                 }
         )
-        .overlay(alignment: .bottomLeading) {
-            addPhotoButton
-                .padding(.leading, 20)
-                .padding(.bottom, 20)
-                .zIndex(999)
-        }
         .task {
             await loadPhotos()
         }
-        .sheet(item: $selectedMedia) { photo in
-            AuthenticatedMediaViewer(photo: photo, photoService: photoService)
+        .sheet(item: $selectedMedia) { selection in
+            AuthenticatedMediaViewer(
+                photos: photos,
+                initialIndex: selection.index,
+                photoService: photoService
+            )
         }
     }
     
+    private var galleryToolbar: some View {
+        HStack {
+            Spacer()
+
+            addPhotoButton
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(PhotosDesign.galleryBackground(for: colorScheme))
+    }
+
     @MainActor
     private func loadPhotos() async {
 #if DEBUG
@@ -242,6 +257,11 @@ struct PhotosView: View {
     }
 }
 
+private struct MediaSelection: Identifiable {
+    let index: Int
+    var id: Int { index }
+}
+
 private struct AuthenticatedPhotoTile: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
@@ -257,7 +277,7 @@ private struct AuthenticatedPhotoTile: View {
     var body: some View {
         Button(action: select) {
             PhotosDesign.tileBackground(for: colorScheme)
-                .aspectRatio(1, contentMode: .fill)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay {
                     if let image {
                         Image(uiImage: image)
@@ -277,6 +297,7 @@ private struct AuthenticatedPhotoTile: View {
                     }
                 }
                 .clipped()
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .contextMenu {
@@ -343,43 +364,40 @@ private struct AuthenticatedPhotoTile: View {
 
 private struct AuthenticatedMediaViewer: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
 
-    let photo: PhotoItem
+    let photos: [PhotoItem]
     let photoService: PhotoService
 
-    @State private var image: UIImage?
-    @State private var player: AVPlayer?
-    @State private var isLoading = true
-    @State private var errorMessage: String?
+    @State private var selectedIndex: Int
     @State private var isSaving = false
+    @State private var saveErrorMessage: String?
     @State private var reportTarget: ReportTarget?
+
+    init(photos: [PhotoItem], initialIndex: Int, photoService: PhotoService) {
+        self.photos = photos
+        self.photoService = photoService
+        _selectedIndex = State(initialValue: min(max(0, initialIndex), max(0, photos.count - 1)))
+    }
+
+    private var selectedPhoto: PhotoItem? {
+        guard photos.indices.contains(selectedIndex) else { return nil }
+        return photos[selectedIndex]
+    }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.black.ignoresSafeArea()
-
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                } else if let player {
-                    VideoPlayer(player: player)
-                        .onAppear { player.play() }
-                } else if isLoading {
-                    ProgressView()
-                        .tint(.white)
-                } else {
-                    ContentUnavailableView(
-                        "Media Unavailable",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(errorMessage ?? "This media could not be loaded.")
+            TabView(selection: $selectedIndex) {
+                ForEach(photos.indices, id: \.self) { index in
+                    AuthenticatedMediaPage(
+                        photo: photos[index],
+                        photoService: photoService
                     )
-                    .foregroundStyle(.white)
+                    .tag(index)
                 }
             }
-            .navigationTitle(photo.title)
+            .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle(selectedPhoto?.title ?? "Photo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -391,38 +409,100 @@ private struct AuthenticatedMediaViewer: View {
                     } label: {
                         Image(systemName: isSaving ? "hourglass" : "arrow.down.to.line")
                     }
-                    .disabled(isSaving || isLoading)
+                    .disabled(isSaving || selectedPhoto == nil)
                     .accessibilityLabel("Save to Photos")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Report", role: .destructive) {
-                        reportTarget = .photo(photo)
+                        if let selectedPhoto {
+                            reportTarget = .photo(selectedPhoto)
+                        }
                     }
+                    .disabled(selectedPhoto == nil)
                 }
             }
         }
-        .task { await loadMedia() }
         .alert("Couldn’t Save Media", isPresented: Binding(
-            get: { errorMessage != nil && !isLoading },
-            set: { if !$0 { errorMessage = nil } }
+            get: { saveErrorMessage != nil },
+            set: { if !$0 { saveErrorMessage = nil } }
         )) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(errorMessage ?? "")
+            Text(saveErrorMessage ?? "")
         }
         .sheet(item: $reportTarget) { target in
             ReportContentSheet(target: target)
         }
-        .onDisappear { player?.pause() }
+    }
+
+    @MainActor
+    private func saveMedia() async {
+        guard let selectedPhoto else { return }
+
+        isSaving = true
+        defer { isSaving = false }
+
+        do {
+            let data = try await photoService.fetchMediaData(for: selectedPhoto)
+            try await PhotoLibrarySaver.save(data: data, isVideo: selectedPhoto.isVideo)
+        } catch {
+            saveErrorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct AuthenticatedMediaPage: View {
+    let photo: PhotoItem
+    let photoService: PhotoService
+
+    @State private var image: UIImage?
+    @State private var player: AVPlayer?
+    @State private var isLoading = true
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            } else if let player {
+                VideoPlayer(player: player)
+                    .onAppear { player.play() }
+                    .onDisappear { player.pause() }
+            } else if isLoading {
+                ProgressView()
+                    .tint(.white)
+            } else {
+                ContentUnavailableView(
+                    "Media Unavailable",
+                    systemImage: "exclamationmark.triangle",
+                    description: Text(errorMessage ?? "This media could not be loaded.")
+                )
+                .foregroundStyle(.white)
+            }
+        }
+        .task(id: photo.id) {
+            await loadMedia()
+        }
+        .accessibilityLabel("\(photo.title), \(photo.isVideo ? "video" : "photo")")
     }
 
     @MainActor
     private func loadMedia() async {
+        image = nil
+        player?.pause()
+        player = nil
+        errorMessage = nil
         isLoading = true
         defer { isLoading = false }
 
         do {
             let data = try await photoService.fetchMediaData(for: photo)
+            guard !Task.isCancelled else { return }
+
             if photo.isVideo {
                 let url = try MediaTemporaryFile.write(data: data, suggestedPath: photo.imagePath)
                 player = AVPlayer(url: url)
@@ -431,19 +511,8 @@ private struct AuthenticatedMediaViewer: View {
             } else {
                 errorMessage = "This file is not a supported image."
             }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    @MainActor
-    private func saveMedia() async {
-        isSaving = true
-        defer { isSaving = false }
-
-        do {
-            let data = try await photoService.fetchMediaData(for: photo)
-            try await PhotoLibrarySaver.save(data: data, isVideo: photo.isVideo)
+        } catch is CancellationError {
+            return
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -531,7 +600,7 @@ private enum PhotoLibrarySaveError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .accessDenied:
-            return "Allow KTP Life to add photos in Settings to save this media."
+            return "Allow KTP Me to add photos in Settings to save this media."
         case .unknown:
             return "The media could not be saved to your photo library."
         }
@@ -631,7 +700,6 @@ private enum PhotosDesign {
 #if DEBUG
 #Preview("Photos") {
     PhotosView()
-        .padding(.horizontal, 20)
         .background(AppTab.photos.theme.previewBackground())
         .environmentObject(AuthManager.previewSignedOut)
         .environmentObject(GalleryThumbnailRepository())

@@ -5,11 +5,17 @@
 
 import SwiftUI
 
+private enum AppTabBarMetrics {
+    static let itemSize: CGFloat = 40
+    static let iconSize: CGFloat = 20
+}
+
 struct AppTabBar: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selectedTab: AppTab
+    let openProfile: () -> Void
 
     private var activeTheme: PageTheme {
         selectedTab.theme
@@ -23,8 +29,8 @@ struct AppTabBar: View {
         GlassEffectContainer(spacing: 22) {
             tabButtons
                 // These values control the glass capsule's size and icon spacing.
-                .padding(.horizontal, 34)
-                .padding(.vertical, 7)
+                .padding(.horizontal, 30)
+                .padding(.vertical, 8)
         }
         .modifier(TabBarGlassSurface(
             tint: activeTheme.tabBarGlassTint(for: colorScheme),
@@ -38,27 +44,38 @@ struct AppTabBar: View {
     }
 
     private var tabButtons: some View {
-        HStack(spacing: 22) {
-                ForEach(AppTab.allCases) { tab in
-                    AppTabBarButton(
-                        tab: tab,
+        HStack(spacing: 12) {
+            ForEach(AppTab.allCases) { tab in
+                AppTabBarButton(
+                    tab: tab,
+                    isSelected: selectedTab == tab,
+                    iconColor: activeTheme.tabBarIconColor(
                         isSelected: selectedTab == tab,
-                        iconColor: activeTheme.tabBarIconColor(
-                            isSelected: selectedTab == tab,
-                            colorScheme: colorScheme
-                        ),
-                        select: {
-                            if reduceMotion {
+                        colorScheme: colorScheme
+                    ),
+                    select: {
+                        if reduceMotion {
+                            selectedTab = tab
+                        } else {
+                            withAnimation(.easeInOut(duration: 0.16)) {
                                 selectedTab = tab
-                            } else {
-                                withAnimation(.easeInOut(duration: 0.16)) {
-                                    selectedTab = tab
-                                }
                             }
                         }
-                    )
-                }
+                    }
+                )
             }
+
+            Button(action: openProfile) {
+                CurrentUserAvatarView(size: AppTabBarMetrics.iconSize)
+                    .frame(
+                        width: AppTabBarMetrics.itemSize,
+                        height: AppTabBarMetrics.itemSize
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open your profile")
+        }
     }
 }
 
@@ -94,8 +111,15 @@ private struct AppTabBarButton: View {
     var body: some View {
         Button(action: select) {
             Image(systemName: tab.icon)
-                .font(.system(size: 21, weight: .semibold))
-                .frame(width: 46, height: 46)
+                .font(.system(size: AppTabBarMetrics.iconSize, weight: .semibold))
+                .frame(
+                    width: AppTabBarMetrics.iconSize,
+                    height: AppTabBarMetrics.iconSize
+                )
+                .frame(
+                    width: AppTabBarMetrics.itemSize,
+                    height: AppTabBarMetrics.itemSize
+                )
                 .contentShape(Rectangle())
                 .accessibilityLabel(tab.title)
                 .foregroundStyle(iconColor)

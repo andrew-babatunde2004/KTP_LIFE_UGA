@@ -118,6 +118,11 @@
 				TargetAttributes = {
 					499611222FE1DDA900E5014D = {
 						CreatedOnToolsVersion = 26.0.1;
+						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -287,16 +292,22 @@
 		499611472FE1DDAB00E5014D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APNS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = KTPLIFE/KTPLIFE.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZAL9S5GDHG;
+				DEVELOPMENT_TEAM = Q4MX4C3Z84;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KTPLIFE/Info.plist;
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow KTP Life to save downloaded chapter photos and videos to your library.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Allow KTP Life to access photos and videos you choose to share with the chapter gallery.";
+				INFOPLIST_KEY_CFBundleDisplayName = "KTP Me";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Allow KTP Me to add chapter events to your calendar.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Allow KTP Me to use the camera to scan QR codes.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow KTP Me to save chapter photos and videos to your photo library when you choose Save to Photos.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Allow KTP Me to access photos and videos you choose to share with the chapter gallery.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -307,7 +318,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = SB.KTPLIFE;
+				PRODUCT_BUNDLE_IDENTIFIER = KTP.KTPLIFE;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -322,16 +333,22 @@
 		499611482FE1DDAB00E5014D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				APNS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = KTPLIFE/KTPLIFE.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ZAL9S5GDHG;
+				DEVELOPMENT_TEAM = Q4MX4C3Z84;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KTPLIFE/Info.plist;
-				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow KTP Life to save downloaded chapter photos and videos to your library.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Allow KTP Life to access photos and videos you choose to share with the chapter gallery.";
+				INFOPLIST_KEY_CFBundleDisplayName = "KTP Me";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Allow KTP Me to add chapter events to your calendar.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Allow KTP Me to use the camera to scan QR codes.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Allow KTP Me to save chapter photos and videos to your photo library when you choose Save to Photos.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Allow KTP Me to access photos and videos you choose to share with the chapter gallery.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -342,7 +359,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = SB.KTPLIFE;
+				PRODUCT_BUNDLE_IDENTIFIER = KTP.KTPLIFE;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

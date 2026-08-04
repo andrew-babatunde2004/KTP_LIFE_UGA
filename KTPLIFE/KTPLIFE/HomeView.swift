@@ -7,7 +7,6 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var authManager: AuthManager
     @State private var events: [CalendarEvent] = []
     @State private var isLoadingEvents = false
@@ -15,10 +14,12 @@ struct HomeView: View {
     @State private var homepageSlides: [HomepageSlide] = []
     @State private var isLoadingHomepageSlides = false
 
-    let showPhotos: () -> Void
-    let showEvents: () -> Void
     let showDocuments: () -> Void
     let showCommittees: () -> Void
+    let showPolls: () -> Void
+    let showAnnouncements: () -> Void
+    let showMeetings: () -> Void
+    let openQRScanner: () -> Void
 
     private var calendarService: CalendarNetworkService {
         CalendarNetworkService(accessTokenProvider: { [authManager] in
@@ -37,24 +38,38 @@ struct HomeView: View {
     }
 
     var body: some View {
-        PageScaffold(showsPageHeader: false) {
-            VStack(alignment: .leading, spacing: 10) {
-                heroSection
+        GeometryReader { viewport in
+            let heroHeight = HomeHeroConfiguration.height(for: viewport.size)
+            let showsHero = isLoadingHomepageSlides || !homepageSlides.isEmpty
 
-                if isLoadingHomepageSlides {
-                    HomeSlideshowLoadingView()
-                } else if !homepageSlides.isEmpty {
-                    HomeSlideshow(slides: homepageSlides, apiService: apiService)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    if isLoadingHomepageSlides {
+                        HomeHeroSlideshowLoadingView(height: heroHeight)
+                    } else if !homepageSlides.isEmpty {
+                        HomeHeroSlideshow(
+                            slides: homepageSlides,
+                            apiService: apiService,
+                            width: viewport.size.width,
+                            height: heroHeight,
+                            topSafeAreaInset: viewport.safeAreaInsets.top,
+                            reduceTransparency: reduceTransparency,
+                            openQRScanner: openQRScanner
+                        )
+                    }
+
+                    VStack(alignment: .leading, spacing: 24) {
+                        heroSection
+                        homeNavigation
+                        thisWeekSection
+                    }
+                    .padding(.horizontal, 20)
                 }
-
-                VStack(alignment: .leading, spacing: 30) {
-
-                    thisWeekSection
-
-                    actionSection
-                }
+                .padding(.bottom, 20)
             }
-            .padding(.bottom, 12)
+            // Only the artwork extends behind the status bar. When there is no
+            // hero, preserve the normal top safe area for the greeting.
+            .ignoresSafeArea(edges: showsHero ? .top : [])
         }
         .task {
             await loadEvents()
@@ -84,86 +99,81 @@ struct HomeView: View {
     }
 
     private var thisWeekSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("This week")
-                    .font(AppFont.title(22))
-                    .foregroundStyle(HomeDesign.primaryText)
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(
+                title: "This week",
+                trailingText: !isLoadingEvents && eventsErrorMessage == nil ? eventCountLabel : nil
+            )
 
-                Spacer()
+            VStack(spacing: 0) {
+                if isLoadingEvents {
+                    HomeStatusRow(
+                        title: "Loading chapter events...",
+                        systemImage: "calendar.badge.clock"
+                    )
+                } else if let eventsErrorMessage {
+                    HomeStatusRow(
+                        title: eventsErrorMessage,
+                        systemImage: "exclamationmark.circle"
+                    )
+                } else if visibleWeekEvents.isEmpty {
+                    HomeStatusRow(
+                        title: "No chapter events this week.",
+                        systemImage: "calendar"
+                    )
+                } else {
+                    ForEach(Array(visibleWeekEvents.enumerated()), id: \.element.id) { index, event in
+                        HomeEventRow(event: event)
 
-                if !isLoadingEvents, eventsErrorMessage == nil {
-                    Text(eventCountLabel)
-                        .font(AppFont.caption(weight: .medium))
-                        .foregroundStyle(HomeDesign.tertiaryText)
-                }
-            }
-            .padding(.bottom, 8)
-
-            if isLoadingEvents {
-                HomeStatusRow(title: "Loading chapter events...")
-            } else if let eventsErrorMessage {
-                HomeStatusRow(title: eventsErrorMessage)
-            } else if visibleWeekEvents.isEmpty {
-                HomeStatusRow(title: "No chapter events this week.")
-            } else {
-                ForEach(Array(visibleWeekEvents.enumerated()), id: \.element.id) { index, event in
-                    HomeEventRow(event: event)
-
-                    if index < visibleWeekEvents.count - 1 {
-                        Divider()
-                            .padding(.leading, 70)
+                        if index < visibleWeekEvents.count - 1 {
+                            Divider()
+                                .padding(.leading, 88)
+                        }
                     }
                 }
             }
+            .padding(.horizontal, 16)
+            .modifier(HomeAgendaSurface())
         }
     }
 
-    @ViewBuilder
-    private var actionSection: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: 16) {
-                actionButtons
-            }
-        } else {
-            actionButtons
-        }
-    }
-
-    private var actionButtons: some View {
-        VStack(spacing: 14) {
-            HomeActionButton(
-                title: "Photo Gallery",
-                systemImage: "photo.stack.fill",
-                colorScheme: colorScheme,
-                reduceTransparency: reduceTransparency,
-                action: showPhotos
-            )
-
-            HomeActionButton(
-                title: "Events",
-                systemImage: "calendar.badge.clock",
-                colorScheme: colorScheme,
-                reduceTransparency: reduceTransparency,
-                action: showEvents
-            )
-
-            HomeActionButton(
+    private var homeNavigation: some View {
+        LazyVGrid(
+            columns: [GridItem(.flexible(), spacing: 0), GridItem(.flexible(), spacing: 0)],
+            spacing: 0
+        ) {
+            HomeNavigationItem(
                 title: "Documents",
                 systemImage: "doc.on.doc.fill",
-                colorScheme: colorScheme,
-                reduceTransparency: reduceTransparency,
                 action: showDocuments
             )
 
-            HomeActionButton(
+            HomeNavigationItem(
                 title: "Committees",
                 systemImage: "person.3.fill",
-                colorScheme: colorScheme,
-                reduceTransparency: reduceTransparency,
                 action: showCommittees
             )
+
+            HomeNavigationItem(
+                title: "Polls",
+                systemImage: "chart.bar.fill",
+                action: showPolls
+            )
+
+            HomeNavigationItem(
+                title: "Announcements",
+                systemImage: "megaphone.fill",
+                action: showAnnouncements
+            )
+
+            HomeNavigationItem(
+                title: "Meetings",
+                systemImage: "person.2.badge.gearshape",
+                action: showMeetings
+            )
+            .gridCellColumns(2)
         }
+        .padding(.vertical, 4)
     }
 
     private var todayLabel: String {
@@ -189,7 +199,7 @@ struct HomeView: View {
     }
 
     private var eventCountLabel: String {
-        weekEvents.count == 1 ? "1 event" : "\(weekEvents.count) events"
+        weekEvents.count == 1 ? "1 EVENT" : "\(weekEvents.count) EVENTS"
     }
 
     private var weekEvents: [CalendarEvent] {
@@ -263,34 +273,97 @@ struct HomeView: View {
 
 }
 
-private struct HomeSlideshow: View {
+private struct HomeSectionHeader: View {
+    let title: String
+    var eyebrow: String?
+    var subtitle: String?
+    var trailingText: String?
+
+    var body: some View {
+        HStack(alignment: subtitle == nil ? .firstTextBaseline : .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                if let eyebrow {
+                    Text(eyebrow)
+                        .font(AppFont.caption(weight: .semibold))
+                        .tracking(1.3)
+                        .foregroundStyle(HomeDesign.accent)
+                }
+
+                Text(title)
+                    .font(AppFont.title(21))
+                    .foregroundStyle(HomeDesign.primaryText)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(AppFont.footnote())
+                        .foregroundStyle(HomeDesign.secondaryText)
+                }
+            }
+
+            Spacer(minLength: 12)
+
+            if let trailingText {
+                Text(trailingText)
+                    .font(AppFont.caption(weight: .semibold))
+                    .tracking(0.5)
+                    .foregroundStyle(HomeDesign.accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(HomeDesign.accent.opacity(0.10), in: Capsule())
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct HomeHeroSlideshow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var selectedSlide = 0
     let slides: [HomepageSlide]
     let apiService: KTPAPIService
+    let width: CGFloat
+    let height: CGFloat
+    let topSafeAreaInset: CGFloat
+    let reduceTransparency: Bool
+    let openQRScanner: () -> Void
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selectedSlide) {
-                ForEach(Array(slides.enumerated()), id: \.element.id) { index, slide in
-                    HomepageSlideView(slide: slide, apiService: apiService)
-                        .tag(index)
+        VStack(spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                TabView(selection: boundedSelection) {
+                    ForEach(Array(slides.enumerated()), id: \.element.id) { index, slide in
+                        HomepageSlideView(
+                            slide: slide,
+                            apiService: apiService,
+                            pageWidth: width,
+                            pageHeight: height
+                        )
+                            .frame(width: width, height: height)
+                            .tag(index)
+                    }
                 }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(width: width, height: height)
+
+                HomeQRScannerButton(
+                    action: openQRScanner,
+                    reduceTransparency: reduceTransparency
+                )
+                .padding(.top, topSafeAreaInset + 10)
+                .padding(.leading, 14)
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(width: width, height: height)
+            .contentShape(Rectangle())
+            .clipped()
 
             HomePageControl(
                 pageCount: slides.count,
-                selectedPage: selectedSlide,
+                selectedPage: boundedSelectedSlide,
                 reduceTransparency: reduceTransparency
             )
-            .padding(.bottom, 13)
         }
-        .frame(height: 238)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: Color.black.opacity(0.12), radius: 9, x: 0, y: 4)
-        .task {
+        .frame(width: width)
+        .task(id: slides.map(\.id)) {
             await rotateSlidesAutomatically()
         }
         .onChange(of: slides.map(\.id)) { _, _ in
@@ -298,6 +371,17 @@ private struct HomeSlideshow: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Chapter highlights slideshow")
+    }
+
+    private var boundedSelectedSlide: Int {
+        min(max(selectedSlide, 0), max(slides.count - 1, 0))
+    }
+
+    private var boundedSelection: Binding<Int> {
+        Binding(
+            get: { boundedSelectedSlide },
+            set: { selectedSlide = min(max($0, 0), max(slides.count - 1, 0)) }
+        )
     }
 
     /// Automatic slideshow rotation is intentionally centralized here. Adjust
@@ -311,6 +395,10 @@ private struct HomeSlideshow: View {
             } catch {
                 return
             }
+
+            // The server can refresh the slideshow while this task is asleep.
+            // Re-check the count before modulo arithmetic to avoid a zero divisor.
+            guard slides.count > 1 else { return }
 
             let nextSlide = (selectedSlide + 1) % slides.count
             if reduceMotion {
@@ -330,6 +418,8 @@ private struct HomepageSlideView: View {
     @EnvironmentObject private var thumbnailRepository: GalleryThumbnailRepository
     let slide: HomepageSlide
     let apiService: KTPAPIService
+    let pageWidth: CGFloat
+    let pageHeight: CGFloat
     @State private var image: UIImage?
 
     var body: some View {
@@ -341,15 +431,27 @@ private struct HomepageSlideView: View {
                 slideContent
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityLabel(accessibilityLabel)
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .task(id: "\(slide.id)-\(Int((proxy.size.width * displayScale).rounded(.up)))") {
-                        await loadImage(for: proxy.size)
-                    }
-            }
+        .task(id: imageRequestID) {
+            await loadImage(forWidth: imagePointWidth, displayScale: imageDisplayScale)
         }
+    }
+
+    private var imageRequestID: String {
+        let pixelWidth = Int((imagePointWidth * imageDisplayScale).rounded(.up))
+        return "\(slide.id)-\(pixelWidth)"
+    }
+
+    private var imagePointWidth: CGFloat {
+        let largestDimension = max(pageWidth, pageHeight)
+        guard largestDimension.isFinite, largestDimension > 0 else { return 1 }
+        return min(largestDimension, 4_096)
+    }
+
+    private var imageDisplayScale: CGFloat {
+        guard displayScale.isFinite, displayScale > 0 else { return 1 }
+        return min(displayScale, 4)
     }
 
     private var slideContent: some View {
@@ -357,10 +459,12 @@ private struct HomepageSlideView: View {
             AppSystemColor.elevatedBackground
 
             if let image {
+                // Match the tall app-preview treatment without distorting the
+                // artwork. Overflow is cropped inside the bounded page frame.
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(width: pageWidth, height: pageHeight)
                     .clipped()
             }
 
@@ -374,8 +478,10 @@ private struct HomepageSlideView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if !slide.title.isEmpty {
                         Text(slide.title)
-                            .font(AppFont.title(24))
+                            .font(AppFont.headline())
                             .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
 
                     if !slide.subtitle.isEmpty {
@@ -385,10 +491,17 @@ private struct HomepageSlideView: View {
                             .lineLimit(2)
                     }
                 }
-                .padding(22)
-                .padding(.bottom, 28)
+                .padding(.horizontal, HomeHeroConfiguration.titleHorizontalInset)
+                .padding(.bottom, HomeHeroConfiguration.titleBottomInset)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .bottomLeading
+                )
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 
     private var accessibilityLabel: String {
@@ -402,23 +515,61 @@ private struct HomepageSlideView: View {
     }
 
     @MainActor
-    private func loadImage(for size: CGSize) async {
-        guard size.width > 0 else { return }
+    private func loadImage(forWidth width: CGFloat, displayScale: CGFloat) async {
         image = await thumbnailRepository.image(
             for: "homepage-slide-\(slide.id)",
-            pointSize: size.width,
+            pointSize: width,
             displayScale: displayScale,
             loadData: { try await apiService.fetchHomepageSlideMediaData(for: slide) }
         )
     }
 }
 
-private struct HomeSlideshowLoadingView: View {
+private struct HomeHeroSlideshowLoadingView: View {
+    let height: CGFloat
+
     var body: some View {
         AppSystemColor.elevatedBackground
             .overlay { ProgressView("Loading chapter highlights...") }
-            .frame(height: 238)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .frame(height: height)
+            .frame(maxWidth: .infinity)
+    }
+}
+
+private struct HomeQRScannerButton: View {
+    let action: () -> Void
+    let reduceTransparency: Bool
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "qrcode.viewfinder")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .modifier(HomeQRControlSurface(reduceTransparency: reduceTransparency))
+        .accessibilityLabel("Scan a QR code")
+    }
+}
+
+private struct HomeQRControlSurface: ViewModifier {
+    let reduceTransparency: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !reduceTransparency {
+            content
+                .glassEffect(.regular.tint(.black.opacity(0.16)).interactive(), in: .circle)
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(.white.opacity(0.30), lineWidth: 1)
+                }
+        }
     }
 }
 
@@ -428,70 +579,47 @@ private struct HomePageControl: View {
     let reduceTransparency: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             ForEach(0..<pageCount, id: \.self) { index in
-                Circle()
-                    .fill(index == selectedPage ? Color.white : Color.white.opacity(0.45))
-                    .frame(width: 7, height: 7)
+                Capsule()
+                    .fill(
+                        index == selectedPage
+                            ? HomeDesign.primaryText
+                            : HomeDesign.primaryText.opacity(reduceTransparency ? 0.60 : 0.35)
+                    )
+                    .frame(width: index == selectedPage ? 18 : 6, height: 6)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .modifier(HomePageControlSurface(reduceTransparency: reduceTransparency))
+        .animation(.smooth(duration: 0.25), value: selectedPage)
+        .frame(maxWidth: .infinity)
         .accessibilityLabel("Slide \(selectedPage + 1) of \(pageCount)")
     }
 }
 
-private struct HomePageControlSurface: ViewModifier {
-    let reduceTransparency: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            content.glassEffect(.clear, in: Capsule())
-        } else {
-            content.background(AppSystemColor.elevatedBackground, in: Capsule())
-        }
-    }
-}
-
-private struct HomeActionButton: View {
+private struct HomeNavigationItem: View {
     let title: String
     let systemImage: String
-    let colorScheme: ColorScheme
-    let reduceTransparency: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 16) {
+            VStack(spacing: 7) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 23, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(HomeDesign.accent)
-                    .frame(width: 42, height: 42)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(AppFont.headline())
-                        .foregroundStyle(HomeDesign.primaryText)
-                }
-
-                Spacer(minLength: 8)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(HomeDesign.tertiaryText)
+                Text(title)
+                    .font(AppFont.footnote(weight: .semibold))
+                    .foregroundStyle(HomeDesign.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .padding(.horizontal, 19)
-            .padding(.vertical, 15)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .contentShape(Rectangle())
         }
-        .modifier(HomeGlassActionSurface(
-            colorScheme: colorScheme,
-            reduceTransparency: reduceTransparency
-        ))
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open \(title)")
     }
 }
 
@@ -499,25 +627,42 @@ private struct HomeEventRow: View {
     let event: CalendarEvent
 
     var body: some View {
-        HStack(alignment: .center, spacing: 18) {
-            Text(event.startDate.formatted(.dateTime.weekday(.abbreviated).day()))
-                .font(AppFont.footnote(weight: .semibold))
-                .foregroundStyle(HomeDesign.accent)
-                .frame(width: 52, alignment: .leading)
+        HStack(alignment: .center, spacing: 16) {
+            VStack(spacing: 2) {
+                Text(event.startDate.formatted(.dateTime.weekday(.abbreviated)))
+                    .font(AppFont.caption(weight: .semibold))
+                    .textCase(.uppercase)
 
-            VStack(alignment: .leading, spacing: 5) {
+                Text(event.startDate.formatted(.dateTime.day()))
+                    .font(AppFont.title(20))
+            }
+            .foregroundStyle(HomeDesign.accent)
+            .frame(width: 56, height: 58)
+            .background(
+                HomeDesign.accent.opacity(0.10),
+                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+            )
+
+            VStack(alignment: .leading, spacing: 7) {
                 Text(event.title)
                     .font(AppFont.headline())
                     .foregroundStyle(HomeDesign.primaryText)
+                    .lineLimit(2)
 
-                Text(eventTimeLabel)
-                    .font(AppFont.footnote())
-                    .foregroundStyle(HomeDesign.secondaryText)
+                HStack(spacing: 5) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 10, weight: .semibold))
+
+                    Text(eventTimeLabel)
+                        .font(AppFont.footnote())
+                }
+                .foregroundStyle(HomeDesign.secondaryText)
             }
 
             Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .padding(.vertical, 13)
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 
@@ -534,54 +679,45 @@ private struct HomeEventRow: View {
 
 private struct HomeStatusRow: View {
     let title: String
+    let systemImage: String
 
     var body: some View {
-        Text(title)
-            .font(AppFont.subheadline())
-            .foregroundStyle(HomeDesign.secondaryText)
-            .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(HomeDesign.accent)
+                .frame(width: 38, height: 38)
+                .background(HomeDesign.accent.opacity(0.10), in: Circle())
+
+            Text(title)
+                .font(AppFont.subheadline())
+                .foregroundStyle(HomeDesign.secondaryText)
+        }
+        .frame(maxWidth: .infinity, minHeight: 82, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
-private struct HomeGlassActionSurface: ViewModifier {
-    let colorScheme: ColorScheme
-    let reduceTransparency: Bool
-
-    @ViewBuilder
+private struct HomeAgendaSurface: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            content
-                .buttonStyle(.plain)
-                .glassEffect(
-                    .regular
-                        .tint(HomeDesign.glassTint(for: colorScheme))
-                        .interactive(),
-                    in: .rect(cornerRadius: 22)
-                )
-        } else {
-            content
-                .buttonStyle(.plain)
-                .background(
-                    AppSystemColor.elevatedBackground,
-                    in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(AppSystemColor.separator.opacity(0.5), lineWidth: 1)
-                }
-        }
+        content
+            .background(
+                AppSystemColor.elevatedBackground,
+                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(AppSystemColor.separator.opacity(0.35), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.05), radius: 12, x: 0, y: 5)
     }
 }
 
 private enum HomeDesign {
-    static let primaryText = Color(uiColor: .label)
-    static let secondaryText = Color(uiColor: .secondaryLabel)
-    static let tertiaryText = Color(uiColor: .tertiaryLabel)
-    static let accent = AppSurfaceColor.primaryControl
-
-    static func glassTint(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : accent.opacity(0.10)
-    }
+    static let primaryText = AppSystemColor.primaryLabel
+    static let secondaryText = AppSystemColor.secondaryLabel
+    static let tertiaryText = AppSystemColor.secondaryLabel.opacity(0.68)
+    static let accent = AppSystemColor.primaryLabel
 }
 
 private enum HomeSlideshowConfiguration {
@@ -589,13 +725,39 @@ private enum HomeSlideshowConfiguration {
     static let rotationInterval: Duration = .seconds(5)
 }
 
+private enum HomeHeroConfiguration {
+    static let titleHorizontalInset: CGFloat = 20
+    static let titleBottomInset: CGFloat = 16
+
+    /// Device-width breakpoints keep height independent from the artwork width.
+    static func height(for viewportSize: CGSize) -> CGFloat {
+        if viewportSize.width > viewportSize.height {
+            return min(max(viewportSize.height - 40, 280), 360)
+        }
+
+        switch viewportSize.width {
+        case ...375:
+            return 500
+        case ...393:
+            // iPhone 14 Pro and other 393-point-wide phones.
+            return 530
+        case ...430:
+            return 560
+        default:
+            return 600
+        }
+    }
+}
+
 #if DEBUG
 #Preview("Home — Light") {
     HomeView(
-        showPhotos: {},
-        showEvents: {},
         showDocuments: {},
-        showCommittees: {}
+        showCommittees: {},
+        showPolls: {},
+        showAnnouncements: {},
+        showMeetings: {},
+        openQRScanner: {}
     )
         .padding(.horizontal, 24)
         .background(AppTab.home.theme.previewBackground(.light))
@@ -606,10 +768,12 @@ private enum HomeSlideshowConfiguration {
 
 #Preview("Home — Dark") {
     HomeView(
-        showPhotos: {},
-        showEvents: {},
         showDocuments: {},
-        showCommittees: {}
+        showCommittees: {},
+        showPolls: {},
+        showAnnouncements: {},
+        showMeetings: {},
+        openQRScanner: {}
     )
         .padding(.horizontal, 24)
         .background(AppTab.home.theme.previewBackground(.dark))

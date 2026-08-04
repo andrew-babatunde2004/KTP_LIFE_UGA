@@ -201,6 +201,59 @@ Authorization: Bearer <access_token>
 
 The Swift member model accepts production member groups: `active`, `pledge`, `eboard`, `chair`, and `alumni`.
 
+### Push notifications
+
+After notification permission is granted, the app sends the APNs token to
+`POST /notifications/devices` with this body:
+
+```json
+{
+  "token": "<hex APNs device token>",
+  "platform": "ios",
+  "environment": "development"
+}
+```
+
+Debug builds use the APNs sandbox (`development`); Release and App Store builds
+use production. The backend must store those environments separately and send
+each token through the matching APNs endpoint. Device registration should upsert
+by token so reconnecting or foregrounding the app remains idempotent.
+
+Notification payloads support these deep links:
+
+```json
+{
+  "aps": {
+    "alert": {
+      "title": "New message",
+      "body": "A member sent you a message."
+    },
+    "sound": "default",
+    "badge": 1
+  },
+  "type": "direct_message",
+  "conversation_user_id": "<member ID>"
+}
+```
+
+```json
+{
+  "aps": {
+    "alert": {
+      "title": "Upcoming event",
+      "body": "An event was added or updated."
+    },
+    "sound": "default",
+    "badge": 1
+  },
+  "type": "event",
+  "event_id": "<event ID>"
+}
+```
+
+Tapping a notification opens the corresponding direct-message conversation or
+selects the event in the calendar. The app clears its badge whenever it becomes
+active.
 Two endpoints are public and take no token: `GET /roster` and `GET /roster/:id/media`. `GET /events` accepts a token optionally — anonymous callers get only untargeted public events, which is what keeps the calendar working before sign-in.
 
 ### Attendance & check-in

@@ -10,15 +10,15 @@ import SwiftUI
 enum AppTab: CaseIterable, Identifiable {
     case home
     case community
+    case photos
     case calendar
 
     // Non-tab destinations.
     case messages
     case directory
     case opportunities
-    case photos
 
-    static var allCases: [AppTab] { [.home, .community, .calendar] }
+    static var allCases: [AppTab] { [.home, .community, .photos, .calendar] }
 
     var id: Self { self }
 
@@ -93,7 +93,15 @@ struct PageTheme {
 
   /// Page background for the current system appearance.
   func backgroundColor(for colorScheme: ColorScheme) -> Color {
-    colorScheme == .dark ? darkModeBackground : lightModeBackground
+    if surfaceStyle == .light {
+      return AppSystemColor.background
+    }
+
+    if AppAppearance.current == .dark || AppAppearance.current == .gray {
+      return AppSystemColor.background
+    }
+
+    return colorScheme == .dark ? darkModeBackground : lightModeBackground
   }
 
   /// Liquid glass tint on the bottom tab bar. Tweak opacity here.
