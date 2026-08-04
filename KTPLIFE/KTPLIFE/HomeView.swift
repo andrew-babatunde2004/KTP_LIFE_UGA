@@ -13,7 +13,6 @@ struct HomeView: View {
     @State private var eventsErrorMessage: String?
     @State private var homepageSlides: [HomepageSlide] = []
     @State private var isLoadingHomepageSlides = false
-    @State private var heroScrollOffset: CGFloat = 0
 
     let showDocuments: () -> Void
     let showCommittees: () -> Void
@@ -40,50 +39,37 @@ struct HomeView: View {
 
     var body: some View {
         GeometryReader { viewport in
-            let expandedHeroHeight = viewport.size.height * HomeHeroConfiguration.expandedHeightRatio
-            let currentHeroHeight = heroHeight(from: expandedHeroHeight)
+            let heroHeight = HomeHeroConfiguration.height(for: viewport.size)
             let showsHero = isLoadingHomepageSlides || !homepageSlides.isEmpty
 
-            ZStack(alignment: .top) {
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        if showsHero {
-                            // This spacer reserves exactly the height of the pinned hero,
-                            // letting the content move up as the hero compacts.
-                            Color.clear
-                                .frame(height: currentHeroHeight)
-                        }
-
-                        VStack(alignment: .leading, spacing: 24) {
-                            heroSection
-                            homeNavigation
-                            thisWeekSection
-                        }
-                        .padding(.horizontal, 20)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    if isLoadingHomepageSlides {
+                        HomeHeroSlideshowLoadingView(height: heroHeight)
+                    } else if !homepageSlides.isEmpty {
+                        HomeHeroSlideshow(
+                            slides: homepageSlides,
+                            apiService: apiService,
+                            width: viewport.size.width,
+                            height: heroHeight,
+                            topSafeAreaInset: viewport.safeAreaInsets.top,
+                            reduceTransparency: reduceTransparency,
+                            openQRScanner: openQRScanner
+                        )
                     }
-                    .padding(.bottom, 20)
-                }
-                .onScrollGeometryChange(for: CGFloat.self, of: { geometry in
-                    max(0, geometry.contentOffset.y + geometry.contentInsets.top)
-                }) { _, newOffset in
-                    heroScrollOffset = newOffset
-                }
 
-                if isLoadingHomepageSlides {
-                    HomeHeroSlideshowLoadingView(height: currentHeroHeight)
-                } else if !homepageSlides.isEmpty {
-                    HomeHeroSlideshow(
-                        slides: homepageSlides,
-                        apiService: apiService,
-                        width: viewport.size.width,
-                        height: currentHeroHeight,
-                        topSafeAreaInset: viewport.safeAreaInsets.top,
-                        reduceTransparency: reduceTransparency,
-                        openQRScanner: openQRScanner
-                    )
+                    VStack(alignment: .leading, spacing: 24) {
+                        heroSection
+                        homeNavigation
+                        thisWeekSection
+                    }
+                    .padding(.horizontal, 20)
                 }
+                .padding(.bottom, 20)
             }
-            .ignoresSafeArea(edges: .top)
+            // Only the artwork extends behind the status bar. When there is no
+            // hero, preserve the normal top safe area for the greeting.
+            .ignoresSafeArea(edges: showsHero ? .top : [])
         }
         .task {
             await loadEvents()
@@ -94,17 +80,6 @@ struct HomeView: View {
         .task {
             await loadHomepageSlides()
         }
-    }
-
-    private var heroCollapseProgress: CGFloat {
-        min(max(heroScrollOffset / HomeHeroConfiguration.collapseDistance, 0), 1)
-    }
-
-    private func heroHeight(from expandedHeight: CGFloat) -> CGFloat {
-        expandedHeight - (
-            (expandedHeight - (expandedHeight * HomeHeroConfiguration.collapsedHeightRatio))
-                * heroCollapseProgress
-        )
     }
 
     private var heroSection: some View {
@@ -353,38 +328,42 @@ private struct HomeHeroSlideshow: View {
     let openQRScanner: () -> Void
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selectedSlide) {
-                ForEach(Array(slides.enumerated()), id: \.element.id) { index, slide in
-                    HomepageSlideView(slide: slide, apiService: apiService, pageWidth: width)
-                        .frame(width: width, height: height)
-                        .tag(index)
+        VStack(spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                TabView(selection: boundedSelection) {
+                    ForEach(Array(slides.enumerated()), id: \.element.id) { index, slide in
+                        HomepageSlideView(
+                            slide: slide,
+                            apiService: apiService,
+                            pageWidth: width,
+                            pageHeight: height
+                        )
+                            .frame(width: width, height: height)
+                            .tag(index)
+                    }
                 }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(width: width, height: height)
+
+                HomeQRScannerButton(
+                    action: openQRScanner,
+                    reduceTransparency: reduceTransparency
+                )
+                .padding(.top, topSafeAreaInset + 10)
+                .padding(.leading, 14)
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(width: width, height: height)
+            .contentShape(Rectangle())
+            .clipped()
 
             HomePageControl(
                 pageCount: slides.count,
-                selectedPage: selectedSlide,
+                selectedPage: boundedSelectedSlide,
                 reduceTransparency: reduceTransparency
             )
-            .padding(.bottom, 13)
-
-            VStack {
-                HStack {
-                    HomeQRScannerButton(action: openQRScanner, reduceTransparency: reduceTransparency)
-                    Spacer()
-                }
-                Spacer()
-            }
-            .padding(.top, topSafeAreaInset + 10)
-            .padding(.horizontal, 14)
-            .padding(.bottom, 14)
         }
-        .frame(width: width, height: height)
-        .clipped()
-        .task {
+        .frame(width: width)
+        .task(id: slides.map(\.id)) {
             await rotateSlidesAutomatically()
         }
         .onChange(of: slides.map(\.id)) { _, _ in
@@ -392,6 +371,17 @@ private struct HomeHeroSlideshow: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Chapter highlights slideshow")
+    }
+
+    private var boundedSelectedSlide: Int {
+        min(max(selectedSlide, 0), max(slides.count - 1, 0))
+    }
+
+    private var boundedSelection: Binding<Int> {
+        Binding(
+            get: { boundedSelectedSlide },
+            set: { selectedSlide = min(max($0, 0), max(slides.count - 1, 0)) }
+        )
     }
 
     /// Automatic slideshow rotation is intentionally centralized here. Adjust
@@ -405,6 +395,10 @@ private struct HomeHeroSlideshow: View {
             } catch {
                 return
             }
+
+            // The server can refresh the slideshow while this task is asleep.
+            // Re-check the count before modulo arithmetic to avoid a zero divisor.
+            guard slides.count > 1 else { return }
 
             let nextSlide = (selectedSlide + 1) % slides.count
             if reduceMotion {
@@ -425,6 +419,7 @@ private struct HomepageSlideView: View {
     let slide: HomepageSlide
     let apiService: KTPAPIService
     let pageWidth: CGFloat
+    let pageHeight: CGFloat
     @State private var image: UIImage?
 
     var body: some View {
@@ -436,15 +431,27 @@ private struct HomepageSlideView: View {
                 slideContent
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityLabel(accessibilityLabel)
-        .background {
-            GeometryReader { proxy in
-                Color.clear
-                    .task(id: "\(slide.id)-\(Int((proxy.size.width * displayScale).rounded(.up)))") {
-                        await loadImage(for: proxy.size)
-                    }
-            }
+        .task(id: imageRequestID) {
+            await loadImage(forWidth: imagePointWidth, displayScale: imageDisplayScale)
         }
+    }
+
+    private var imageRequestID: String {
+        let pixelWidth = Int((imagePointWidth * imageDisplayScale).rounded(.up))
+        return "\(slide.id)-\(pixelWidth)"
+    }
+
+    private var imagePointWidth: CGFloat {
+        let largestDimension = max(pageWidth, pageHeight)
+        guard largestDimension.isFinite, largestDimension > 0 else { return 1 }
+        return min(largestDimension, 4_096)
+    }
+
+    private var imageDisplayScale: CGFloat {
+        guard displayScale.isFinite, displayScale > 0 else { return 1 }
+        return min(displayScale, 4)
     }
 
     private var slideContent: some View {
@@ -452,22 +459,13 @@ private struct HomepageSlideView: View {
             AppSystemColor.elevatedBackground
 
             if let image {
-                ZStack {
-                    // Keep the original artwork intact. The soft background fills any
-                    // extra space for portrait or landscape slides without cropping
-                    // text that is part of the image itself.
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .blur(radius: 18)
-                        .scaleEffect(1.08)
-
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+                // Match the tall app-preview treatment without distorting the
+                // artwork. Overflow is cropped inside the bounded page frame.
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: pageWidth, height: pageHeight)
+                    .clipped()
             }
 
             LinearGradient(
@@ -480,10 +478,10 @@ private struct HomepageSlideView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     if !slide.title.isEmpty {
                         Text(slide.title)
-                            .font(AppFont.title(24))
+                            .font(AppFont.headline())
                             .foregroundStyle(.white)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
                     }
 
                     if !slide.subtitle.isEmpty {
@@ -493,16 +491,17 @@ private struct HomepageSlideView: View {
                             .lineLimit(2)
                     }
                 }
+                .padding(.horizontal, HomeHeroConfiguration.titleHorizontalInset)
+                .padding(.bottom, HomeHeroConfiguration.titleBottomInset)
                 .frame(
-                    width: max(0, pageWidth - (HomeHeroConfiguration.titleHorizontalInset * 2)),
-                    alignment: .leading
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .bottomLeading
                 )
-                .padding(.leading, HomeHeroConfiguration.titleHorizontalInset)
-                .padding(.top, 22)
-                .padding(.bottom, 28)
-                .frame(width: pageWidth, alignment: .leading)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 
     private var accessibilityLabel: String {
@@ -516,11 +515,10 @@ private struct HomepageSlideView: View {
     }
 
     @MainActor
-    private func loadImage(for size: CGSize) async {
-        guard size.width > 0 else { return }
+    private func loadImage(forWidth width: CGFloat, displayScale: CGFloat) async {
         image = await thumbnailRepository.image(
             for: "homepage-slide-\(slide.id)",
-            pointSize: size.width,
+            pointSize: width,
             displayScale: displayScale,
             loadData: { try await apiService.fetchHomepageSlideMediaData(for: slide) }
         )
@@ -586,8 +584,8 @@ private struct HomePageControl: View {
                 Capsule()
                     .fill(
                         index == selectedPage
-                            ? .white
-                            : .white.opacity(reduceTransparency ? 0.65 : 0.45)
+                            ? HomeDesign.primaryText
+                            : HomeDesign.primaryText.opacity(reduceTransparency ? 0.60 : 0.35)
                     )
                     .frame(width: index == selectedPage ? 18 : 6, height: 6)
             }
@@ -728,11 +726,27 @@ private enum HomeSlideshowConfiguration {
 }
 
 private enum HomeHeroConfiguration {
-    static let collapseDistance: CGFloat = 170
-    /// Fraction of the screen occupied by the full-size slideshow.
-    static let expandedHeightRatio: CGFloat = 0.68
-    static let collapsedHeightRatio: CGFloat = 0.72
-    static let titleHorizontalInset: CGFloat = 30
+    static let titleHorizontalInset: CGFloat = 20
+    static let titleBottomInset: CGFloat = 16
+
+    /// Device-width breakpoints keep height independent from the artwork width.
+    static func height(for viewportSize: CGSize) -> CGFloat {
+        if viewportSize.width > viewportSize.height {
+            return min(max(viewportSize.height - 40, 280), 360)
+        }
+
+        switch viewportSize.width {
+        case ...375:
+            return 500
+        case ...393:
+            // iPhone 14 Pro and other 393-point-wide phones.
+            return 530
+        case ...430:
+            return 560
+        default:
+            return 600
+        }
+    }
 }
 
 #if DEBUG
