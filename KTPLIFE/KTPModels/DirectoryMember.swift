@@ -21,6 +21,7 @@ struct DirectoryMember: Identifiable, Codable {
         case username
         case email
         case emailAddress = "email_address"
+        case personalEmail = "personal_email"
         case role
         case title
         case major
@@ -68,7 +69,15 @@ struct DirectoryMember: Identifiable, Codable {
                 : composedName
         }
 
-        email = try container.decodeFirstPresentStringIfPresent(for: [.email, .emailAddress])
+        // Order is the preference order, and `personal_email` last is what makes
+        // alumni work. The API sends both columns but nulls `email` for an
+        // alumnus, because a UGA address stops working at graduation
+        // (memberModel.ALUMNI_EMAIL) — so the chain falls through to the
+        // personal address, which is the only one that still reaches them.
+        // Without this key an alumnus decodes with no email at all and the
+        // card's Email button greys out. Matches the web directory's
+        // `member.email || member.personalEmail`.
+        email = try container.decodeFirstPresentStringIfPresent(for: [.email, .emailAddress, .personalEmail])
 
         role = try container.decodeFirstPresentString(
             for: [.role, .title, .major, .memberGroup],
