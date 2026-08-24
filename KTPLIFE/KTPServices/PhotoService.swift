@@ -107,6 +107,33 @@ class PhotoService {
         return data
     }
 
+    private func fetchProtectedData(
+        uploading request: URLRequest,
+        fromFile fileURL: URL,
+        logLabel: String
+    ) async throws -> Data {
+        guard let accessToken = try await accessTokenProvider(), !accessToken.isEmpty else {
+            throw KTPAPIError.missingAccessToken
+        }
+
+        var authenticatedRequest = request
+        authenticatedRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.upload(for: authenticatedRequest, fromFile: fileURL)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+
+        guard 200..<300 ~= httpResponse.statusCode else {
+            let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
+            AuthDebugLog.log("KTP photo API failed status=\(httpResponse.statusCode), body=\(responseBody)")
+            throw KTPAPIError.badStatusCode(httpResponse.statusCode, responseBody)
+        }
+
+        AuthDebugLog.log("KTP photo API request succeeded for \(logLabel).")
+        return data
+    }
+
     private static func multipartBody(
         boundary: String,
         fields: [String: String?],
@@ -133,6 +160,61 @@ class PhotoService {
         body.append("--\(boundary)--\(lineBreak)")
 
         return body
+    }
+
+    private var photoDecoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }
+
+    private static func multipartFile(
+        boundary: String,
+        fields: [String: String?],
+        fileFieldName: String,
+        fileName: String,
+        mimeType: String,
+        sourceURL: URL
+    ) async throws -> URL {
+        try await Task.detached(priority: .utility) {
+            let outputURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ktp-multipart-\(UUID().uuidString)")
+            FileManager.default.createFile(atPath: outputURL.path, contents: nil)
+
+            do {
+                let output = try FileHandle(forWritingTo: outputURL)
+                defer { try? output.close() }
+                let lineBreak = "\r\n"
+
+                func write(_ value: String) throws {
+                    try output.write(contentsOf: Data(value.utf8))
+                }
+
+                for (name, value) in fields {
+                    guard let value, !value.isEmpty else { continue }
+                    try write("--\(boundary)\(lineBreak)")
+                    try write("Content-Disposition: form-data; name=\"\(name)\"\(lineBreak)\(lineBreak)")
+                    try write("\(value)\(lineBreak)")
+                }
+
+                try write("--\(boundary)\(lineBreak)")
+                try write("Content-Disposition: form-data; name=\"\(fileFieldName)\"; filename=\"\(fileName)\"\(lineBreak)")
+                try write("Content-Type: \(mimeType)\(lineBreak)\(lineBreak)")
+
+                let input = try FileHandle(forReadingFrom: sourceURL)
+                defer { try? input.close() }
+                while let chunk = try input.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                    try output.write(contentsOf: chunk)
+                }
+
+                try write(lineBreak)
+                try write("--\(boundary)--\(lineBreak)")
+                return outputURL
+            } catch {
+                try? FileManager.default.removeItem(at: outputURL)
+                throw error
+            }
+        }.value
     }
 }
 

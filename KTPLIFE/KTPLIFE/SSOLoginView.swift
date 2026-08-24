@@ -6,216 +6,273 @@
 import SwiftUI
 
 struct SSOLoginView: View {
+    @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.pageTheme) private var pageTheme
-    @State private var heroIsVisible = false
-    @State private var actionsAreVisible = false
+    @State private var typedRecruitmentQuestion = ""
+    @State private var typewriterTask: Task<Void, Never>?
 
     let isLoading: Bool
     let errorMessage: String?
     let signIn: () -> Void
 
+    private let recruitmentQuestion = "Ready to join the University of Georgia’s premier Professional Technology Fraternity?"
+    private let rushEnrollmentURL = URL(
+        string: "https://ugaktp.com/rush/how-it-works"
+    )!
+
     var body: some View {
         GeometryReader { geometry in
-            ScrollView(.vertical, showsIndicators: false) {
+            ZStack {
+                VStack {
+                    ZStack(alignment: .top) {
+                        Text(recruitmentQuestion)
+                            .opacity(0)
+                            .accessibilityHidden(true)
+
+                        Text(typedRecruitmentQuestion)
+                            .accessibilityLabel(recruitmentQuestion)
+                    }
+                    .font(.system(size: 31, weight: .bold, design: .default))
+                    .foregroundStyle(SSOLoginPalette.headlineText(for: colorScheme))
+                    .multilineTextAlignment(.center)
+                    .minimumScaleFactor(0.80)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 18)
+                .frame(maxHeight: .infinity)
+                .offset(y: -geometry.size.height * 0.09)
+
                 VStack(alignment: .leading, spacing: 0) {
                     KTPLogoMark(maxWidth: 112, maxHeight: 44, alignment: .leading)
+                        .colorMultiply(SSOLoginPalette.headlineText(for: colorScheme))
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 22)
+                        .padding(.top, 14)
                         .accessibilityHidden(true)
 
-                    Spacer(minLength: 34)
+                    Spacer(minLength: 0)
 
-                    FallRushCardMark(isPresented: heroIsVisible)
-                        .frame(width: 278, height: 184)
-                        .frame(maxWidth: .infinity)
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("FALL RUSH ‘26")
-                            .font(.system(size: 43, weight: .regular, design: .serif))
-                            .tracking(0.4)
-                            .foregroundStyle(SSOLoginPalette.primaryText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.78)
-
-                        Text("Kappa Theta Pi · Phi Chapter")
-                            .font(AppFont.subheadline())
-                            .foregroundStyle(SSOLoginPalette.secondaryText)
-
-                        Rectangle()
-                            .fill(SSOLoginPalette.accent.opacity(0.72))
-                            .frame(width: 48, height: 1)
-                            .padding(.top, 5)
-                    }
-                    .padding(.top, 18)
-                    .opacity(heroIsVisible ? 1 : 0)
-                    .offset(y: heroIsVisible ? 0 : 12)
-
-                    Spacer(minLength: 38)
-
-                    VStack(spacing: 15) {
-                        Button(action: signIn) {
-                            HStack(spacing: 10) {
-                                if isLoading {
-                                    ProgressView()
-                                        .tint(SSOLoginPalette.ink)
-                                        .transition(.scale.combined(with: .opacity))
-                                }
-
-                                Text(isLoading ? "Connecting..." : "Continue with KTP SSO")
-                                    .font(AppFont.headline())
-                                    .contentTransition(.opacity)
-                            }
-                            .foregroundStyle(SSOLoginPalette.ink)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .contentShape(Capsule())
-                        }
-                        .modifier(SSOPrimaryActionSurface(
-                            reduceTransparency: reduceTransparency
-                        ))
-                        .disabled(isLoading)
-                        .accessibilityHint("Opens the secure KTP chapter sign-in service.")
-
-                        Button(action: signIn) {
-                            Text("Already have an account? Log In")
-                                .font(AppFont.subheadline())
-                                .underline()
-                                .foregroundStyle(SSOLoginPalette.primaryText)
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: 44)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isLoading)
-                    }
-                    .opacity(actionsAreVisible ? 1 : 0)
-                    .offset(y: actionsAreVisible ? 0 : 16)
-
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(AppFont.footnote())
-                            .foregroundStyle(SSOLoginPalette.errorText)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 16)
-                            .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    }
-
-                    Text("New and returning members use the same secure sign-in.")
-                        .font(AppFont.caption())
-                        .foregroundStyle(SSOLoginPalette.tertiaryText)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 14)
-                        .opacity(actionsAreVisible ? 1 : 0)
+                    actionPanel(
+                        minimumHeight: max(210, geometry.size.height * 0.30),
+                        bottomInset: geometry.safeAreaInsets.bottom
+                    )
                 }
-                .frame(minHeight: geometry.size.height, alignment: .top)
-                .padding(.vertical, 10)
             }
-            .scrollBounceBehavior(.basedOnSize)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(pageTheme.backgroundColor(for: colorScheme).ignoresSafeArea())
+        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .ignoresSafeArea(edges: .bottom)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isLoading)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: errorMessage)
-        .onAppear(perform: revealContent)
+        .onAppear(perform: startTypewriterAnimation)
+        .onDisappear {
+            typewriterTask?.cancel()
+            typewriterTask = nil
+        }
     }
 
-    private func revealContent() {
-        guard !heroIsVisible || !actionsAreVisible else { return }
+    @ViewBuilder
+    private func actionPanel(minimumHeight: CGFloat, bottomInset: CGFloat) -> some View {
+        VStack(spacing: 14) {
+            if #available(iOS 26.0, *), !reduceTransparency {
+                GlassEffectContainer(spacing: 14) {
+                    actionButtons(useGlass: true)
+                }
+            } else {
+                actionButtons(useGlass: false)
+            }
 
-        if reduceMotion {
-            heroIsVisible = true
-            actionsAreVisible = true
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 13, weight: .semibold, design: .default))
+                    .foregroundStyle(SSOLoginPalette.errorText(for: colorScheme))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 24)
+        .padding(.bottom, max(16, bottomInset + 8))
+        .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .top)
+        .background(
+            SSOLoginPalette.actionPanel(for: colorScheme),
+            in: UnevenRoundedRectangle(
+                topLeadingRadius: SSOLoginLayout.panelCornerRadius,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: SSOLoginLayout.panelCornerRadius,
+                style: .continuous
+            )
+        )
+    }
+
+    private func actionButtons(useGlass: Bool) -> some View {
+        VStack(spacing: 14) {
+            Button(action: signIn) {
+                HStack(spacing: 10) {
+                    if isLoading {
+                        ProgressView()
+                            .tint(.white)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+
+                    Text(isLoading ? "Connecting…" : "Continue with KTP")
+                        .contentTransition(.opacity)
+                }
+                .font(.system(size: 19, weight: .bold, design: .default))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 58)
+                .contentShape(
+                    RoundedRectangle(
+                        cornerRadius: SSOLoginLayout.buttonCornerRadius,
+                        style: .continuous
+                    )
+                )
+            }
+            .buttonStyle(.plain)
+            .modifier(SSOLoginActionSurface(
+                tint: SSOLoginPalette.signInButton,
+                useGlass: useGlass
+            ))
+            .disabled(isLoading)
+            .opacity(isLoading ? 0.72 : 1)
+
+            Button {
+                openURL(rushEnrollmentURL)
+            } label: {
+                Text("Sign Up for Rush")
+                    .font(.system(size: 19, weight: .bold, design: .default))
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 58)
+                    .contentShape(
+                        RoundedRectangle(
+                            cornerRadius: SSOLoginLayout.buttonCornerRadius,
+                            style: .continuous
+                        )
+                    )
+            }
+            .buttonStyle(.plain)
+            .modifier(SSOLoginActionSurface(
+                tint: SSOLoginPalette.rushButton,
+                useGlass: useGlass
+            ))
+        }
+    }
+
+    private func startTypewriterAnimation() {
+        typewriterTask?.cancel()
+
+        guard !reduceMotion else {
+            typedRecruitmentQuestion = recruitmentQuestion
             return
         }
 
-        withAnimation(.smooth(duration: 0.55)) {
-            heroIsVisible = true
-        }
+        typedRecruitmentQuestion = ""
+        typewriterTask = Task { @MainActor in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .milliseconds(300))
+                } catch {
+                    return
+                }
 
-        withAnimation(.smooth(duration: 0.48).delay(0.14)) {
-            actionsAreVisible = true
+                for character in recruitmentQuestion {
+                    guard !Task.isCancelled else { return }
+                    typedRecruitmentQuestion.append(character)
+
+                    do {
+                        try await Task.sleep(for: .milliseconds(28))
+                    } catch {
+                        return
+                    }
+                }
+
+                do {
+                    try await Task.sleep(for: .seconds(6))
+                } catch {
+                    return
+                }
+
+                typedRecruitmentQuestion = ""
+            }
         }
     }
+}
+
+private enum SSOLoginLayout {
+    static let buttonCornerRadius: CGFloat = 17
+    static let panelCornerRadius: CGFloat = 28
 }
 
 private enum SSOLoginPalette {
-    static let primaryText = Color(red: 0.97, green: 0.95, blue: 0.90)
-    static let secondaryText = primaryText.opacity(0.72)
-    static let tertiaryText = primaryText.opacity(0.48)
-    static let accent = Color(red: 0.96, green: 0.79, blue: 0.65)
-    static let ink = Color(red: 0.08, green: 0.13, blue: 0.24)
-    static let errorText = Color(red: 1.00, green: 0.72, blue: 0.68)
+    static func brandBlue(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark
+            ? Color(red: 0.30, green: 0.64, blue: 1.00)
+            : Color(red: 0.055, green: 0.345, blue: 0.70)
+    }
+
+    static func actionPanel(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color(uiColor: .secondarySystemBackground) : .black
+    }
+
+    static func headlineText(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? .white : .black
+    }
+
+    static let signInButton = Color(
+        red: 44.0 / 255.0,
+        green: 42.0 / 255.0,
+        blue: 44.0 / 255.0
+    )
+    static let rushButton = Color(red: 0.94, green: 0.70, blue: 0.20)
+
+    static func errorText(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark
+            ? Color(red: 1.00, green: 0.48, blue: 0.45)
+            : Color(red: 1.00, green: 0.58, blue: 0.54)
+    }
 }
 
-private struct SSOPrimaryActionSurface: ViewModifier {
-    let reduceTransparency: Bool
+private struct SSOLoginActionSurface: ViewModifier {
+    let tint: Color
+    let useGlass: Bool
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
+        if #available(iOS 26.0, *), useGlass {
             content
-                .buttonStyle(.glassProminent)
-                .tint(SSOLoginPalette.accent)
+                .glassEffect(
+                    .regular.tint(tint).interactive(),
+                    in: RoundedRectangle(
+                        cornerRadius: SSOLoginLayout.buttonCornerRadius,
+                        style: .continuous
+                    )
+                )
         } else {
             content
-                .buttonStyle(.plain)
-                .background(SSOLoginPalette.accent, in: Capsule())
+                .background(
+                    tint,
+                    in: RoundedRectangle(
+                        cornerRadius: SSOLoginLayout.buttonCornerRadius,
+                        style: .continuous
+                    )
+                )
                 .overlay {
-                    Capsule()
-                        .stroke(SSOLoginPalette.primaryText.opacity(0.18), lineWidth: 1)
+                    RoundedRectangle(
+                        cornerRadius: SSOLoginLayout.buttonCornerRadius,
+                        style: .continuous
+                    )
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 }
         }
-    }
-}
-
-/// SwiftUI recreation of the three-card Fall Rush illustration in Figma node 39:112.
-private struct FallRushCardMark: View {
-    let isPresented: Bool
-
-    private let ink = Color(red: 0.12, green: 0.17, blue: 0.30)
-    private let cardFill = SSOLoginPalette.accent
-
-    var body: some View {
-        ZStack {
-            playingCard(suit: "♠")
-                .rotationEffect(.degrees(isPresented ? -24 : -5))
-                .offset(x: isPresented ? -58 : -14, y: isPresented ? 17 : 8)
-
-            playingCard(suit: "♦")
-                .offset(y: isPresented ? 2 : 8)
-
-            playingCard(suit: "♥")
-                .rotationEffect(.degrees(isPresented ? 24 : 5))
-                .offset(x: isPresented ? 58 : 14, y: isPresented ? 17 : 8)
-        }
-        .opacity(isPresented ? 1 : 0)
-        .scaleEffect(isPresented ? 1 : 0.92)
-        .accessibilityHidden(true)
-    }
-
-    private func playingCard(suit: String) -> some View {
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(cardFill)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .stroke(ink, lineWidth: 2)
-                }
-
-            Text("K")
-                .font(.system(size: 13, weight: .bold, design: .serif))
-                .foregroundStyle(ink)
-                .padding(7)
-
-            Text(suit)
-                .font(.system(size: 37, weight: .bold, design: .serif))
-                .foregroundStyle(ink)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(width: 92, height: 126)
     }
 }
 
@@ -236,9 +293,7 @@ struct KTPSplashView: View {
 #if DEBUG
 #Preview("SSO Login") {
     SSOLoginView(isLoading: false, errorMessage: nil, signIn: {})
-        .padding(20)
-        .background(PageTheme.auth.previewBackground())
         .environment(\.pageTheme, PageTheme.auth)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
 }
 #endif

@@ -72,7 +72,6 @@ GET    /users/:id/profile-picture/media
 GET    /users/blocked
 POST   /users/:id/block
 DELETE /users/:id/block
-
 # Events / calendar
 GET    /events
 GET    /events/:id
@@ -199,6 +198,8 @@ Routes guarded by the backend auth middleware require:
 Authorization: Bearer <access_token>
 ```
 
+Message deletion is exposed only for messages owned by the authenticated user. Directory responses may include a LinkedIn value using `linkedin_url`, `linkedinUrl`, `linkedInUrl`, `linkedin`, or `linkedIn`; the iOS client normalizes full LinkedIn URLs and profile handles.
+
 The Swift member model accepts production member groups: `active`, `pledge`, `eboard`, `chair`, and `alumni`.
 
 ### Push notifications
@@ -269,6 +270,56 @@ Members have no attendance UI beyond the confirmation screen after a scan. Viewi
 Both DMs and group chat messages support **emoji reactions** (`POST .../reactions` toggles), **file attachments** (multipart on send, streamed back from the `/attachment` route), and **deletion** — a sender can always delete their own message, and eboard can delete any message within a conversation they're already part of.
 
 Message sends are rate-limited to 20/minute per user and run through a basic content filter, so a `400` on send isn't necessarily a client bug. Blocking is enforced server-side: a blocked user's messages are hidden from the blocker's view and new conversations can't start in either direction.
+```json
+{
+  "aps": {
+    "alert": {
+      "title": "New announcement",
+      "body": "Chapter update"
+    },
+    "sound": "default"
+  },
+  "type": "announcement",
+  "announcement_id": "<announcement ID>"
+}
+```
+
+Use `type: "poll"` with `poll_id`, and `type: "meeting"` with `meeting_id`,
+for the equivalent Polls and Meetings destinations. `event_reminder` and
+`meeting_reminder` use the same `event_id` and `meeting_id` keys respectively.
+Tapping a notification opens the matching area of the app; event notifications
+also select the event in the calendar. The app clears its badge whenever it
+becomes active.
+
+#### Delivery and reminder requirements
+
+The backend should add these boolean fields to `GET` and `PUT
+/notifications/preferences`; the iOS client tolerates their absence until the
+backend has been deployed:
+
+```json
+{
+  "direct_messages_enabled": true,
+  "announcements_enabled": true,
+  "polls_enabled": true,
+  "meetings_enabled": true,
+  "events_enabled": true,
+  "event_reminders_enabled": true
+}
+```
+
+When an announcement, poll, meeting, or event is created, notify only devices
+whose owning user has enabled that category. When an event or non-cancelled
+meeting is created or updated, enqueue two APNs reminders: 2 hours and 30
+minutes before its start time. Each job must be unique by user, device, item,
+and reminder offset. Updates must replace the old jobs; cancellation must
+remove both jobs. For meetings, schedule reminders only for the organizer and
+members whose RSVP is `going`.
+
+The client also schedules the same two reminders locally after it loads events
+or meetings. This is a temporary fallback while server-side scheduling is
+rolled out; once APNs reminder jobs are enabled in production, disable the
+local fallback in `EventReminderScheduler` to prevent duplicate reminders.
 
 ### Reports and moderation
 

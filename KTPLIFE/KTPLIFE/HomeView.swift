@@ -9,6 +9,7 @@ struct HomeView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @EnvironmentObject private var authManager: AuthManager
     @State private var events: [CalendarEvent] = []
+    @State private var weekEvents: [CalendarEvent] = []
     @State private var isLoadingEvents = false
     @State private var eventsErrorMessage: String?
     @State private var homepageSlides: [HomepageSlide] = []
@@ -19,7 +20,25 @@ struct HomeView: View {
     let showPolls: () -> Void
     let showAnnouncements: () -> Void
     let showMeetings: () -> Void
+    let showInterviews: () -> Void
     let openQRScanner: () -> Void
+    let activeGroup: MemberGroup?
+
+    private var canAccessFilesAndPhotos: Bool {
+        activeGroup?.canAccessFilesAndPhotos != false
+    }
+
+    private var canAccessCommittees: Bool {
+        activeGroup?.canAccessCommittees != false
+    }
+
+    private var canAccessMeetings: Bool {
+        activeGroup?.canAccessMeetings != false
+    }
+
+    private var canAccessAttendance: Bool {
+        activeGroup?.canAccessAttendance != false
+    }
 
     private var calendarService: CalendarNetworkService {
         CalendarNetworkService(accessTokenProvider: { [authManager] in
@@ -38,6 +57,8 @@ struct HomeView: View {
     }
 
     var body: some View {
+        let service = apiService
+
         GeometryReader { viewport in
             let heroHeight = HomeHeroConfiguration.height(for: viewport.size)
             let showsHero = isLoadingHomepageSlides || !homepageSlides.isEmpty
@@ -49,11 +70,12 @@ struct HomeView: View {
                     } else if !homepageSlides.isEmpty {
                         HomeHeroSlideshow(
                             slides: homepageSlides,
-                            apiService: apiService,
+                            apiService: service,
                             width: viewport.size.width,
                             height: heroHeight,
                             topSafeAreaInset: viewport.safeAreaInsets.top,
                             reduceTransparency: reduceTransparency,
+                            showsAttendanceScanner: canAccessAttendance,
                             openQRScanner: openQRScanner
                         )
                     }
@@ -92,7 +114,8 @@ struct HomeView: View {
             Text(greeting)
                 .font(AppFont.largeTitle(25))
                 .foregroundStyle(HomeDesign.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .contain)
@@ -138,42 +161,58 @@ struct HomeView: View {
     }
 
     private var homeNavigation: some View {
-        LazyVGrid(
-            columns: [GridItem(.flexible(), spacing: 0), GridItem(.flexible(), spacing: 0)],
-            spacing: 0
-        ) {
-            HomeNavigationItem(
-                title: "Documents",
-                systemImage: "doc.on.doc.fill",
-                action: showDocuments
-            )
+        VStack(alignment: .leading, spacing: 14) {
+            HomeSectionHeader(title: "Chapter resources")
 
-            HomeNavigationItem(
-                title: "Committees",
-                systemImage: "person.3.fill",
-                action: showCommittees
-            )
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                spacing: 12
+            ) {
+                if canAccessFilesAndPhotos {
+                    HomeNavigationItem(
+                        title: "Documents",
+                        systemImage: "doc.on.doc.fill",
+                        action: showDocuments
+                    )
+                }
 
-            HomeNavigationItem(
-                title: "Polls",
-                systemImage: "chart.bar.fill",
-                action: showPolls
-            )
+                if canAccessCommittees {
+                    HomeNavigationItem(
+                        title: "Committees",
+                        systemImage: "person.3.fill",
+                        action: showCommittees
+                    )
+                }
 
-            HomeNavigationItem(
-                title: "Announcements",
-                systemImage: "megaphone.fill",
-                action: showAnnouncements
-            )
+                HomeNavigationItem(
+                    title: "Polls",
+                    systemImage: "chart.bar.fill",
+                    action: showPolls
+                )
 
-            HomeNavigationItem(
-                title: "Meetings",
-                systemImage: "person.2.badge.gearshape",
-                action: showMeetings
-            )
-            .gridCellColumns(2)
+                HomeNavigationItem(
+                    title: "Announcements",
+                    systemImage: "megaphone.fill",
+                    action: showAnnouncements
+                )
+
+                if canAccessMeetings {
+                    HomeNavigationItem(
+                        title: "Meetings",
+                        systemImage: "person.2.badge.gearshape",
+                        action: showMeetings
+                    )
+                    .gridCellColumns(2)
+                }
+
+                HomeNavigationItem(
+                    title: "Interviews",
+                    systemImage: "person.crop.rectangle.stack",
+                    action: showInterviews
+                )
+                .gridCellColumns(2)
+            }
         }
-        .padding(.vertical, 4)
     }
 
     private var todayLabel: String {
@@ -202,7 +241,7 @@ struct HomeView: View {
         weekEvents.count == 1 ? "1 EVENT" : "\(weekEvents.count) EVENTS"
     }
 
-    private var weekEvents: [CalendarEvent] {
+    private func eventsInCurrentWeek(from events: [CalendarEvent]) -> [CalendarEvent] {
         guard let week = Calendar.current.dateInterval(of: .weekOfYear, for: Date()) else {
             return []
         }
@@ -216,11 +255,16 @@ struct HomeView: View {
         Array(weekEvents.prefix(3))
     }
 
+    private func replaceEvents(with events: [CalendarEvent]) {
+        self.events = events
+        weekEvents = eventsInCurrentWeek(from: events)
+    }
+
     @MainActor
     private func loadEvents() async {
 #if DEBUG
         if isPreview {
-            events = CalendarEvent.previewSamples
+            replaceEvents(with: CalendarEvent.previewSamples)
             eventsErrorMessage = nil
             return
         }
@@ -230,11 +274,11 @@ struct HomeView: View {
         eventsErrorMessage = nil
 
         do {
-            events = try await calendarService.fetchCalendarEvents()
+            replaceEvents(with: try await calendarService.fetchCalendarEvents())
         } catch is CancellationError {
             return
         } catch {
-            events = []
+            replaceEvents(with: [])
             eventsErrorMessage = "Could not load this week's events."
         }
 
@@ -276,11 +320,10 @@ struct HomeView: View {
 private struct HomeSectionHeader: View {
     let title: String
     var eyebrow: String?
-    var subtitle: String?
     var trailingText: String?
 
     var body: some View {
-        HStack(alignment: subtitle == nil ? .firstTextBaseline : .top, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 if let eyebrow {
                     Text(eyebrow)
@@ -292,12 +335,9 @@ private struct HomeSectionHeader: View {
                 Text(title)
                     .font(AppFont.title(21))
                     .foregroundStyle(HomeDesign.primaryText)
-
-                if let subtitle {
-                    Text(subtitle)
-                        .font(AppFont.footnote())
-                        .foregroundStyle(HomeDesign.secondaryText)
-                }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                    .allowsTightening(true)
             }
 
             Spacer(minLength: 12)
@@ -325,6 +365,7 @@ private struct HomeHeroSlideshow: View {
     let height: CGFloat
     let topSafeAreaInset: CGFloat
     let reduceTransparency: Bool
+    let showsAttendanceScanner: Bool
     let openQRScanner: () -> Void
 
     var body: some View {
@@ -345,12 +386,14 @@ private struct HomeHeroSlideshow: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .frame(width: width, height: height)
 
-                HomeQRScannerButton(
-                    action: openQRScanner,
-                    reduceTransparency: reduceTransparency
-                )
-                .padding(.top, topSafeAreaInset + 10)
-                .padding(.leading, 14)
+                if showsAttendanceScanner {
+                    HomeQRScannerButton(
+                        action: openQRScanner,
+                        reduceTransparency: reduceTransparency
+                    )
+                    .padding(.top, topSafeAreaInset + 10)
+                    .padding(.leading, 14)
+                }
             }
             .frame(width: width, height: height)
             .contentShape(Rectangle())
@@ -603,20 +646,33 @@ private struct HomeNavigationItem: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 7) {
+            VStack(spacing: 8) {
                 Image(systemName: systemImage)
                     .font(.system(size: 18, weight: .semibold))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(HomeDesign.accent)
+                    .frame(width: 38, height: 38)
+                    .background(HomeDesign.accent.opacity(0.09), in: Circle())
 
                 Text(title)
                     .font(AppFont.footnote(weight: .semibold))
                     .foregroundStyle(HomeDesign.primaryText)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.68)
+                    .allowsTightening(true)
             }
-            .frame(maxWidth: .infinity, minHeight: 58)
-            .contentShape(Rectangle())
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 82)
+            .background(
+                AppSystemColor.elevatedBackground,
+                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(AppSystemColor.separator.opacity(0.30), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.035), radius: 8, x: 0, y: 3)
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Open \(title)")
@@ -757,7 +813,9 @@ private enum HomeHeroConfiguration {
         showPolls: {},
         showAnnouncements: {},
         showMeetings: {},
-        openQRScanner: {}
+        showInterviews: {},
+        openQRScanner: {},
+        activeGroup: nil
     )
         .padding(.horizontal, 24)
         .background(AppTab.home.theme.previewBackground(.light))
@@ -773,7 +831,9 @@ private enum HomeHeroConfiguration {
         showPolls: {},
         showAnnouncements: {},
         showMeetings: {},
-        openQRScanner: {}
+        showInterviews: {},
+        openQRScanner: {},
+        activeGroup: nil
     )
         .padding(.horizontal, 24)
         .background(AppTab.home.theme.previewBackground(.dark))

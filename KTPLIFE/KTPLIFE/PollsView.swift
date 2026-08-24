@@ -23,7 +23,6 @@ struct PollsView: View {
                     AppSectionHeading(
                         eyebrow: "Chapter Input",
                         title: "Polls",
-                        subtitle: "Cast or update your vote on the polls shared with you.",
                         systemImage: "chart.bar.fill"
                     )
                     .padding(.bottom, 6)

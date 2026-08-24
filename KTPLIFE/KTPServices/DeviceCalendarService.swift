@@ -45,6 +45,7 @@ final class DeviceCalendarService {
         event.startDate = calendarEvent.startDate
         event.endDate = calendarEvent.endDate
         event.notes = calendarEvent.description
+        event.location = calendarEvent.location
         event.calendar = destinationCalendar
 
         try eventStore.save(event, span: .thisEvent)

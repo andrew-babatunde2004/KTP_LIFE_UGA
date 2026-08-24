@@ -6,10 +6,21 @@ struct UserProfile: Identifiable, Decodable, Equatable {
     let preferredName: String?
     let firstName: String?
     let lastName: String?
+    let username: String?
     let email: String?
+    let personalEmail: String?
+    let phone: String?
+    let dateOfBirth: String?
     let major: String?
     let graduationYear: String?
+    let linkedinURL: String?
+    let pledgeClass: String?
+    let aboutMe: String?
+    let profilePictureAssetID: String?
+    let calendarFeedToken: String?
     let memberGroup: String?
+
+    var graduationDate: String? { graduationYear }
 
     var displayName: String {
         if let preferredName = preferredName?.nonEmptyTrimmed {
@@ -31,11 +42,27 @@ struct UserProfile: Identifiable, Decodable, Equatable {
         case camelFirstName = "firstName"
         case lastName = "last_name"
         case camelLastName = "lastName"
+        case username
         case email
+        case personalEmail = "personal_email"
+        case camelPersonalEmail = "personalEmail"
+        case phone
+        case dateOfBirth = "dob"
         case major
+        case graduationDate = "graduation_date"
         case graduationYear = "graduation_year"
         case camelGraduationYear = "graduationYear"
         case year
+        case linkedinURL = "linkedin_url"
+        case camelLinkedinURL = "linkedinUrl"
+        case pledgeClass = "pledge_class"
+        case camelPledgeClass = "pledgeClass"
+        case aboutMe = "about_me"
+        case camelAboutMe = "aboutMe"
+        case profilePictureAssetID = "profile_picture_asset_id"
+        case camelProfilePictureAssetID = "profilePictureAssetId"
+        case calendarFeedToken = "calendar_feed_token"
+        case camelCalendarFeedToken = "calendarFeedToken"
         case memberGroup = "member_group"
         case camelMemberGroup = "memberGroup"
         case group
@@ -46,18 +73,36 @@ struct UserProfile: Identifiable, Decodable, Equatable {
         preferredName: String?,
         firstName: String?,
         lastName: String?,
+        username: String? = nil,
         email: String?,
+        personalEmail: String? = nil,
+        phone: String? = nil,
+        dateOfBirth: String? = nil,
         major: String?,
         graduationYear: String?,
+        linkedinURL: String? = nil,
+        pledgeClass: String? = nil,
+        aboutMe: String? = nil,
+        profilePictureAssetID: String? = nil,
+        calendarFeedToken: String? = nil,
         memberGroup: String?
     ) {
         self.id = id
         self.preferredName = preferredName
         self.firstName = firstName
         self.lastName = lastName
+        self.username = username
         self.email = email
+        self.personalEmail = personalEmail
+        self.phone = phone
+        self.dateOfBirth = dateOfBirth
         self.major = major
         self.graduationYear = graduationYear
+        self.linkedinURL = linkedinURL
+        self.pledgeClass = pledgeClass
+        self.aboutMe = aboutMe
+        self.profilePictureAssetID = profilePictureAssetID
+        self.calendarFeedToken = calendarFeedToken
         self.memberGroup = memberGroup
     }
 
@@ -82,10 +127,23 @@ struct UserProfile: Identifiable, Decodable, Equatable {
         preferredName = decodedPreferredName
         firstName = decodedFirstName
         lastName = decodedLastName
+        username = try container.decodeFlexibleStringIfPresent(forKeys: [.username])
         email = decodedEmail
+        personalEmail = try container.decodeFlexibleStringIfPresent(forKeys: [.personalEmail, .camelPersonalEmail])
+        phone = try container.decodeFlexibleStringIfPresent(forKeys: [.phone])
+        dateOfBirth = try container.decodeFlexibleStringIfPresent(forKeys: [.dateOfBirth])
         major = try container.decodeFlexibleStringIfPresent(forKeys: [.major])
         graduationYear = try container.decodeFlexibleStringIfPresent(
-            forKeys: [.graduationYear, .camelGraduationYear, .year]
+            forKeys: [.graduationDate, .graduationYear, .camelGraduationYear, .year]
+        )
+        linkedinURL = try container.decodeFlexibleStringIfPresent(forKeys: [.linkedinURL, .camelLinkedinURL])
+        pledgeClass = try container.decodeFlexibleStringIfPresent(forKeys: [.pledgeClass, .camelPledgeClass])
+        aboutMe = try container.decodeFlexibleStringIfPresent(forKeys: [.aboutMe, .camelAboutMe])
+        profilePictureAssetID = try container.decodeFlexibleStringIfPresent(
+            forKeys: [.profilePictureAssetID, .camelProfilePictureAssetID]
+        )
+        calendarFeedToken = try container.decodeFlexibleStringIfPresent(
+            forKeys: [.calendarFeedToken, .camelCalendarFeedToken]
         )
         memberGroup = try container.decodeFlexibleStringIfPresent(
             forKeys: [.memberGroup, .camelMemberGroup, .group]
@@ -97,15 +155,29 @@ struct UpdateUserProfileRequest: Encodable {
     let preferredName: String?
     let firstName: String?
     let lastName: String?
+    let dateOfBirth: String?
     let major: String?
-    let graduationYear: String?
+    let graduationDate: String?
+    let phone: String?
+    let email: String?
+    let personalEmail: String?
+    let linkedinURL: String?
+    let pledgeClass: String?
+    let aboutMe: String?
 
     enum CodingKeys: String, CodingKey {
         case preferredName = "preferred_name"
         case firstName = "first_name"
         case lastName = "last_name"
+        case dateOfBirth = "dob"
         case major
-        case graduationYear = "graduation_year"
+        case graduationDate = "graduation_date"
+        case phone
+        case email
+        case personalEmail = "personal_email"
+        case linkedinURL = "linkedin_url"
+        case pledgeClass = "pledge_class"
+        case aboutMe = "about_me"
     }
 }
 

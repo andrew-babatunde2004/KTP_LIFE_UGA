@@ -182,6 +182,16 @@ final class GalleryThumbnailRepository: BoundedImageRepository, ObservableObject
     }
 }
 
+/// Shared, downsampled cache for image attachments in message timelines.
+/// Attachment responses can be substantially larger than their rendered bubble,
+/// so they must never be decoded at full size while a row is being laid out.
+@MainActor
+final class MessageAttachmentThumbnailRepository: BoundedImageRepository, ObservableObject {
+    init() {
+        super.init(cacheLimit: 120, failedRequestLimit: 60)
+    }
+}
+
 private enum ImageDownsampler {
     static func thumbnail(from data: Data, maxPixelSize: Int) async -> UIImage? {
         await Task.detached(priority: .userInitiated) {

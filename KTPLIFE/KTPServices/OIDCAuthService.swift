@@ -6,6 +6,7 @@ import UIKit
 struct AuthTokens: Codable {
     let accessToken: String
     let refreshToken: String?
+    let idToken: String?
     let expiresAt: Date
 }
 
@@ -106,7 +107,7 @@ final class OIDCAuthService {
         )
     }
 
-    func refresh(refreshToken: String) async throws -> AuthTokens {
+    func refresh(refreshToken: String, idToken: String? = nil) async throws -> AuthTokens {
         let configuration = try await discoverConfiguration()
 
         var request = URLRequest(url: configuration.tokenEndpoint)
@@ -120,7 +121,51 @@ final class OIDCAuthService {
 
         let (data, response) = try await session.data(for: request)
         try validateHTTPResponse(response, data: data)
-        return try decodeTokens(from: data, fallbackRefreshToken: refreshToken)
+        return try decodeTokens(
+            from: data,
+            fallbackRefreshToken: refreshToken,
+            fallbackIDToken: idToken
+        )
+    }
+
+    /// Ends the authentik browser session used by `ASWebAuthenticationSession`.
+    ///
+    /// This is intentionally best-effort: local credentials must still be cleared
+    /// when the provider is unreachable or the user dismisses the logout page.
+    func signOut(idToken: String?) async {
+        do {
+            let configuration = try await discoverConfiguration()
+            var components = URLComponents(
+                url: configuration.endSessionEndpoint ?? AuthConfiguration.endSessionEndpoint,
+                resolvingAgainstBaseURL: false
+            )
+            var queryItems = [
+                URLQueryItem(name: "client_id", value: AuthConfiguration.clientID),
+                URLQueryItem(name: "post_logout_redirect_uri", value: AuthConfiguration.redirectURI.absoluteString)
+            ]
+
+            if let idToken, !idToken.isEmpty {
+                queryItems.append(URLQueryItem(name: "id_token_hint", value: idToken))
+            }
+
+            components?.queryItems = queryItems
+            guard let logoutURL = components?.url else {
+                AuthDebugLog.log("Could not construct OIDC logout URL.")
+                return
+            }
+
+            let endpointDescription = [
+                logoutURL.scheme ?? "https",
+                "://",
+                logoutURL.host ?? "",
+                logoutURL.path
+            ].joined()
+            AuthDebugLog.log("Opening OIDC logout endpoint: \(endpointDescription)")
+            _ = try await startAuthenticationSession(url: logoutURL)
+            AuthDebugLog.log("OIDC logout session completed.")
+        } catch {
+            AuthDebugLog.log("OIDC logout did not complete: \(error.localizedDescription)")
+        }
     }
 
     private func discoverConfiguration() async throws -> OIDCConfiguration {
@@ -157,7 +202,11 @@ final class OIDCAuthService {
         return try decodeTokens(from: data)
     }
 
-    private func decodeTokens(from data: Data, fallbackRefreshToken: String? = nil) throws -> AuthTokens {
+    private func decodeTokens(
+        from data: Data,
+        fallbackRefreshToken: String? = nil,
+        fallbackIDToken: String? = nil
+    ) throws -> AuthTokens {
         let response = try JSONDecoder().decode(TokenResponse.self, from: data)
         guard let expiresIn = response.expiresIn else {
             throw AuthServiceError.invalidTokenResponse
@@ -166,6 +215,7 @@ final class OIDCAuthService {
         return AuthTokens(
             accessToken: response.accessToken,
             refreshToken: response.refreshToken ?? fallbackRefreshToken,
+            idToken: response.idToken ?? fallbackIDToken,
             expiresAt: Date().addingTimeInterval(TimeInterval(expiresIn))
         )
     }
@@ -247,16 +297,19 @@ enum AuthDebugLog {
 private struct OIDCConfiguration: Decodable {
     let authorizationEndpoint: URL
     let tokenEndpoint: URL
+    let endSessionEndpoint: URL?
 }
 
 private struct TokenResponse: Decodable {
     let accessToken: String
     let refreshToken: String?
+    let idToken: String?
     let expiresIn: Int?
 
     enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case refreshToken = "refresh_token"
+        case idToken = "id_token"
         case expiresIn = "expires_in"
     }
 }

@@ -16,6 +16,13 @@ struct ProfileView: View {
     @State private var lastName = ""
     @State private var major = ""
     @State private var graduationYear = ""
+    @State private var dateOfBirth = ""
+    @State private var phone = ""
+    @State private var email = ""
+    @State private var personalEmail = ""
+    @State private var linkedinURL = ""
+    @State private var pledgeClass = ""
+    @State private var aboutMe = ""
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var isDeletingAccount = false
@@ -86,8 +93,8 @@ struct ProfileView: View {
                     Text(preferredName.nonEmptyTrimmed ?? profile?.displayName ?? "KTP Member")
                         .font(AppFont.title(24))
 
-                    if let email = profile?.email {
-                        Text(email)
+                    if let username = profile?.username?.nonEmptyTrimmed {
+                        Text("@\(username)")
                             .font(AppFont.footnote())
                             .foregroundStyle(.secondary)
                     }
@@ -99,27 +106,89 @@ struct ProfileView: View {
             .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
             .listRowBackground(Color.clear)
 
-            Section("Editable profile") {
-                TextField("Preferred name", text: $preferredName)
-                    .textContentType(.nickname)
-                TextField("First name", text: $firstName)
-                    .textContentType(.givenName)
-                TextField("Last name", text: $lastName)
-                    .textContentType(.familyName)
-                TextField("Major", text: $major)
-                TextField("Graduation year", text: $graduationYear)
-                    .keyboardType(.numberPad)
+            Section {
+                VStack(alignment: .leading, spacing: 18) {
+                    profileField(title: "Preferred name") {
+                        TextField("How members know you", text: $preferredName)
+                            .textContentType(.nickname)
+                    }
+                    profileField(title: "First name") {
+                        TextField("First name", text: $firstName)
+                            .textContentType(.givenName)
+                    }
+                    profileField(title: "Last name") {
+                        TextField("Last name", text: $lastName)
+                            .textContentType(.familyName)
+                    }
+                    profileField(title: "Major") {
+                        TextField("Major or program", text: $major)
+                    }
+                    profileField(title: "Graduation year") {
+                        TextField("e.g. 2027", text: $graduationYear)
+                            .keyboardType(.numberPad)
+                    }
+                    profileField(title: "Pledge class") {
+                        TextField("Pledge class", text: $pledgeClass)
+                    }
+                    profileField(title: "Date of birth") {
+                        TextField("MM/DD/YYYY", text: $dateOfBirth)
+                            .textContentType(.birthdate)
+                            .keyboardType(.numbersAndPunctuation)
+                    }
+                    profileField(title: "Phone") {
+                        TextField("Phone number", text: $phone)
+                            .textContentType(.telephoneNumber)
+                            .keyboardType(.phonePad)
+                    }
+                    profileField(title: "UGA email") {
+                        TextField("name@uga.edu", text: $email)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                    }
+                    profileField(title: "Personal email") {
+                        TextField("Personal email", text: $personalEmail)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                    }
+                    profileField(title: "LinkedIn") {
+                        TextField("linkedin.com/in/username", text: $linkedinURL)
+                            .textContentType(.URL)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        profileFieldHeader("About me")
+
+                        TextEditor(text: $aboutMe)
+                            .frame(minHeight: 120)
+                            .padding(8)
+                            .scrollContentBackground(.hidden)
+                            .background(AppSystemColor.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .onChange(of: aboutMe) { _, value in
+                                if value.count > 600 {
+                                    aboutMe = String(value.prefix(600))
+                                }
+                            }
+
+                        Text("\(aboutMe.count)/600")
+                            .font(AppFont.caption())
+                            .foregroundStyle(AppSystemColor.secondaryLabel)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                }
+                .padding(.vertical, 6)
+            } header: {
+                Text("Editable profile")
             }
             .listRowBackground(AppSystemColor.elevatedBackground)
 
             if let memberGroup = profile?.memberGroup?.nonEmptyTrimmed {
                 Section("Membership") {
-                    Label {
-                        LabeledContent("Group", value: memberGroup.capitalized)
-                    } icon: {
-                        Image(systemName: "person.3.fill")
-                            .foregroundStyle(AppSurfaceColor.primaryControl)
-                    }
+                    LabeledContent("Group", value: memberGroup.capitalized)
                 }
                 .listRowBackground(AppSystemColor.elevatedBackground)
             }
@@ -135,11 +204,11 @@ struct ProfileView: View {
 
             Section("Support and community") {
                 Link(destination: URL(string: "https://ugaktp.com/code-of-conduct")!) {
-                    Label("Community Guidelines", systemImage: "person.3.fill")
+                    Text("Community Guidelines")
                 }
 
                 Link(destination: URL(string: "mailto:uga.ktp@gmail.com")!) {
-                    Label("Contact Support", systemImage: "envelope.fill")
+                    Text("Contact Support")
                 }
             }
             .listRowBackground(AppSystemColor.elevatedBackground)
@@ -149,7 +218,7 @@ struct ProfileView: View {
                     NavigationLink {
                         ReportsView()
                     } label: {
-                        Label("Review Reports", systemImage: "checklist")
+                        Text("Review Reports")
                     }
                 }
                 .listRowBackground(AppSystemColor.elevatedBackground)
@@ -159,13 +228,13 @@ struct ProfileView: View {
                 NavigationLink {
                     AppearanceSettingsView()
                 } label: {
-                    Label("Appearance", systemImage: "circle.lefthalf.filled")
+                    Text("Appearance")
                 }
 
                 NavigationLink {
                     NotificationSettingsView(apiService: apiService)
                 } label: {
-                    Label("Notifications", systemImage: "bell.fill")
+                    Text("Notifications")
                 }
             }
             .listRowBackground(AppSystemColor.elevatedBackground)
@@ -237,8 +306,15 @@ struct ProfileView: View {
             preferredName: preferredName.nonEmptyTrimmed,
             firstName: firstName.nonEmptyTrimmed,
             lastName: lastName.nonEmptyTrimmed,
+            dateOfBirth: requestBirthdate(from: dateOfBirth),
             major: major.nonEmptyTrimmed,
-            graduationYear: graduationYear.nonEmptyTrimmed
+            graduationDate: graduationYear.nonEmptyTrimmed,
+            phone: phone.nonEmptyTrimmed,
+            email: email.nonEmptyTrimmed,
+            personalEmail: personalEmail.nonEmptyTrimmed,
+            linkedinURL: linkedinURL.nonEmptyTrimmed,
+            pledgeClass: pledgeClass.nonEmptyTrimmed,
+            aboutMe: aboutMe.nonEmptyTrimmed
         )
 
         do {
@@ -277,14 +353,78 @@ struct ProfileView: View {
         lastName = profile.lastName ?? ""
         major = profile.major ?? ""
         graduationYear = profile.graduationYear ?? ""
+        dateOfBirth = displayBirthdate(profile.dateOfBirth)
+        phone = profile.phone ?? ""
+        email = profile.email ?? ""
+        personalEmail = profile.personalEmail ?? ""
+        linkedinURL = profile.linkedinURL ?? ""
+        pledgeClass = profile.pledgeClass ?? ""
+        aboutMe = profile.aboutMe ?? ""
+    }
+
+    @ViewBuilder
+    private func profileField<Content: View>(
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            profileFieldHeader(title)
+            content()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 11)
+                .background(AppSystemColor.background, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private func profileFieldHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(AppFont.caption(weight: .semibold))
+            .tracking(0.8)
+            .foregroundStyle(AppSystemColor.secondaryLabel)
+    }
+
+    private func displayBirthdate(_ rawValue: String?) -> String {
+        guard let rawValue = rawValue?.nonEmptyTrimmed else { return "" }
+        let dateOnlyValue = String(rawValue.prefix(10))
+        guard let date = ProfileDateFormatters.api.date(from: dateOnlyValue) else { return rawValue }
+        return ProfileDateFormatters.display.string(from: date)
+    }
+
+    private func requestBirthdate(from displayValue: String) -> String? {
+        guard let value = displayValue.nonEmptyTrimmed else { return nil }
+
+        if let date = ProfileDateFormatters.display.date(from: value) {
+            return ProfileDateFormatters.api.string(from: date)
+        }
+
+        let dateOnlyValue = String(value.prefix(10))
+        if let date = ProfileDateFormatters.api.date(from: dateOnlyValue) {
+            return ProfileDateFormatters.api.string(from: date)
+        }
+
+        return value
+    }
+}
+
+private enum ProfileDateFormatters {
+    static let api: DateFormatter = makeFormatter("yyyy-MM-dd")
+    static let display: DateFormatter = makeFormatter("MM/dd/yyyy")
+
+    private static func makeFormatter(_ format: String) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = format
+        return formatter
     }
 }
 
 private struct AppearanceSettingsView: View {
-    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.light.rawValue
+    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
 
     private var selectedAppearance: AppAppearance {
-        AppAppearance(rawValue: appearanceRawValue) ?? .light
+        AppAppearance(rawValue: appearanceRawValue) ?? .system
     }
 
     private var appearanceSelection: Binding<AppAppearance> {
@@ -296,23 +436,13 @@ private struct AppearanceSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
-                Picker("App theme", selection: appearanceSelection) {
-                    ForEach(AppAppearance.allCases) { appearance in
-                        Text(appearance.title)
-                            .tag(appearance)
-                    }
+            Picker("Appearance", selection: appearanceSelection) {
+                ForEach(AppAppearance.allCases) { appearance in
+                    Text(appearance.title)
+                        .tag(appearance)
                 }
-                .pickerStyle(.segmented)
-
-                Text(selectedAppearance.description)
-                    .font(AppFont.footnote())
-                    .foregroundStyle(AppSystemColor.secondaryLabel)
-            } header: {
-                Text("Theme")
-            } footer: {
-                Text("Your choice is saved on this device and applies immediately throughout the app.")
             }
+            .pickerStyle(.segmented)
             .listRowBackground(AppSystemColor.elevatedBackground)
         }
         .tint(AppSurfaceColor.primaryControl)

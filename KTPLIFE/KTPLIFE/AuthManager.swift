@@ -21,7 +21,7 @@ final class AuthManager: ObservableObject {
 
     private var tokens: AuthTokens?
     private var lastAccessTokenClaims: TokenClaimSummary?
-    private var refreshTask: Task<Void, Error>?
+    private var accessTokenRefreshTask: Task<Void, Error>?
 
     /// The single in-flight refresh, if one is running. Concurrent callers await
     /// this instead of starting their own — see refreshIfNeeded().
@@ -127,9 +127,11 @@ final class AuthManager: ObservableObject {
     }
 
     func signOut() async {
-        AuthDebugLog.log("Signing out and clearing tokens.")
-        refreshTask?.cancel()
-        refreshTask = nil
+        AuthDebugLog.log("Signing out and ending the authentik browser session.")
+        let idToken = tokens?.idToken
+
+        accessTokenRefreshTask?.cancel()
+        accessTokenRefreshTask = nil
         tokens = nil
         lastAccessTokenClaims = nil
         currentUserProfile = nil
@@ -141,6 +143,8 @@ final class AuthManager: ObservableObject {
         } catch {
             // Ignore keychain cleanup failures for sign-out.
         }
+
+        await authService.signOut(idToken: idToken)
     }
 
     func validAccessToken() async throws -> String {
@@ -180,6 +184,12 @@ final class AuthManager: ObservableObject {
 
     var currentUserID: String? {
         currentUserProfile?.id ?? lastAccessTokenClaims?.subject
+    }
+
+    /// `nil` preserves the existing navigation until the profile endpoint has
+    /// supplied a recognized group value.
+    var currentUserGroup: MemberGroup? {
+        MemberGroup(groupValue: currentUserProfile?.memberGroup)
     }
 
     /// The preferred username supplied by the authenticated KTP identity provider.
@@ -232,20 +242,23 @@ final class AuthManager: ObservableObject {
             throw AuthManagerError.notAuthenticated
         }
 
-        if let refreshTask {
+        if let accessTokenRefreshTask {
             AuthDebugLog.log("Refresh already in flight. Waiting for its result.")
-            try await refreshTask.value
+            try await accessTokenRefreshTask.value
             return
         }
 
         AuthDebugLog.log("Access token near expiry. Refreshing.")
         let newRefreshTask = Task { @MainActor [authService] in
-            let refreshedTokens = try await authService.refresh(refreshToken: refreshToken)
+            let refreshedTokens = try await authService.refresh(
+                refreshToken: refreshToken,
+                idToken: currentTokens.idToken
+            )
             try Task.checkCancellation()
             try save(tokens: refreshedTokens)
         }
-        refreshTask = newRefreshTask
-        defer { refreshTask = nil }
+        accessTokenRefreshTask = newRefreshTask
+        defer { accessTokenRefreshTask = nil }
         try await newRefreshTask.value
     }
 

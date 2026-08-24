@@ -7,24 +7,29 @@ struct AnnouncementsView: View {
     @State private var isLoading = false
     @State private var loadError: String?
 
+    // im not gonna lie im KINDA confused here
+    // we create the variable apiService that uses the class?
     private var apiService: KTPAPIService {
+        // Why do we call this here?
         KTPAPIService(accessTokenProvider: { [authManager] in
             try await authManager.validAccessToken()
         })
     }
 
+    // everything contained in var body is purley design
     var body: some View {
+        // just the outline of the current page, you can see with NavStack
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    // the header of the app 
                     AppSectionHeading(
                         eyebrow: "Chapter news",
                         title: "Announcements",
-                        subtitle: "Updates from the chapter, in the order they were shared.",
                         systemImage: "megaphone.fill"
                     )
                     .padding(.bottom, 22)
-
+                    
                     if isLoading {
                         AnnouncementStatusView(message: "Loading announcements...")
                     } else if let loadError {
@@ -32,9 +37,12 @@ struct AnnouncementsView: View {
                     } else if announcements.isEmpty {
                         AnnouncementStatusView(message: "There are no announcements yet.", systemImage: "megaphone")
                     } else {
+                        // for each announcement the app grabs "ordered from 1 being least recent and X being most recent"
                         ForEach(Array(announcements.enumerated()), id: \.element.id) { index, announcement in
                             AnnouncementThreadPost(
+                                // this posts the announcment within the app
                                 announcement: announcement,
+                                // im not entirely sure what this does
                                 showsConnector: index < announcements.count - 1
                             )
                         }
@@ -57,13 +65,17 @@ struct AnnouncementsView: View {
         .background(AppSystemColor.background.ignoresSafeArea())
     }
 
+    // this is where the functionality of the annoucment page starts
     @MainActor
     private func loadAnnouncements() async {
         isLoading = true
         loadError = nil
 
         do {
+            // just like java apiService calls from a diff class 
+            // in this instance thats going to be @MemberAPIService.swift
             let fetchedAnnouncements = try await apiService.fetchAnnouncements()
+            // what does $0 and $1 mean LOL
             announcements = fetchedAnnouncements.sorted { $0.createdAt < $1.createdAt }
         } catch is CancellationError {
             return

@@ -15,8 +15,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				Secrets.example.plist,
-				Secrets.plist,
+				"Secrets.example 2.plist",
 			);
 			target = 499611222FE1DDA900E5014D /* KTPLIFE */;
 		};

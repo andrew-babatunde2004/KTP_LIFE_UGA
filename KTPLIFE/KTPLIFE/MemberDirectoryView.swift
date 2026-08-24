@@ -12,14 +12,20 @@ struct MemberDirectoryView: View {
     @Environment(\.displayScale) private var displayScale
     @State private var directorySearchText = ""
     @State private var directoryMembers: [DirectoryMember] = []
+    @State private var filteredDirectoryMembers: [DirectoryMember] = []
     @State private var isLoadingDirectory = false
     @State private var directoryLoadError: String?
     @State private var selectedMember: DirectoryMember?
 
     let messageMember: (DirectoryMember) -> Void
+    let allowedGroups: [MemberGroup]?
 
-    init(messageMember: @escaping (DirectoryMember) -> Void = { _ in }) {
+    init(
+        messageMember: @escaping (DirectoryMember) -> Void = { _ in },
+        allowedGroups: [MemberGroup]? = nil
+    ) {
         self.messageMember = messageMember
+        self.allowedGroups = allowedGroups
     }
 
     private var isPreview: Bool {
@@ -33,6 +39,8 @@ struct MemberDirectoryView: View {
     }
     
     var body: some View {
+        let service = apiService
+
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 DirectorySearchBar(searchText: $directorySearchText)
@@ -41,21 +49,26 @@ struct MemberDirectoryView: View {
                     DirectoryStatusCard(message: "Loading directory...")
                 } else if let directoryLoadError {
                     DirectoryStatusCard(message: directoryLoadError)
-                } else if filteredMembers.isEmpty {
+                } else if filteredDirectoryMembers.isEmpty {
                     DirectoryStatusCard(
                         message: directorySearchText.isEmpty ?
                         "No members in the directory yet."
                         : "No members found matching '\(directorySearchText)'."
                     )
                 } else {
-                    LazyVStack(spacing: 10) {
-                        ForEach(filteredMembers) { member in
+                    LazyVStack(spacing: 0) {
+                        ForEach(filteredDirectoryMembers) { member in
                             DirectoryMemberCard(
                                 member: member,
-                                apiService: apiService,
+                                apiService: service,
                                 messageMember: messageMember,
                                 selectMember: { selectedMember = member }
                             )
+
+                            if member.id != filteredDirectoryMembers.last?.id {
+                                Divider()
+                                    .padding(.leading, 60)
+                            }
                         }
                     }
                 }
@@ -65,22 +78,37 @@ struct MemberDirectoryView: View {
         .task {
             await loadDirectoryMembers()
         }
+        .onChange(of: directorySearchText) { _, _ in
+            updateFilteredDirectoryMembers()
+        }
+        .onChange(of: allowedGroups) { _, _ in
+            updateFilteredDirectoryMembers()
+        }
         .sheet(item: $selectedMember) { member in
-            MemberDetailSheet(
-                member: member,
-                apiService: apiService,
-                messageMember: messageMember
-            )
+            NavigationStack {
+                MemberProfileView(
+                    member: member,
+                    apiService: service,
+                    messageMember: { member in
+                        selectedMember = nil
+                        Task { @MainActor in
+                            await Task.yield()
+                            messageMember(member)
+                        }
+                    }
+                )
+            }
         }
     }
-    
-    private var filteredMembers: [DirectoryMember] {
-        directoryMembers.filter { member in
-            guard !directorySearchText.isEmpty else { return true }
 
-            let query = directorySearchText
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
+    private func updateFilteredDirectoryMembers() {
+        let query = directorySearchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        filteredDirectoryMembers = directoryMembers.filter { member in
+            guard allowedGroups?.contains(member.group) ?? true else { return false }
+            guard !query.isEmpty else { return true }
 
             return member.name.lowercased().contains(query) ||
                 member.role.lowercased().contains(query) ||
@@ -88,11 +116,17 @@ struct MemberDirectoryView: View {
                 (member.year?.lowercased().contains(query) ?? false)
         }
     }
+
+    private func replaceDirectoryMembers(with members: [DirectoryMember]) {
+        directoryMembers = members
+        updateFilteredDirectoryMembers()
+    }
+
     @MainActor
     private func loadDirectoryMembers() async {
 #if DEBUG
         if isPreview {
-            directoryMembers = DirectoryMember.previewSamples
+            replaceDirectoryMembers(with: DirectoryMember.previewSamples)
             directoryLoadError = nil
             return
         }
@@ -102,10 +136,17 @@ struct MemberDirectoryView: View {
         directoryLoadError = nil
         
         do {
-            directoryMembers = try await apiService.fetchDirectoryMembers()
+            if authManager.currentUserGroup == .rush {
+                // The server's leadership response can include chairs. Rushees see
+                // only the e-board subset in the app.
+                replaceDirectoryMembers(with: try await apiService.fetchLeadershipMembers()
+                    .filter { $0.group == .eboard })
+            } else {
+                replaceDirectoryMembers(with: try await apiService.fetchDirectoryMembers())
+            }
             prefetchInitialAvatars(from: directoryMembers)
         } catch {
-            directoryMembers = []
+            replaceDirectoryMembers(with: [])
             directoryLoadError = directoryErrorMessage(for: error)
         }
         
@@ -237,29 +278,35 @@ struct MemberDirectoryView: View {
         
         var body: some View {
             HStack(alignment: .center, spacing: 12) {
-                DirectoryProfilePictureView(member: member, apiService: apiService, initials: initials, size: 46)
-                    .frame(width: 46, height: 46)
+                Button(action: selectMember) {
+                    HStack(alignment: .center, spacing: 12) {
+                        DirectoryProfilePictureView(member: member, apiService: apiService, initials: initials, size: 46)
+                            .frame(width: 46, height: 46)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(member.name)
-                        .font(AppFont.headline())
-                        .foregroundStyle(DirectoryDesign.name(for: colorScheme))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(member.name)
+                                .font(AppFont.headline())
+                                .foregroundStyle(DirectoryDesign.name(for: colorScheme))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
 
-                    Text(detailLine)
-                        .font(AppFont.footnote())
-                        .foregroundStyle(DirectoryDesign.primary(for: colorScheme))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+                            Text(detailLine)
+                                .font(AppFont.footnote())
+                                .foregroundStyle(DirectoryDesign.primary(for: colorScheme))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
 
-                    Text(groupLine)
-                        .font(AppFont.footnote())
-                        .foregroundStyle(DirectoryDesign.primary(for: colorScheme))
-                        .lineLimit(1)
+                            Text(groupLine)
+                                .font(AppFont.footnote())
+                                .foregroundStyle(DirectoryDesign.primary(for: colorScheme))
+                                .lineLimit(1)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
                 }
-
-                Spacer(minLength: 0)
+                .buttonStyle(.plain)
+                .contentShape(Rectangle())
 
                 HStack(spacing: 14) {
                     DirectoryMemberActionButton(
@@ -278,13 +325,22 @@ struct MemberDirectoryView: View {
                             }
                         }
                     )
+
+                    DirectoryMemberActionButton(
+                        assetName: "Linkedin",
+                        label: "Open \(member.name)'s LinkedIn",
+                        isEnabled: member.linkedInProfileURL != nil,
+                        action: {
+                            if let linkedInURL = member.linkedInProfileURL {
+                                openURL(linkedInURL)
+                            }
+                        }
+                    )
                 }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
-            .appElevatedSurface(radius: 20)
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .onTapGesture(perform: selectMember)
+            .padding(.horizontal, 2)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
         }
 
         private var mailURL: URL? {
@@ -299,25 +355,29 @@ struct MemberDirectoryView: View {
 
     private struct DirectoryMemberActionButton: View {
         @Environment(\.colorScheme) private var colorScheme
-        let systemImage: String
+        var systemImage: String? = nil
+        var assetName: String? = nil
         let label: String
         var isEnabled = true
         let action: () -> Void
 
         var body: some View {
             Button(action: action) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(DirectoryDesign.actionIcon(for: colorScheme))
-                    .frame(width: 40, height: 40)
-                    .background(
-                        DirectoryDesign.actionBackground(for: colorScheme),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(AppSystemColor.separator.opacity(0.28), lineWidth: 1)
+                Group {
+                    if let assetName {
+                        Image(assetName)
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .foregroundStyle(DirectoryDesign.actionIcon(for: colorScheme))
+                            .padding(9)
+                    } else if let systemImage {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(DirectoryDesign.actionIcon(for: colorScheme))
                     }
+                }
+                .frame(width: 34, height: 40)
             }
             .buttonStyle(.plain)
             .disabled(!isEnabled)
@@ -373,8 +433,7 @@ struct MemberDirectoryView: View {
         }
     }
 
-    private struct MemberDetailSheet: View {
-        @Environment(\.dismiss) private var dismiss
+    private struct MemberProfileView: View {
         @Environment(\.openURL) private var openURL
         @Environment(\.colorScheme) private var colorScheme
         @EnvironmentObject private var authManager: AuthManager
@@ -389,7 +448,7 @@ struct MemberDirectoryView: View {
         let messageMember: (DirectoryMember) -> Void
 
         private var mailURL: URL? {
-            guard let email = member.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty else {
+            guard let email = (member.email ?? member.personalEmail)?.nonEmptyTrimmed else {
                 return nil
             }
 
@@ -397,84 +456,46 @@ struct MemberDirectoryView: View {
         }
 
         var body: some View {
-            NavigationStack {
-                ScrollView {
-                    VStack(spacing: 24) {
-                        VStack(spacing: 10) {
-                            DirectoryProfilePictureView(member: member, apiService: apiService, initials: initials, size: 116)
-                                .frame(width: 116, height: 116)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    profileHeader
+                    communicationActions
 
-                            Text(member.name)
-                                .font(AppFont.largeTitle(30))
-                                .foregroundStyle(DirectoryDesign.name(for: colorScheme))
-                                .multilineTextAlignment(.center)
-
-                            Text(member.role)
-                                .font(AppFont.subheadline(weight: .medium))
-                                .foregroundStyle(DirectoryDesign.secondary(for: colorScheme))
-                                .multilineTextAlignment(.center)
+                    if let aboutMe = member.aboutMe?.nonEmptyTrimmed {
+                        profileSection(title: "About") {
+                            Text(aboutMe)
+                                .font(AppFont.subheadline())
+                                .foregroundStyle(DirectoryDesign.primary(for: colorScheme))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        .frame(maxWidth: .infinity)
+                    }
 
-                        detailCard
+                    if !details.isEmpty {
+                        profileSection(title: "Details") {
+                            VStack(spacing: 0) {
+                                ForEach(Array(details.enumerated()), id: \.element.id) { index, detail in
+                                    detailRow(detail.title, detail.value)
 
-                        HStack(spacing: 12) {
-                            Button("Message") {
-                                messageMember(member)
-                                dismiss()
-                            }
-                            .buttonStyle(.glassProminent)
-                            .disabled(isBlocked || isUpdatingBlock)
-                            .frame(maxWidth: .infinity)
-
-                            Button("Email") {
-                                if let mailURL {
-                                    openURL(mailURL)
-                                }
-                            }
-                            .buttonStyle(.glass)
-                            .disabled(mailURL == nil)
-                            .frame(maxWidth: .infinity)
-                        }
-
-                        if member.id != authManager.currentUserID {
-                            VStack(spacing: 12) {
-                                Button(isBlocked ? "Unblock Member" : "Block Member", role: isBlocked ? nil : .destructive) {
-                                    if isBlocked {
-                                        Task { await setBlocked(false) }
-                                    } else {
-                                        showsBlockConfirmation = true
+                                    if index < details.count - 1 {
+                                        Divider()
                                     }
                                 }
-                                .disabled(isUpdatingBlock)
-                                .font(AppFont.footnote(weight: .semibold))
-
-                                Button("Report Member", role: .destructive) {
-                                    reportTarget = .user(member)
-                                }
-                                .font(AppFont.footnote(weight: .semibold))
-
-                                if let blockErrorMessage {
-                                    Text(blockErrorMessage)
-                                        .font(AppFont.footnote())
-                                        .foregroundStyle(.red)
-                                        .multilineTextAlignment(.center)
-                                }
                             }
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(20)
+
+                    moderationActions
                 }
-                .navigationTitle("Member Profile")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") { dismiss() }
-                    }
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, 44)
             }
+            .navigationTitle("Member Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .background(AppSystemColor.background)
             .sheet(item: $reportTarget) { target in
                 ReportContentSheet(target: target)
             }
@@ -492,6 +513,139 @@ struct MemberDirectoryView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("They will not be able to start new direct messages with you, and their messages will be hidden from your conversation and group-chat views.")
+            }
+        }
+
+        private var profileHeader: some View {
+            VStack(alignment: .leading, spacing: 8) {
+                DirectoryProfilePictureView(member: member, apiService: apiService, initials: initials, size: 122)
+                    .frame(width: 122, height: 122)
+
+                Text(member.name)
+                    .font(AppFont.largeTitle(32))
+                    .foregroundStyle(DirectoryDesign.name(for: colorScheme))
+                    .multilineTextAlignment(.leading)
+
+                Text(member.role)
+                    .font(AppFont.subheadline(weight: .semibold))
+                    .foregroundStyle(DirectoryDesign.secondary(for: colorScheme))
+                    .multilineTextAlignment(.leading)
+
+                if let username = member.username?.nonEmptyTrimmed {
+                    Text("@\(username)")
+                        .font(AppFont.footnote())
+                        .foregroundStyle(DirectoryDesign.secondary(for: colorScheme))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        private var communicationActions: some View {
+            HStack(spacing: 10) {
+                profileAction("Message", systemImage: "message.fill", isEnabled: !isBlocked && !isUpdatingBlock) {
+                    messageMember(member)
+                }
+
+                profileAction("Email", systemImage: "envelope.fill", isEnabled: mailURL != nil) {
+                    if let mailURL { openURL(mailURL) }
+                }
+
+                profileAction("LinkedIn", assetName: "Linkedin", isEnabled: member.linkedInProfileURL != nil) {
+                    if let linkedInURL = member.linkedInProfileURL { openURL(linkedInURL) }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        private func profileAction(
+            _ title: String,
+            systemImage: String? = nil,
+            assetName: String? = nil,
+            isEnabled: Bool,
+            action: @escaping () -> Void
+        ) -> some View {
+            Button(action: action) {
+                VStack(spacing: 7) {
+                    Group {
+                        if let assetName {
+                            Image(assetName)
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundStyle(AppSystemColor.primaryLabel)
+                        } else if let systemImage {
+                            Image(systemName: systemImage)
+                                .font(.system(size: 18, weight: .semibold))
+                        }
+                    }
+                    .frame(width: 20, height: 20)
+                    Text(title)
+                        .font(AppFont.caption(weight: .bold))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 68)
+                .foregroundStyle(AppSystemColor.primaryLabel)
+                .background(
+                    AppSystemColor.elevatedBackground,
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(AppSystemColor.separator.opacity(0.4), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(!isEnabled)
+            .opacity(isEnabled ? 1 : 0.42)
+        }
+
+        @ViewBuilder
+        private func profileSection<Content: View>(
+            title: String,
+            @ViewBuilder content: () -> Content
+        ) -> some View {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(title)
+                    .font(AppFont.headline())
+                    .foregroundStyle(DirectoryDesign.name(for: colorScheme))
+
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        @ViewBuilder
+        private var moderationActions: some View {
+            if member.id != authManager.currentUserID {
+                VStack(alignment: .leading, spacing: 12) {
+                    Divider()
+
+                    Button(isBlocked ? "Unblock Member" : "Block Member", role: isBlocked ? nil : .destructive) {
+                        if isBlocked {
+                            Task { await setBlocked(false) }
+                        } else {
+                            showsBlockConfirmation = true
+                        }
+                    }
+                    .disabled(isUpdatingBlock)
+                    .font(AppFont.footnote(weight: .semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button("Report Member", role: .destructive) {
+                        reportTarget = .user(member)
+                    }
+                    .font(AppFont.footnote(weight: .semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if let blockErrorMessage {
+                        Text(blockErrorMessage)
+                            .font(AppFont.footnote())
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
 
@@ -533,21 +687,21 @@ struct MemberDirectoryView: View {
             return value.isEmpty ? "KT" : value
         }
 
-        private var detailCard: some View {
-            VStack(alignment: .leading, spacing: 12) {
-                detailRow("Group", member.group.title)
-
-                if let year = member.year?.trimmingCharacters(in: .whitespacesAndNewlines), !year.isEmpty {
-                    detailRow("Graduation Year", year)
-                }
-
-                if let email = member.email?.trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty {
-                    detailRow("Email", email)
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .appElevatedSurface(radius: 22)
+        private var details: [MemberProfileDetail] {
+            var values = [MemberProfileDetail(title: "Membership", value: member.group.title)]
+            values.appendIfPresent(title: "Executive title", value: member.executiveTitle)
+            values.appendIfPresent(
+                title: "Chairs",
+                value: member.chairedCommittees.isEmpty ? nil : member.chairedCommittees.joined(separator: ", ")
+            )
+            values.appendIfPresent(title: "Major", value: member.major)
+            values.appendIfPresent(title: "Graduation", value: member.graduationDate)
+            values.appendIfPresent(title: "Pledge class", value: member.pledgeClass)
+            values.appendIfPresent(title: "UGA email", value: member.email)
+            values.appendIfPresent(title: "Personal email", value: member.personalEmail)
+            values.appendIfPresent(title: "Phone", value: member.phone)
+            values.appendIfPresent(title: "Date of birth", value: member.dateOfBirth)
+            return values
         }
 
         private func detailRow(_ title: String, _ value: String) -> some View {
@@ -559,9 +713,25 @@ struct MemberDirectoryView: View {
                 Text(value)
                     .font(AppFont.subheadline())
                     .foregroundStyle(DirectoryDesign.primary(for: colorScheme))
+                    .multilineTextAlignment(.leading)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 12)
         }
     }
+
+private struct MemberProfileDetail: Identifiable {
+    let title: String
+    let value: String
+    var id: String { title }
+}
+
+private extension Array where Element == MemberProfileDetail {
+    mutating func appendIfPresent(title: String, value: String?) {
+        guard let value = value?.nonEmptyTrimmed else { return }
+        append(MemberProfileDetail(title: title, value: value))
+    }
+}
 
 private enum DirectoryDesign {
     static var avatarBackground: Color { AppSystemColor.insetBackground }
@@ -617,7 +787,39 @@ private extension MemberGroup {
             return "chair"
         case .alumni:
             return "alumni"
+        case .rush:
+            return "rush"
         }
+    }
+}
+
+private extension DirectoryMember {
+    var linkedInProfileURL: URL? {
+        guard var value = linkedinURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+
+        if value.hasPrefix("@") {
+            value.removeFirst()
+        }
+
+        if !value.contains("://") {
+            if value.lowercased().contains("linkedin.com") {
+                value = "https://\(value)"
+            } else {
+                let encodedHandle = value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
+                value = "https://www.linkedin.com/in/\(encodedHandle)"
+            }
+        }
+
+        guard let url = URL(string: value),
+              let host = url.host?.lowercased(),
+              host == "linkedin.com" || host.hasSuffix(".linkedin.com") else {
+            return nil
+        }
+
+        return url
     }
 }
 

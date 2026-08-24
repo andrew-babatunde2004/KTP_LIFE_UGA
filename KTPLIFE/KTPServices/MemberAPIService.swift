@@ -7,6 +7,16 @@ enum KTPAPIError: Error {
     case emptyResponse
 }
 
+enum ConversationSyncResponse {
+    case notModified
+    case updated(page: ConversationMessagePage, eTag: String?)
+}
+
+private struct ProtectedAPIResponse {
+    let data: Data
+    let response: HTTPURLResponse
+}
+
 /// Client for the KTP API. Protected routes require an Authentik access token.
 final class KTPAPIService {
 
@@ -34,6 +44,33 @@ final class KTPAPIService {
         } catch {
             let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
             AuthDebugLog.log("Directory decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches the limited directory available to rushees from `GET /members/leadership`.
+    func fetchLeadershipMembers() async throws -> [DirectoryMember] {
+        let url = baseURL
+            .appendingPathComponent("members")
+            .appendingPathComponent("leadership")
+        let data = try await fetchProtectedData(from: url, logLabel: "leadership members")
+
+        do {
+            return try DirectoryMembersResponse.decodeMembers(from: data)
+        } catch {
+            let responseBody = String(data: data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Leadership directory decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
+    /// Fetches one complete directory profile from protected `GET /members/:id`.
+    func fetchDirectoryMember(id: String) async throws -> DirectoryMember {
+        let url = baseURL.appendingPathComponent("members").appendingPathComponent(id)
+        let data = try await fetchProtectedData(from: url, logLabel: "directory member \(id)")
+        do {
+            return try JSONDecoder().decode(DirectoryMember.self, from: data)
+        } catch {
             throw KTPAPIError.decodeFailed(error.localizedDescription)
         }
     }
@@ -126,6 +163,14 @@ final class KTPAPIService {
         }
     }
 
+    func fetchDirectMessageUnreadCount() async throws -> Int {
+        let data = try await fetchProtectedData(
+            from: baseURL.appendingPathComponent("messages/unread-count"),
+            logLabel: "direct message unread count"
+        )
+        return try UnreadCountResponse.decode(from: data)
+    }
+
     /// Fetches group chats from protected `GET /group-chats`.
     func fetchGroupChats() async throws -> [GroupChat] {
         let url = baseURL.appendingPathComponent("group-chats")
@@ -140,6 +185,14 @@ final class KTPAPIService {
         }
     }
 
+    func fetchGroupChatUnreadCount() async throws -> Int {
+        let data = try await fetchProtectedData(
+            from: baseURL.appendingPathComponent("group-chats/unread-count"),
+            logLabel: "group chat unread count"
+        )
+        return try UnreadCountResponse.decode(from: data)
+    }
+
     /// Fetches a group chat's member-only profile image.
     func fetchGroupChatPhotoData(chatID: String) async throws -> Data {
         let url = baseURL
@@ -150,11 +203,30 @@ final class KTPAPIService {
         return try await fetchProtectedData(from: url, logLabel: "group chat photo for \(chatID)")
     }
 
+    func fetchMessageAttachmentData(messageID: String) async throws -> Data {
+        let url = baseURL
+            .appendingPathComponent("messages")
+            .appendingPathComponent(messageID)
+            .appendingPathComponent("attachment")
+        return try await fetchProtectedData(from: url, logLabel: "message \(messageID) attachment")
+    }
+
+    func fetchGroupChatMessageAttachmentData(chatID: String, messageID: String) async throws -> Data {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatID)
+            .appendingPathComponent("messages")
+            .appendingPathComponent(messageID)
+            .appendingPathComponent("attachment")
+        return try await fetchProtectedData(from: url, logLabel: "group message \(messageID) attachment")
+    }
+
     /// Fetches one direct conversation from protected `GET /messages/conversations/:userId`.
     func fetchConversation(with userId: String) async throws -> [KTPMessage] {
         let url = baseURL
             .appendingPathComponent("messages/conversations")
             .appendingPathComponent(userId)
+            .appendingPathComponent("messages")
         let data = try await fetchProtectedData(from: url, logLabel: "conversation with \(userId)")
 
         do {
@@ -164,6 +236,25 @@ final class KTPAPIService {
             AuthDebugLog.log("Conversation decode failed: \(error.localizedDescription). Body=\(responseBody)")
             throw KTPAPIError.decodeFailed(error.localizedDescription)
         }
+    }
+
+    /// Fetches only changes after a conversation cursor. Responses are also
+    /// conditionally requested with the last ETag, so an unchanged history has
+    /// no response body to decode.
+    func syncConversation(
+        with userId: String,
+        after cursor: String?,
+        eTag: String?
+    ) async throws -> ConversationSyncResponse {
+        let url = baseURL
+            .appendingPathComponent("messages/conversations")
+            .appendingPathComponent(userId)
+        return try await fetchConversationSync(
+            from: url,
+            after: cursor,
+            eTag: eTag,
+            logLabel: "conversation sync with \(userId)"
+        )
     }
 
     /// Fetches messages from protected `GET /group-chats/:id/messages`.
@@ -181,6 +272,24 @@ final class KTPAPIService {
             AuthDebugLog.log("Group chat messages decode failed: \(error.localizedDescription). Body=\(responseBody)")
             throw KTPAPIError.decodeFailed(error.localizedDescription)
         }
+    }
+
+    /// Fetches only changes after a group-chat cursor.
+    func syncGroupChatMessages(
+        chatId: String,
+        after cursor: String?,
+        eTag: String?
+    ) async throws -> ConversationSyncResponse {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatId)
+            .appendingPathComponent("messages")
+        return try await fetchConversationSync(
+            from: url,
+            after: cursor,
+            eTag: eTag,
+            logLabel: "group chat sync \(chatId)"
+        )
     }
 
     /// Marks one direct conversation read via protected `PUT /messages/conversations/:userId/read`.
@@ -207,11 +316,22 @@ final class KTPAPIService {
 
     /// Sends a direct message via protected `POST /messages`.
     func sendMessage(to userId: String, content: String) async throws -> KTPMessage {
+        try await sendMessage(to: userId, body: content, attachment: nil)
+    }
+
+    /// Sends text, an attachment, or both as the multipart contract requires.
+    func sendMessage(
+        to userId: String,
+        body: String?,
+        attachment: MessageAttachmentUpload?
+    ) async throws -> KTPMessage {
         let url = baseURL.appendingPathComponent("messages")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(SendMessageRequest(recipientId: userId, content: content))
+        let request = Self.multipartRequest(
+            url: url,
+            method: "POST",
+            fields: ["recipient_id": userId, "body": body],
+            file: attachment
+        )
 
         let data = try await fetchProtectedData(for: request, logLabel: "send message to \(userId)")
         if let message = try? SentMessageResponse.decodeMessage(from: data) {
@@ -227,10 +347,35 @@ final class KTPAPIService {
             id: "local-\(UUID().uuidString)",
             senderId: nil,
             recipientId: userId,
-            body: content,
+            body: body ?? "",
+            attachment: attachment.map {
+                MessageAttachment(kind: "file", filename: $0.fileName, mimeType: $0.mimeType, size: $0.data.count)
+            },
             createdAt: Date(),
             isRead: true
         )
+    }
+
+    /// Deletes a direct message owned by the authenticated user via protected `DELETE /messages/:id`.
+    func deleteMessage(id: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("messages")
+            .appendingPathComponent(id)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await fetchProtectedData(for: request, logLabel: "delete message \(id)")
+    }
+
+    /// Deletes a group-chat message owned by the authenticated user.
+    func deleteGroupChatMessage(chatId: String, messageId: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatId)
+            .appendingPathComponent("messages")
+            .appendingPathComponent(messageId)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await fetchProtectedData(for: request, logLabel: "delete group chat \(chatId) message \(messageId)")
     }
 
     /// Toggles the authenticated user's emoji reaction on one direct message.
@@ -259,6 +404,83 @@ final class KTPAPIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(MessageReactionRequest(emoji: emoji))
         _ = try await fetchProtectedData(for: request, logLabel: "toggle reaction on group chat \(chatId) message \(messageId)")
+    }
+
+    func createGroupChat(name: String, memberIDs: [String]) async throws -> GroupChat {
+        let url = baseURL.appendingPathComponent("group-chats")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(CreateGroupChatRequest(name: name, memberIDs: memberIDs))
+        let data = try await fetchProtectedData(for: request, logLabel: "create group chat")
+        return try JSONDecoder().decode(GroupChat.self, from: data)
+    }
+
+    func deleteGroupChat(id: String) async throws {
+        let url = baseURL.appendingPathComponent("group-chats").appendingPathComponent(id)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await fetchProtectedData(for: request, logLabel: "delete group chat \(id)")
+    }
+
+    func updateGroupChatPhoto(chatID: String, file: MessageAttachmentUpload) async throws {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatID)
+            .appendingPathComponent("photo")
+        let request = Self.multipartRequest(url: url, method: "PUT", fields: [:], file: file)
+        _ = try await fetchProtectedData(for: request, logLabel: "update group chat \(chatID) photo")
+    }
+
+    func fetchGroupChatMembers(chatID: String) async throws -> [DirectoryMember] {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatID)
+            .appendingPathComponent("members")
+        let data = try await fetchProtectedData(from: url, logLabel: "group chat \(chatID) members")
+        return try DirectoryMembersResponse.decodeMembers(from: data)
+    }
+
+    func addGroupChatMember(chatID: String, userID: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatID)
+            .appendingPathComponent("members")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["user_id": userID])
+        _ = try await fetchProtectedData(for: request, logLabel: "add member to group chat \(chatID)")
+    }
+
+    func removeGroupChatMember(chatID: String, userID: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("group-chats")
+            .appendingPathComponent(chatID)
+            .appendingPathComponent("members")
+            .appendingPathComponent(userID)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await fetchProtectedData(for: request, logLabel: "remove member from group chat \(chatID)")
+    }
+
+    func issueCalendarFeed() async throws -> CalendarFeedSubscription {
+        let url = baseURL.appendingPathComponent("calendar/feed")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        let data = try await fetchProtectedData(for: request, logLabel: "issue calendar feed")
+        let response = try JSONDecoder().decode(CalendarFeedTokenResponse.self, from: data)
+        let feedURL = baseURL
+            .appendingPathComponent("calendar/feed")
+            .appendingPathComponent("\(response.token).ics")
+        return CalendarFeedSubscription(token: response.token, url: feedURL)
+    }
+
+    func revokeCalendarFeed() async throws {
+        let url = baseURL.appendingPathComponent("calendar/feed")
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await fetchProtectedData(for: request, logLabel: "revoke calendar feed")
     }
 
     /// Fetches polls visible to the authenticated member.
@@ -303,6 +525,48 @@ final class KTPAPIService {
         }
     }
 
+    /// Creates a private meeting invitation for the selected members.
+    func createMeeting(_ meeting: CreateMeetingRequest) async throws {
+        let url = baseURL.appendingPathComponent("meetings")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        request.httpBody = try encoder.encode(meeting)
+        _ = try await fetchProtectedData(for: request, logLabel: "create meeting")
+    }
+
+    /// Fetches interview schedules with slots still open to the current member.
+    func fetchAvailableInterviews() async throws -> [InterviewSchedule] {
+        let url = baseURL
+            .appendingPathComponent("interviews")
+            .appendingPathComponent("available")
+        let data = try await fetchProtectedData(from: url, logLabel: "available interviews")
+        return try InterviewSchedule.decodeSchedules(from: data)
+    }
+
+    func bookInterview(slotID: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("interviews")
+            .appendingPathComponent("slots")
+            .appendingPathComponent(slotID)
+            .appendingPathComponent("book")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        _ = try await fetchProtectedData(for: request, logLabel: "book interview")
+    }
+
+    func cancelInterview(bookingID: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("interviews")
+            .appendingPathComponent("bookings")
+            .appendingPathComponent(bookingID)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await fetchProtectedData(for: request, logLabel: "cancel interview")
+    }
+
     /// Sets or changes the caller's RSVP on a meeting invitation.
     func respond(to meetingID: String, response: MeetingResponse) async throws {
         let url = baseURL
@@ -331,14 +595,24 @@ final class KTPAPIService {
 
     /// Sends a group chat message via protected `POST /group-chats/:id/messages`.
     func sendGroupChatMessage(chatId: String, body: String) async throws -> KTPMessage {
+        try await sendGroupChatMessage(chatId: chatId, body: body, attachment: nil)
+    }
+
+    func sendGroupChatMessage(
+        chatId: String,
+        body: String?,
+        attachment: MessageAttachmentUpload?
+    ) async throws -> KTPMessage {
         let url = baseURL
             .appendingPathComponent("group-chats")
             .appendingPathComponent(chatId)
             .appendingPathComponent("messages")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(SendGroupChatMessageRequest(body: body))
+        let request = Self.multipartRequest(
+            url: url,
+            method: "POST",
+            fields: ["body": body],
+            file: attachment
+        )
 
         let data = try await fetchProtectedData(for: request, logLabel: "send group chat \(chatId) message")
         do {
@@ -479,11 +753,94 @@ final class KTPAPIService {
         }
     }
 
+    private static func multipartRequest(
+        url: URL,
+        method: String,
+        fields: [String: String?],
+        file: MessageAttachmentUpload?
+    ) -> URLRequest {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        let lineBreak = "\r\n"
+        var body = Data()
+
+        for (name, value) in fields {
+            guard let value, !value.isEmpty else { continue }
+            body.appendUTF8("--\(boundary)\(lineBreak)")
+            body.appendUTF8("Content-Disposition: form-data; name=\"\(name)\"\(lineBreak)\(lineBreak)")
+            body.appendUTF8("\(value)\(lineBreak)")
+        }
+
+        if let file {
+            body.appendUTF8("--\(boundary)\(lineBreak)")
+            body.appendUTF8("Content-Disposition: form-data; name=\"file\"; filename=\"\(file.fileName)\"\(lineBreak)")
+            body.appendUTF8("Content-Type: \(file.mimeType)\(lineBreak)\(lineBreak)")
+            body.append(file.data)
+            body.appendUTF8(lineBreak)
+        }
+
+        body.appendUTF8("--\(boundary)--\(lineBreak)")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        return request
+    }
+
     private func fetchProtectedData(from url: URL, logLabel: String) async throws -> Data {
         try await fetchProtectedData(for: URLRequest(url: url), logLabel: logLabel)
     }
 
+    private func fetchConversationSync(
+        from url: URL,
+        after cursor: String?,
+        eTag: String?,
+        logLabel: String
+    ) async throws -> ConversationSyncResponse {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        if let cursor, !cursor.isEmpty {
+            components?.queryItems = [URLQueryItem(name: "after", value: cursor)]
+        }
+
+        guard let syncURL = components?.url else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: syncURL)
+        if let eTag, !eTag.isEmpty {
+            request.setValue(eTag, forHTTPHeaderField: "If-None-Match")
+        }
+
+        let protectedResponse = try await fetchProtectedResponse(
+            for: request,
+            logLabel: logLabel,
+            allowsNotModified: true
+        )
+        if protectedResponse.response.statusCode == 304 {
+            return .notModified
+        }
+
+        do {
+            return .updated(
+                page: try ConversationMessagesResponse.decodePage(from: protectedResponse.data),
+                eTag: protectedResponse.response.value(forHTTPHeaderField: "ETag")
+            )
+        } catch {
+            let responseBody = String(data: protectedResponse.data, encoding: .utf8) ?? "Unable to read response body"
+            AuthDebugLog.log("Conversation sync decode failed: \(error.localizedDescription). Body=\(responseBody)")
+            throw KTPAPIError.decodeFailed(error.localizedDescription)
+        }
+    }
+
     private func fetchProtectedData(for request: URLRequest, logLabel: String) async throws -> Data {
+        try await fetchProtectedResponse(for: request, logLabel: logLabel).data
+    }
+
+    private func fetchProtectedResponse(
+        for request: URLRequest,
+        logLabel: String,
+        allowsNotModified: Bool = false
+    ) async throws -> ProtectedAPIResponse {
         guard let accessToken = try await accessTokenProvider(), !accessToken.isEmpty else {
             throw KTPAPIError.missingAccessToken
         }
@@ -497,14 +854,57 @@ final class KTPAPIService {
             throw URLError(.badServerResponse)
         }
 
-        guard 200..<300 ~= httpResponse.statusCode else {
+        guard 200..<300 ~= httpResponse.statusCode || (allowsNotModified && httpResponse.statusCode == 304) else {
             let responseBody = String(data: data, encoding: .utf8) ?? "No response body"
             AuthDebugLog.log("KTP API failed status=\(httpResponse.statusCode), body=\(responseBody)")
             throw KTPAPIError.badStatusCode(httpResponse.statusCode, responseBody)
         }
 
-        AuthDebugLog.log("KTP API request succeeded for \(logLabel).")
-        return data
+        if httpResponse.statusCode == 304 {
+            AuthDebugLog.log("KTP API request not modified for \(logLabel).")
+        } else {
+            AuthDebugLog.log("KTP API request succeeded for \(logLabel).")
+        }
+        return ProtectedAPIResponse(data: data, response: httpResponse)
+    }
+}
+
+struct CalendarFeedSubscription: Equatable {
+    let token: String
+    let url: URL
+}
+
+private struct CalendarFeedTokenResponse: Decodable {
+    let token: String
+}
+
+private struct CreateGroupChatRequest: Encodable {
+    let name: String
+    let memberIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case memberIDs = "member_ids"
+    }
+}
+
+private enum UnreadCountResponse {
+    static func decode(from data: Data) throws -> Int {
+        let object = try JSONSerialization.jsonObject(with: data)
+        if let count = object as? Int { return count }
+        if let value = object as? [String: Any] {
+            if let count = value["count"] as? Int { return count }
+            if let count = value["unread_count"] as? Int { return count }
+            if let count = value["count"] as? String, let integer = Int(count) { return integer }
+            if let count = value["unread_count"] as? String, let integer = Int(count) { return integer }
+        }
+        throw KTPAPIError.decodeFailed("Expected an unread count response.")
+    }
+}
+
+private extension Data {
+    mutating func appendUTF8(_ string: String) {
+        append(Data(string.utf8))
     }
 }
 

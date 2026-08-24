@@ -6,6 +6,7 @@ struct CalendarEvent: Identifiable, Codable {
     let startDate: Date
     let endDate: Date
     let description: String?
+    let location: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -13,14 +14,23 @@ struct CalendarEvent: Identifiable, Codable {
         case startDate
         case endDate
         case description
+        case location
     }
 
-    init(id: String, title: String, startDate: Date, endDate: Date, description: String?) {
+    init(
+        id: String,
+        title: String,
+        startDate: Date,
+        endDate: Date,
+        description: String?,
+        location: String? = nil
+    ) {
         self.id = id
         self.title = title
         self.startDate = startDate
         self.endDate = endDate
         self.description = description
+        self.location = location
     }
 
     init(from decoder: Decoder) throws {
@@ -37,6 +47,7 @@ struct CalendarEvent: Identifiable, Codable {
         startDate = decodedStartDate
         endDate = try container.decodeIfPresent(Date.self, forKey: .endDate) ?? decodedStartDate
         description = try container.decodeIfPresent(String.self, forKey: .description)
+        location = try container.decodeIfPresent(String.self, forKey: .location)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -46,13 +57,14 @@ struct CalendarEvent: Identifiable, Codable {
         try container.encode(startDate, forKey: .startDate)
         try container.encode(endDate, forKey: .endDate)
         try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(location, forKey: .location)
     }
 }
 
 #if DEBUG
 extension CalendarEvent {
     static let previewSamples: [CalendarEvent] = [
-        CalendarEvent(id: "1", title: "Chapter Meeting", startDate: Date(), endDate: Date(), description: "Weekly chapter meeting"),
+        CalendarEvent(id: "1", title: "Chapter Meeting", startDate: Date(), endDate: Date(), description: "Weekly chapter meeting", location: "Tate Student Center"),
         CalendarEvent(id: "2", title: "Professional Development Workshop", startDate: Date(), endDate: Date(), description: "Resume and interview prep with alumni"),
         CalendarEvent(id: "3", title: "Social Event", startDate: Date(), endDate: Date(), description: "End-of-semester chapter social"),
     ]

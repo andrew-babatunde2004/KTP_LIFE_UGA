@@ -97,7 +97,6 @@ private struct DocumentLevelView: View {
                     AppSectionHeading(
                         eyebrow: "Chapter Library",
                         title: "Shared resources",
-                        subtitle: "Browse the latest chapter files and folders in one organized place.",
                         systemImage: "doc.on.doc.fill"
                     )
                     .padding(.bottom, 6)
