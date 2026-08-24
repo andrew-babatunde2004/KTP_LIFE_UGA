@@ -44,7 +44,7 @@ Native iOS app for the UGA Kappa Theta Pi chapter. The app talks to the producti
 | `KTPLIFE/KTPViewModels/AuthManager.swift` | Coordinates login, token refresh, and profile gating |
 | `KTPLIFE/KTPServices/PhotoService.swift` | Fetches, uploads, deletes, and loads media from protected `/photos` |
 | `KTPLIFE/KTPServices/CalendarNetwork.swift` | Fetches `/events` |
-| `KTPLIFE/KTPModels/DirectoryMember.swift` | Swift model matching member JSON |
+| `KTPLIFE/KTPModels/DirectoryMember.swift` | Swift model matching member JSON. Its `email` decodes from `email`, then `email_address`, then `personal_email` — see [Alumni have no UGA email](#alumni-have-no-uga-email) before shortening that chain |
 | `KTPLIFE/KTPLIFE/ContentView.swift` | Routes the app between SSO login, profile completion, and the main shell |
 
 ### API contract
@@ -187,6 +187,17 @@ PUT    /notifications/preferences
 GET    /admin/users
 PUT    /admin/users/:authentikId/group
 PUT    /admin/users/:authentikId/exec-title
+PUT    /admin/users/:authentikId/profile           Edit anyone's profile (web only)
+PUT    /admin/users/:authentikId/username          Rename anyone (web only)
+PUT    /admin/users/:authentikId/profile-picture   Replace a picture (web only, multipart)
+DELETE /admin/users/:authentikId/profile-picture   Take down a picture (web only)
+POST   /admin/users/:authentikId/archive           Archive an account (web only)
+
+# Archive (eboard only, web only) — separate ARCHIVE_DATABASE_URL database
+GET    /admin/archive
+GET    /admin/archive/:authentikId
+POST   /admin/archive/:authentikId/restore
+DELETE /admin/archive/:authentikId
 
 # Authentik integration
 POST   /webhooks/authentik
@@ -201,6 +212,20 @@ Authorization: Bearer <access_token>
 Message deletion is exposed only for messages owned by the authenticated user. Directory responses may include a LinkedIn value using `linkedin_url`, `linkedinUrl`, `linkedInUrl`, `linkedin`, or `linkedIn`; the iOS client normalizes full LinkedIn URLs and profile handles.
 
 The Swift member model accepts production member groups: `active`, `pledge`, `eboard`, `chair`, and `alumni`.
+
+### Alumni have no UGA email
+
+A UGA address stops working at graduation, so `GET /members` returns **`email: null` for every alumnus** and sends the usable address as `personal_email` instead. Both columns are always in the payload; the API decides which one is populated.
+
+`DirectoryMember` handles this in its decoder, which takes the first key that is present and non-empty:
+
+```swift
+email = try container.decodeFirstPresentStringIfPresent(for: [.email, .emailAddress, .personalEmail])
+```
+
+That order is the preference order, and `personalEmail` last is what makes alumni work — the chain falls through to the personal address exactly when the API withheld the UGA one. It matches the web directory's `member.email || member.personalEmail`.
+
+**Don't drop `.personalEmail` from that list.** Without it an alumnus decodes with no email at all, and `mailURL` in `MemberDirectoryView` returns `nil`, which greys out the card's Email button with nothing on screen explaining why.
 
 ### Push notifications
 

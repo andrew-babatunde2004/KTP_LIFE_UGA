@@ -137,7 +137,7 @@ struct DirectoryMember: Identifiable, Codable, Hashable {
                 : composedName
         }
 
-        email = try container.decodeFirstPresentStringIfPresent(for: [.email, .emailAddress])
+        email = try container.decodeFirstPresentStringIfPresent(for: [.email, .emailAddress, .personalEmail])
         personalEmail = try container.decodeFirstPresentStringIfPresent(for: [.personalEmail])
         phone = try container.decodeFirstPresentStringIfPresent(for: [.phone])
         dateOfBirth = try container.decodeFirstPresentStringIfPresent(for: [.dob])
