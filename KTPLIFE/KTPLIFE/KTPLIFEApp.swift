@@ -10,25 +10,26 @@ import SwiftUI
 @main
 struct KTPLIFEApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.light.rawValue
+    @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
     @StateObject private var authManager = AuthManager()
     @StateObject private var avatarRepository = AvatarRepository()
     @StateObject private var galleryThumbnailRepository = GalleryThumbnailRepository()
+    @StateObject private var messageAttachmentThumbnailRepository = MessageAttachmentThumbnailRepository()
     @StateObject private var pushNotificationManager = PushNotificationManager()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(\.appAppearance, appearance)
-                .preferredColorScheme(appearance.preferredColorScheme)
                 .environmentObject(authManager)
                 .environmentObject(avatarRepository)
                 .environmentObject(galleryThumbnailRepository)
+                .environmentObject(messageAttachmentThumbnailRepository)
                 .environmentObject(pushNotificationManager)
         }
     }
 
     private var appearance: AppAppearance {
-        AppAppearance(rawValue: appearanceRawValue) ?? .light
+        AppAppearance(rawValue: appearanceRawValue) ?? .system
     }
 }

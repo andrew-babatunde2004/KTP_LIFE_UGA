@@ -21,7 +21,6 @@ struct CommitteesView: View {
                     AppSectionHeading(
                         eyebrow: "Get Involved",
                         title: "Find your team",
-                        subtitle: "Join a committee, meet the members, and help shape the chapter.",
                         systemImage: "person.3.fill"
                     )
                     .padding(.bottom, 6)

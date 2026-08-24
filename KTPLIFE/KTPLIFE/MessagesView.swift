@@ -33,7 +33,10 @@ struct MessagesView: View {
                     case .messages:
                         MessageThreadsView(refreshVersion: inboxRefreshVersion)
                     case .directory:
-                        MemberDirectoryView(messageMember: openConversation(with:))
+                        MemberDirectoryView(
+                            messageMember: openConversation(with:),
+                            allowedGroups: authManager.currentUserGroup?.directoryContactGroups
+                        )
                     }
                 }
             }
@@ -167,7 +170,7 @@ struct MessagesView: View {
                 id: "push-\(userID)",
                 userId: userID,
                 displayName: senderMessage.senderDisplayName ?? "Member",
-                preview: messages.last?.body ?? "",
+                preview: messages.last?.inboxPreview ?? "",
                 lastMessageDate: messages.last?.createdAt,
                 unreadCount: 0,
                 profileImageURL: senderMessage.senderProfileImageURL

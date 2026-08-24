@@ -8,6 +8,8 @@ struct MeetingsView: View {
     @State private var loadError: String?
     @State private var respondingMeetingIDs: Set<String> = []
     @State private var responseError: MeetingResponseError?
+    @State private var isCreateMeetingPresented = false
+    private let reminderScheduler = EventReminderScheduler()
 
     private var apiService: KTPAPIService {
         KTPAPIService(accessTokenProvider: { [authManager] in
@@ -22,7 +24,6 @@ struct MeetingsView: View {
                     AppSectionHeading(
                         eyebrow: "Your schedule",
                         title: "Meetings",
-                        subtitle: "Private invitations, RSVP updates, and the details you need to attend.",
                         systemImage: "person.2.badge.gearshape"
                     )
                     .padding(.bottom, 6)
@@ -49,6 +50,14 @@ struct MeetingsView: View {
             .navigationTitle("Meetings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        isCreateMeetingPresented = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Create meeting")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                         .font(AppFont.subheadline(weight: .semibold))
@@ -63,6 +72,10 @@ struct MeetingsView: View {
                     dismissButton: .default(Text("OK"))
                 )
             }
+            .sheet(isPresented: $isCreateMeetingPresented) {
+                CreateMeetingView { await loadMeetings(showsLoadingState: false) }
+                    .environmentObject(authManager)
+            }
         }
         .background(AppSystemColor.background.ignoresSafeArea())
     }
@@ -76,7 +89,9 @@ struct MeetingsView: View {
 
         do {
             meetings = try await apiService.fetchMeetings()
+                .map { $0.resolvedOrganizer(for: authManager.currentUserID) }
                 .sorted { $0.startsAt < $1.startsAt }
+            await reminderScheduler.sync(meetings: meetings)
         } catch is CancellationError {
             return
         } catch {
@@ -89,6 +104,13 @@ struct MeetingsView: View {
     }
 
     private func respond(to meetingID: String, with response: MeetingResponse) {
+        // Organizers do not RSVP to their own meetings. Keep this guard in the
+        // action as well as the card UI so a stale button or an accessibility
+        // action cannot submit an organizer response.
+        guard let meeting = meetings.first(where: { $0.id == meetingID }),
+              !meeting.isOrganizer else {
+            return
+        }
         guard !respondingMeetingIDs.contains(meetingID) else { return }
         respondingMeetingIDs.insert(meetingID)
 
@@ -107,6 +129,105 @@ struct MeetingsView: View {
             }
         }
     }
+}
+
+private struct CreateMeetingView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authManager: AuthManager
+    @State private var title = ""
+    @State private var message = ""
+    @State private var location = ""
+    @State private var startsAt = Date().addingTimeInterval(3600)
+    @State private var endsAt = Date().addingTimeInterval(5400)
+    @State private var members: [DirectoryMember] = []
+    @State private var selectedMemberIDs = Set<String>()
+    @State private var isLoadingMembers = true
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    let didCreate: () async -> Void
+
+    private var apiService: KTPAPIService {
+        KTPAPIService(accessTokenProvider: { [authManager] in try await authManager.validAccessToken() })
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Meeting details") {
+                    TextField("Title", text: $title)
+                    TextField("Location", text: $location)
+                    TextField("Note (optional)", text: $message, axis: .vertical)
+                        .lineLimit(2...4)
+                    DatePicker("Starts", selection: $startsAt)
+                    DatePicker("Ends", selection: $endsAt, in: startsAt...)
+                }
+                Section("Invite members") {
+                    if isLoadingMembers { ProgressView() }
+                    ForEach(members) { member in
+                        Button {
+                            if selectedMemberIDs.contains(member.id) { selectedMemberIDs.remove(member.id) }
+                            else { selectedMemberIDs.insert(member.id) }
+                        } label: {
+                            HStack {
+                                Text(member.name).foregroundStyle(AppSystemColor.primaryLabel)
+                                Spacer()
+                                if selectedMemberIDs.contains(member.id) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(AppSystemColor.primaryLabel)
+                                }
+                            }
+                        }
+                    }
+                }
+                if let errorMessage { Section { Text(errorMessage).foregroundStyle(.red) } }
+            }
+            .navigationTitle("New Meeting")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") { Task { await createMeeting() } }
+                        .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedMemberIDs.isEmpty || isSaving)
+                }
+            }
+            .task { await loadMembers() }
+        }
+    }
+
+    @MainActor private func loadMembers() async {
+        defer { isLoadingMembers = false }
+        do {
+            let fetchedMembers = try await apiService.fetchDirectoryMembers()
+            if let currentUserID = authManager.currentUserID {
+                members = fetchedMembers
+                    .filter { $0.id != currentUserID }
+                    .sorted { $0.name < $1.name }
+            } else {
+                members = fetchedMembers.sorted { $0.name < $1.name }
+            }
+        }
+        catch { errorMessage = "Members are temporarily unavailable. Please try again." }
+    }
+
+    @MainActor private func createMeeting() async {
+        guard endsAt > startsAt else { errorMessage = "The end time must be after the start time."; return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await apiService.createMeeting(CreateMeetingRequest(
+                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+                message: message.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                location: location.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                startsAt: startsAt, endsAt: endsAt, inviteeIDs: Array(selectedMemberIDs)
+            ))
+            await didCreate()
+            dismiss()
+        } catch { errorMessage = "The meeting could not be created. Please try again." }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 private struct MeetingCard: View {
@@ -156,6 +277,10 @@ private struct MeetingCard: View {
             if meeting.isCancelled {
                 Text("Cancelled")
                     .font(AppFont.caption(weight: .bold))
+                    .foregroundStyle(AppSystemColor.secondaryLabel)
+            } else if meeting.isOrganizer {
+                Text("Organizer • RSVP not required")
+                    .font(AppFont.caption(weight: .semibold))
                     .foregroundStyle(AppSystemColor.secondaryLabel)
             } else if !meeting.isOrganizer {
                 HStack(spacing: 10) {

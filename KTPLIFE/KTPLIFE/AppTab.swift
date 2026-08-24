@@ -18,7 +18,18 @@ enum AppTab: CaseIterable, Identifiable {
     case directory
     case opportunities
 
-    static var allCases: [AppTab] { [.home, .community, .photos, .calendar] }
+    static var allCases: [AppTab] { visibleTabs(for: nil) }
+
+    static func visibleTabs(for group: MemberGroup?) -> [AppTab] {
+        var tabs: [AppTab] = [.home, .community]
+
+        if group?.canAccessFilesAndPhotos != false {
+            tabs.append(.photos)
+        }
+
+        tabs.append(.calendar)
+        return tabs
+    }
 
     var id: Self { self }
 
@@ -97,7 +108,7 @@ struct PageTheme {
       return AppSystemColor.background
     }
 
-    if AppAppearance.current == .dark || AppAppearance.current == .gray {
+    if AppAppearance.current == .dark {
       return AppSystemColor.background
     }
 

@@ -17,6 +17,7 @@ struct ContentView: View {
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var avatarRepository: AvatarRepository
     @EnvironmentObject private var galleryThumbnailRepository: GalleryThumbnailRepository
+    @EnvironmentObject private var messageAttachmentThumbnailRepository: MessageAttachmentThumbnailRepository
     @EnvironmentObject private var pushNotificationManager: PushNotificationManager
     @State private var selectedTab: AppTab = .home
     @State private var didBootstrap = false
@@ -28,6 +29,7 @@ struct ContentView: View {
     @State private var isSubmittingCheckIn = false
     @State private var pushMessageUserID: String?
     @State private var pushEventID: String?
+    @State private var unreadMessageCount = 0
 
     var body: some View {
         ZStack {
@@ -38,6 +40,7 @@ struct ContentView: View {
                 .scrollEdgeEffectStyle(reduceTransparency ? .hard : .soft, for: [.top, .bottom])
         }
         .environment(\.pageTheme, activePageTheme)
+        .preferredColorScheme(preferredColorScheme)
         // Reading the appearance value here invalidates the app shell when the
         // user switches between Dark and Gray, which share a dark color scheme
         // but use different semantic surface colors.
@@ -61,6 +64,25 @@ struct ContentView: View {
             guard authManager.phase == .signedIn else { return }
             await pushNotificationManager.syncRegistration(using: apiService)
         }
+        .task(id: "notification-preferences-\(authManager.phase)") {
+            guard authManager.phase == .signedIn else { return }
+            do {
+                let preferences = try await apiService.fetchNotificationPreferences()
+                preferences.cacheLocally()
+                await EventReminderScheduler().updateEnabledState()
+            } catch is CancellationError {
+                return
+            } catch {
+                // Keep the last-known settings when the notification API is unavailable.
+            }
+        }
+        .task(id: "unread-\(authManager.phase)") {
+            guard authManager.phase == .signedIn else {
+                unreadMessageCount = 0
+                return
+            }
+            await monitorUnreadMessages()
+        }
         .onChange(of: authManager.phase) { _, newPhase in
             if newPhase != .signedIn {
                 selectedTab = .home
@@ -76,10 +98,16 @@ struct ContentView: View {
             if newPhase == .signedOut {
                 avatarRepository.clear()
                 galleryThumbnailRepository.clear()
+                messageAttachmentThumbnailRepository.clear()
             }
         }
         .onChange(of: selectedTab) { _, _ in
             isMessageConversationPresented = false
+        }
+        .onChange(of: authManager.currentUserGroup) { _, group in
+            if group?.canAccessFilesAndPhotos == false, selectedTab == .photos {
+                selectedTab = .home
+            }
         }
         .onChange(of: pushNotificationManager.pendingDestination) { _, _ in
             routePendingPushNotificationIfPossible()
@@ -102,7 +130,9 @@ struct ContentView: View {
             if authManager.profileIsComplete && !isKeyboardPresented && !isMessageConversationPresented {
                 AppTabBar(
                     selectedTab: $selectedTab,
-                    openProfile: { presentedSheet = .profile }
+                    unreadMessageCount: unreadMessageCount,
+                    activeGroup: authManager.currentUserGroup,
+                    openProfile: { presentedFullScreen = .profile }
                 )
             }
         }
@@ -123,48 +153,22 @@ struct ContentView: View {
             case .meetings:
                 MeetingsView()
                     .environmentObject(authManager)
+            case .interviews:
+                InterviewsView()
+                    .environmentObject(authManager)
+            case .profile:
+                ProfileView()
             }
         }
         .sheet(item: $presentedSheet) { destination in
             switch destination {
-            case .profile:
-                ProfileView()
             case .qrScanner:
                 QRCodeScannerView { payload in
                     handleScannedQRCode(payload)
                 }
             }
         }
-        .alert(item: $qrAlert) { alert in
-            switch alert.kind {
-            case .checkInResult:
-                return Alert(
-                    title: Text(alert.title),
-                    message: Text(alert.message),
-                    dismissButton: .default(Text("OK"))
-                )
-            case .scannedCode(let code):
-                if let url = code.webURL {
-                    return Alert(
-                        title: Text(alert.title),
-                        message: Text(alert.message),
-                        primaryButton: .default(Text("Open Link")) {
-                            openURL(url)
-                        },
-                        secondaryButton: .cancel()
-                    )
-                }
-
-                return Alert(
-                    title: Text(alert.title),
-                    message: Text(alert.message),
-                    primaryButton: .default(Text("Copy")) {
-                        UIPasteboard.general.string = code.payload
-                    },
-                    secondaryButton: .cancel()
-                )
-            }
-        }
+        .alert(item: $qrAlert, content: makeQRAlert)
         .overlay {
             if isSubmittingCheckIn {
                 ZStack {
@@ -215,6 +219,12 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             isKeyboardPresented = false
         }
+        .onReceive(NotificationCenter.default.publisher(for: .messageThreadShouldRefresh)) { _ in
+            Task { await refreshUnreadMessageCount() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .messageUnreadCountShouldRefresh)) { _ in
+            Task { await refreshUnreadMessageCount() }
+        }
     }
 
     @ViewBuilder
@@ -232,7 +242,6 @@ struct ContentView: View {
                     }
                 }
             )
-            .contentShellPadding(bottom: 32)
         case .profileIncomplete:
             ProfileIncompleteView(
                 errorMessage: authManager.errorMessage,
@@ -267,6 +276,17 @@ struct ContentView: View {
         authManager.profileIsComplete ? selectedTab.theme : .auth
     }
 
+    /// Authentication always follows the device. The saved in-app appearance
+    /// applies only after authentication has completed.
+    private var preferredColorScheme: ColorScheme? {
+        switch authManager.phase {
+        case .loading, .signedOut, .signingIn:
+            nil
+        case .profileIncomplete, .signedIn:
+            appAppearance.preferredColorScheme
+        }
+    }
+
     @ViewBuilder
     private var appShellView: some View {
         switch selectedTab {
@@ -277,7 +297,9 @@ struct ContentView: View {
                 showPolls: { presentedFullScreen = .polls },
                 showAnnouncements: { presentedFullScreen = .announcements },
                 showMeetings: { presentedFullScreen = .meetings },
-                openQRScanner: { presentedSheet = .qrScanner }
+                showInterviews: { presentedFullScreen = .interviews },
+                openQRScanner: { presentedSheet = .qrScanner },
+                activeGroup: authManager.currentUserGroup
             )
         case .community:
             MessagesView(
@@ -290,7 +312,15 @@ struct ContentView: View {
                 deepLinkedUserID: $pushMessageUserID
             )
         case .directory:
-            MemberDirectoryView()
+            MemberDirectoryView(
+                messageMember: { member in
+                    pushMessageUserID = member.id
+                    // Keep the existing Community navigation stack alive while it
+                    // resolves and pushes the requested conversation.
+                    selectedTab = .community
+                },
+                allowedGroups: authManager.currentUserGroup?.directoryContactGroups
+            )
         case .opportunities:
             OpportunitiesView()
         case .calendar:
@@ -342,6 +372,39 @@ struct ContentView: View {
         }
     }
 
+    /// Keeping this out of the `body` prevents the SwiftUI result builder from
+    /// having to infer every alert branch as one large expression.
+    private func makeQRAlert(_ alert: QRAlert) -> Alert {
+        switch alert.kind {
+        case .checkInResult:
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
+        case .scannedCode(let code):
+            if let url = code.webURL {
+                return Alert(
+                    title: Text(alert.title),
+                    message: Text(alert.message),
+                    primaryButton: .default(Text("Open Link")) {
+                        openURL(url)
+                    },
+                    secondaryButton: .cancel()
+                )
+            }
+
+            return Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                primaryButton: .default(Text("Copy")) {
+                    UIPasteboard.general.string = code.payload
+                },
+                secondaryButton: .cancel()
+            )
+        }
+    }
+
     private func routePendingPushNotificationIfPossible() {
         guard authManager.phase == .signedIn,
               let destination = pushNotificationManager.consumePendingDestination()
@@ -351,10 +414,46 @@ struct ContentView: View {
         case .directMessage(let userID):
             selectedTab = .community
             pushMessageUserID = userID
+        case .announcement:
+            presentedFullScreen = .announcements
+        case .poll:
+            presentedFullScreen = .polls
+        case .meeting:
+            presentedFullScreen = .meetings
         case .event(let eventID):
             selectedTab = .calendar
             pushEventID = eventID
         }
+    }
+
+    @MainActor
+    private func monitorUnreadMessages() async {
+        while !Task.isCancelled {
+            await refreshUnreadMessageCount()
+
+            do {
+                try await Task.sleep(for: .seconds(10))
+            } catch {
+                return
+            }
+        }
+    }
+
+    @MainActor
+    private func refreshUnreadMessageCount() async {
+        guard authManager.phase == .signedIn else {
+            unreadMessageCount = 0
+            return
+        }
+
+        async let directResult = try? apiService.fetchDirectMessageUnreadCount()
+        async let groupResult = try? apiService.fetchGroupChatUnreadCount()
+        let (directUnread, groupUnread) = await (directResult, groupResult)
+
+        guard !Task.isCancelled,
+              directUnread != nil || groupUnread != nil else { return }
+
+        unreadMessageCount = (directUnread ?? 0) + (groupUnread ?? 0)
     }
 
 }
@@ -396,7 +495,6 @@ private struct KTPAppHeader: View {
 }
 
 private enum AppSheetDestination: String, Identifiable {
-    case profile
     case qrScanner
 
     var id: String { rawValue }
@@ -494,6 +592,8 @@ private enum AppFullScreenDestination: String, Identifiable {
     case polls
     case announcements
     case meetings
+    case interviews
+    case profile
 
     var id: String { rawValue }
 }

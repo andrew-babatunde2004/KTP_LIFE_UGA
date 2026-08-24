@@ -3,7 +3,11 @@
 //  KTPLIFE
 //
 
+import CoreTransferable
+import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
+import WebKit
 
 struct MessageThreadsView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -411,6 +415,7 @@ private struct ProfileAvatarView: View {
 
 struct MessageConversationView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @EnvironmentObject private var authManager: AuthManager
     @State private var messages: [KTPMessage] = []
@@ -419,6 +424,9 @@ struct MessageConversationView: View {
     @State private var isRefreshingConversation = false
     @State private var isSending = false
     @State private var loadError: String?
+    @State private var conversationCursor: String?
+    @State private var conversationETag: String?
+    @State private var hasLoadedInitialConversationPage = false
     @State private var sentMessageIDs: Set<String> = []
     @State private var renderWindow = ConversationRenderWindow()
     @State private var isAwayFromLatest = false
@@ -432,6 +440,14 @@ struct MessageConversationView: View {
     @State private var updatingReactionKeys: Set<String> = []
     @State private var reactionErrorMessage: String?
     @State private var sendErrorMessage: String?
+    @State private var messagePendingDeletion: KTPMessage?
+    @State private var deletingMessageIDs: Set<String> = []
+    @State private var deleteErrorMessage: String?
+    @State private var selectedMediaItem: PhotosPickerItem?
+    @State private var pendingAttachment: MessageAttachmentUpload?
+    @State private var pendingAttachmentPreview: UIImage?
+    @State private var isPreparingAttachment = false
+    @State private var attachmentDataByMessageID: [String: Data] = [:]
     @FocusState private var isComposerFocused: Bool
 
     let thread: MessageThread
@@ -468,6 +484,10 @@ struct MessageConversationView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await monitorConversation()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task { await loadConversation(showsLoadingState: false) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .messageThreadShouldRefresh)) { _ in
             Task { await loadConversation(showsLoadingState: false) }
@@ -556,6 +576,35 @@ struct MessageConversationView: View {
         } message: {
             Text(sendErrorMessage ?? "Please try again.")
         }
+        .onChange(of: selectedMediaItem) { _, item in
+            guard let item else { return }
+            Task { await prepareAttachment(from: item) }
+        }
+        .overlay {
+            if let message = messagePendingDeletion {
+                MessageDeleteConfirmationOverlay(
+                    cancel: {
+                        withAnimation(.easeOut(duration: 0.16)) {
+                            messagePendingDeletion = nil
+                        }
+                    },
+                    confirm: {
+                        messagePendingDeletion = nil
+                        Task { await deleteMessage(message) }
+                    }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: messagePendingDeletion?.id)
+        .alert("Couldn’t Delete Message", isPresented: Binding(
+            get: { deleteErrorMessage != nil },
+            set: { if !$0 { deleteErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteErrorMessage ?? "Please try again.")
+        }
     }
 
     private var directConversation: MessageConversation? {
@@ -575,47 +624,77 @@ struct MessageConversationView: View {
     }
 
     private var messageComposerContent: some View {
-        HStack(spacing: 12) {
-            TextField("Message", text: $draftMessage, axis: .vertical)
-                .font(AppFont.subheadline())
-                .lineLimit(1...4)
-                .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                .textInputAutocapitalization(.sentences)
-                .focused($isComposerFocused)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .modifier(MessageComposerFieldSurface(
-                    colorScheme: colorScheme,
+        VStack(alignment: .leading, spacing: 8) {
+            if let pendingAttachment {
+                MessageAttachmentDraftPreview(
+                    attachment: pendingAttachment,
+                    previewImage: pendingAttachmentPreview,
+                    remove: clearPendingAttachment
+                )
+            }
+
+            HStack(spacing: 10) {
+                if directConversation != nil {
+                    mediaPicker
+                }
+
+                TextField("Message", text: $draftMessage, axis: .vertical)
+                    .font(AppFont.subheadline())
+                    .lineLimit(1...4)
+                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                    .textInputAutocapitalization(.sentences)
+                    .focused($isComposerFocused)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .modifier(MessageComposerFieldSurface(
+                        colorScheme: colorScheme,
+                        reduceTransparency: reduceTransparency
+                    ))
+
+                Button {
+                    Task { await sendMessage() }
+                } label: {
+                    Image(systemName: "paperplane.fill")
+                        .font(AppFont.footnote(weight: .semibold))
+                        .foregroundStyle(
+                            composerCanSend
+                                ? MessageDesign.sendForeground
+                                : MessageDesign.muted(for: colorScheme)
+                        )
+                        .frame(width: 34, height: 34)
+                }
+                .buttonStyle(.plain)
+                .modifier(MessageSendButtonSurface(
+                    canSend: composerCanSend,
                     reduceTransparency: reduceTransparency
                 ))
-
-            Button {
-                Task {
-                    await sendMessage()
-                }
-            } label: {
-                Image(systemName: "paperplane.fill")
-                    .font(AppFont.footnote(weight: .semibold))
-                    .foregroundStyle(
-                        composerCanSend
-                            ? MessageDesign.sendForeground
-                            : MessageDesign.muted(for: colorScheme)
-                    )
-                    .frame(width: 34, height: 34)
+                .disabled(!composerCanSend)
+                .accessibilityLabel("Send message")
             }
-            .buttonStyle(.plain)
-            .modifier(MessageSendButtonSurface(
-                canSend: composerCanSend,
-                reduceTransparency: reduceTransparency
-            ))
-            .disabled(!composerCanSend)
-            .accessibilityLabel("Send message")
         }
         .padding(4)
     }
 
+    private var mediaPicker: some View {
+        PhotosPicker(
+            selection: $selectedMediaItem,
+            matching: .images,
+            preferredItemEncoding: .current
+        ) {
+            Image(systemName: isPreparingAttachment ? "hourglass" : "photo.on.rectangle.angled")
+                .font(AppFont.subheadline(weight: .semibold))
+                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                .frame(width: 34, height: 34)
+        }
+        .buttonStyle(.plain)
+        .disabled(isPreparingAttachment || isSending)
+        .accessibilityLabel("Choose an image or GIF")
+    }
+
     private var composerCanSend: Bool {
-        !draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+        (!draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pendingAttachment != nil)
+            && !isSending
+            && !isPreparingAttachment
     }
 
     private var visibleMessages: [KTPMessage] {
@@ -720,12 +799,19 @@ struct MessageConversationView: View {
                     isSentByCurrentUser: isSentByCurrentUser(message),
                     showsSenderIdentity: startsMessageGroup(for: message),
                     apiService: apiService,
+                    attachmentSourceID: "\(thread.id)-\(message.id)",
+                    attachmentData: attachmentDataByMessageID[message.id],
+                    loadAttachmentData: { try await attachmentData(for: message) },
                     allowsReactions: true,
                     reactions: reactionSummaries(for: message),
                     updatingEmojis: updatingEmojis(for: message),
                     toggleReaction: { emoji in
                         Task { await toggleReaction(emoji, on: message) }
                     },
+                    deleteMessage: isSentByCurrentUser(message) && !message.id.hasPrefix("local-") ? {
+                        messagePendingDeletion = message
+                    } : nil,
+                    isDeleting: deletingMessageIDs.contains(message.id),
                     reportMessage: isSentByCurrentUser(message) ? nil : {
                         reportTarget = ReportTarget.message(
                             message,
@@ -881,12 +967,15 @@ struct MessageConversationView: View {
 
         while !Task.isCancelled {
             do {
-                try await Task.sleep(nanoseconds: 3_000_000_000)
+                // Foreground APNs notifications refresh this view immediately.
+                // Retain a low-frequency fallback only for installations where
+                // notifications are unavailable or delayed.
+                try await Task.sleep(nanoseconds: 60_000_000_000)
             } catch {
                 return
             }
 
-            guard !isBlocked else { continue }
+            guard scenePhase == .active, !isBlocked else { continue }
             await loadConversation(showsLoadingState: false)
         }
     }
@@ -914,21 +1003,55 @@ struct MessageConversationView: View {
         }
 
         do {
-            let loadedMessages: [KTPMessage]
+            let isIncrementalRequest = hasLoadedInitialConversationPage && conversationCursor != nil
+            let syncResponse: ConversationSyncResponse
             switch thread {
             case .direct(let conversation):
-                loadedMessages = try await apiService.fetchConversation(with: conversation.userId)
+                syncResponse = try await apiService.syncConversation(
+                    with: conversation.userId,
+                    after: isIncrementalRequest ? conversationCursor : nil,
+                    eTag: conversationETag
+                )
             case .group(let chat):
-                loadedMessages = try await apiService.fetchGroupChatMessages(chatId: chat.id)
+                syncResponse = try await apiService.syncGroupChatMessages(
+                    chatId: chat.id,
+                    after: isIncrementalRequest ? conversationCursor : nil,
+                    eTag: conversationETag
+                )
             }
 
-            let existingMessageIDs = Set(messages.map(\.id))
-            let hasNewMessages = loadedMessages.contains { !existingMessageIDs.contains($0.id) }
-            messages = loadedMessages
-            messages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
-            seedReactionState(from: messages)
-            // TODO: Replace this temporary client-side render window when the API exposes cursor/limit message pagination.
-            renderWindow.reset(totalCount: messages.count)
+            var hasNewMessages = false
+            switch syncResponse {
+            case .notModified:
+                break
+            case .updated(let page, let eTag):
+                let merge = merge(page, incrementally: isIncrementalRequest)
+                hasNewMessages = !merge.newMessageIDs.isEmpty
+
+                if merge.messages != messages {
+                    messages = merge.messages
+                    updateReactionState(
+                        for: merge.updatedMessages,
+                        removing: merge.deletedMessageIDs,
+                        replacesAll: !isIncrementalRequest
+                    )
+
+                    if !isIncrementalRequest {
+                        renderWindow.reset(totalCount: messages.count)
+                    } else {
+                        renderWindow.clamp(to: messages.count)
+                    }
+                }
+
+                hasLoadedInitialConversationPage = true
+                if let nextCursor = page.nextCursor, !nextCursor.isEmpty {
+                    conversationCursor = nextCursor
+                }
+                if let eTag, !eTag.isEmpty {
+                    conversationETag = eTag
+                }
+            }
+
             if showsLoadingState || (hasNewMessages && !isAwayFromLatest) {
                 scrollRequest = .latest(UUID())
             }
@@ -940,6 +1063,7 @@ struct MessageConversationView: View {
                 case .group(let chat):
                     try? await apiService.markGroupChatRead(chatId: chat.id)
                 }
+                NotificationCenter.default.post(name: .messageUnreadCountShouldRefresh, object: nil)
             }
         } catch is CancellationError {
             if showsLoadingState {
@@ -957,37 +1081,235 @@ struct MessageConversationView: View {
         }
     }
 
+    private func merge(
+        _ page: ConversationMessagePage,
+        incrementally: Bool
+    ) -> ConversationMessageMerge {
+        let incomingMessages = page.messages.filter { !$0.isDeleted }
+        let deletedMessageIDs = page.deletedMessageIDs.union(
+            page.messages.lazy.filter(\.isDeleted).map(\.id)
+        )
+
+        // Cursor responses are normally ordered, append-only deltas. Keep that
+        // inexpensive path free of a dictionary rebuild and full sort.
+        if incrementally,
+           deletedMessageIDs.isEmpty,
+           isAppendOnlyDelta(incomingMessages) {
+            return ConversationMessageMerge(
+                messages: messages + incomingMessages,
+                updatedMessages: incomingMessages,
+                newMessageIDs: Set(incomingMessages.map(\.id)),
+                deletedMessageIDs: []
+            )
+        }
+
+        var mergedMessages = incrementally ? messages : []
+        var indexesByID = Dictionary(uniqueKeysWithValues: mergedMessages.enumerated().map { ($1.id, $0) })
+        var didChange = !incrementally
+        var newMessageIDs = Set<String>()
+
+        if !deletedMessageIDs.isEmpty {
+            let retainedMessages = mergedMessages.filter { !deletedMessageIDs.contains($0.id) }
+            didChange = didChange || retainedMessages.count != mergedMessages.count
+            mergedMessages = retainedMessages
+            indexesByID = Dictionary(uniqueKeysWithValues: mergedMessages.enumerated().map { ($1.id, $0) })
+        }
+
+        for message in incomingMessages {
+            if let index = indexesByID[message.id] {
+                if mergedMessages[index] != message {
+                    mergedMessages[index] = message
+                    didChange = true
+                }
+            } else {
+                indexesByID[message.id] = mergedMessages.count
+                mergedMessages.append(message)
+                newMessageIDs.insert(message.id)
+                didChange = true
+            }
+        }
+
+        guard didChange else {
+            return ConversationMessageMerge(
+                messages: messages,
+                updatedMessages: [],
+                newMessageIDs: [],
+                deletedMessageIDs: []
+            )
+        }
+
+        if !isChronologicallyOrdered(mergedMessages) {
+            mergedMessages.sort {
+                ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast)
+            }
+        }
+
+        return ConversationMessageMerge(
+            messages: mergedMessages,
+            updatedMessages: incomingMessages,
+            newMessageIDs: newMessageIDs,
+            deletedMessageIDs: deletedMessageIDs
+        )
+    }
+
+    private func isAppendOnlyDelta(_ incomingMessages: [KTPMessage]) -> Bool {
+        guard !incomingMessages.isEmpty else { return true }
+        guard isChronologicallyOrdered(incomingMessages) else { return false }
+        guard let latestMessage = messages.last else { return true }
+
+        return (incomingMessages.first?.createdAt ?? .distantPast)
+            >= (latestMessage.createdAt ?? .distantPast)
+    }
+
+    private func isChronologicallyOrdered(_ messages: [KTPMessage]) -> Bool {
+        zip(messages, messages.dropFirst()).allSatisfy {
+            ($0.createdAt ?? .distantPast) <= ($1.createdAt ?? .distantPast)
+        }
+    }
+
+    private func updateReactionState(
+        for updatedMessages: [KTPMessage],
+        removing deletedMessageIDs: Set<String>,
+        replacesAll: Bool
+    ) {
+        if replacesAll {
+            seedReactionState(from: messages)
+            return
+        }
+
+        for messageID in deletedMessageIDs {
+            reactionsByMessageID[messageID] = nil
+        }
+
+        for message in updatedMessages {
+            reactionsByMessageID[message.id] = Dictionary(
+                uniqueKeysWithValues: message.reactions.map { ($0.emoji, $0) }
+            )
+        }
+    }
+
     @MainActor
     private func sendMessage() async {
-        let content = draftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !content.isEmpty, !isSending else { return }
+        let draftBeforeSending = draftMessage
+        let content = draftBeforeSending.trimmingCharacters(in: .whitespacesAndNewlines)
+        let attachment = pendingAttachment
+        guard (!content.isEmpty || attachment != nil), !isSending else { return }
 
         isSending = true
         sendErrorMessage = nil
+        // Clear at send time, not after the request returns. This gives the
+        // composer deterministic behavior even when a sync refresh races the
+        // response, while preserving text if the send actually fails.
+        draftMessage = ""
 
         do {
             let sentMessage: KTPMessage
             switch thread {
             case .direct(let conversation):
-                sentMessage = try await apiService.sendMessage(to: conversation.userId, content: content)
+                sentMessage = try await apiService.sendMessage(
+                    to: conversation.userId,
+                    body: content.isEmpty ? nil : content,
+                    attachment: attachment
+                )
             case .group(let chat):
                 sentMessage = try await apiService.sendGroupChatMessage(chatId: chat.id, body: content)
+            }
+            if let attachment {
+                attachmentDataByMessageID[sentMessage.id] = attachment.data
             }
             messages.append(sentMessage)
             messages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
             sentMessageIDs.insert(sentMessage.id)
             renderWindow.reset(totalCount: messages.count)
             scrollRequest = .latest(UUID())
-            draftMessage = ""
+            clearPendingAttachment()
             loadError = nil
         } catch is CancellationError {
+            if draftMessage.isEmpty {
+                draftMessage = draftBeforeSending
+            }
             isSending = false
             return
         } catch {
+            if draftMessage.isEmpty {
+                draftMessage = draftBeforeSending
+            }
             sendErrorMessage = messageSendErrorMessage(for: error)
         }
 
         isSending = false
+    }
+
+    @MainActor
+    private func prepareAttachment(from item: PhotosPickerItem) async {
+        isPreparingAttachment = true
+        defer {
+            isPreparingAttachment = false
+            selectedMediaItem = nil
+        }
+
+        do {
+            guard let selectedImage = try await item.loadTransferable(type: MessagePickedImage.self) else {
+                throw MessageAttachmentError.unreadableImage
+            }
+            defer { try? FileManager.default.removeItem(at: selectedImage.url) }
+
+            let data = try await readAttachmentData(from: selectedImage.url)
+            guard data.count <= MessageAttachmentLimits.maximumBytes else {
+                throw MessageAttachmentError.fileTooLarge
+            }
+
+            let contentType = UTType(filenameExtension: selectedImage.url.pathExtension) ?? .image
+            guard contentType.conforms(to: .image) else {
+                throw MessageAttachmentError.unsupportedType
+            }
+
+            let fileExtension = contentType.preferredFilenameExtension ?? "jpg"
+            pendingAttachment = MessageAttachmentUpload(
+                data: data,
+                fileName: "ktp-message-\(UUID().uuidString).\(fileExtension)",
+                mimeType: contentType.preferredMIMEType ?? "image/jpeg"
+            )
+            pendingAttachmentPreview = await decodeAttachmentPreview(from: data)
+            sendErrorMessage = nil
+        } catch is CancellationError {
+            return
+        } catch {
+            sendErrorMessage = messageAttachmentErrorMessage(for: error)
+        }
+    }
+
+    private func clearPendingAttachment() {
+        pendingAttachment = nil
+        pendingAttachmentPreview = nil
+    }
+
+    private func readAttachmentData(from url: URL) async throws -> Data {
+        try await Task.detached(priority: .utility) {
+            try Data(contentsOf: url, options: [.mappedIfSafe])
+        }.value
+    }
+
+    private func decodeAttachmentPreview(from data: Data) async -> UIImage? {
+        await Task.detached(priority: .utility) {
+            UIImage(data: data)
+        }.value
+    }
+
+    private func attachmentData(for message: KTPMessage) async throws -> Data {
+        switch thread {
+        case .direct:
+            return try await apiService.fetchMessageAttachmentData(messageID: message.id)
+        case .group(let chat):
+            return try await apiService.fetchGroupChatMessageAttachmentData(chatID: chat.id, messageID: message.id)
+        }
+    }
+
+    private func messageAttachmentErrorMessage(for error: Error) -> String {
+        if let attachmentError = error as? MessageAttachmentError {
+            return attachmentError.errorDescription ?? "Couldn’t prepare that attachment."
+        }
+        return "Couldn’t prepare that image or GIF. Please try again."
     }
 
     private func reactionSummaries(for message: KTPMessage) -> [MessageReactionSummary] {
@@ -1061,6 +1383,87 @@ struct MessageConversationView: View {
     private func reactionKey(messageID: String, emoji: String) -> String {
         "\(messageID)|\(emoji)"
     }
+
+    @MainActor
+    private func deleteMessage(_ message: KTPMessage) async {
+        guard deletingMessageIDs.insert(message.id).inserted else { return }
+        messagePendingDeletion = nil
+        deleteErrorMessage = nil
+        defer { deletingMessageIDs.remove(message.id) }
+
+        do {
+            switch thread {
+            case .direct:
+                try await apiService.deleteMessage(id: message.id)
+            case .group(let chat):
+                try await apiService.deleteGroupChatMessage(chatId: chat.id, messageId: message.id)
+            }
+
+            messages.removeAll { $0.id == message.id }
+            sentMessageIDs.remove(message.id)
+            reactionsByMessageID[message.id] = nil
+            renderWindow.reset(totalCount: messages.count)
+            NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
+        } catch is CancellationError {
+            return
+        } catch {
+            deleteErrorMessage = "The message could not be deleted. Please try again."
+        }
+    }
+}
+
+private struct MessageDeleteConfirmationOverlay: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let cancel: () -> Void
+    let confirm: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black
+                .opacity(colorScheme == .dark ? 0.16 : 0.09)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: cancel)
+
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Delete Message?")
+                        .font(AppFont.title(20))
+                        .foregroundStyle(AppSystemColor.primaryLabel)
+
+                    Text("This removes the message for everyone in the conversation.")
+                        .font(AppFont.subheadline())
+                        .foregroundStyle(AppSystemColor.secondaryLabel)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: 10) {
+                    Button("Cancel", action: cancel)
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+
+                    Button("Delete", role: .destructive, action: confirm)
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(22)
+            .frame(maxWidth: 320)
+            .background(
+                AppSystemColor.elevatedBackground,
+                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(AppSystemColor.separator.opacity(0.40), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.16), radius: 22, y: 10)
+            .padding(28)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+    }
 }
 
 /// Limits the rendered conversation while the current API returns one unpaginated message array.
@@ -1076,9 +1479,22 @@ private struct ConversationRenderWindow {
         visibleCount = min(totalCount, visibleCount + pageSize)
     }
 
+    /// Keeps a user-expanded history window intact when an incremental delta
+    /// arrives, while still handling a concurrent deletion.
+    mutating func clamp(to totalCount: Int) {
+        visibleCount = min(visibleCount, totalCount)
+    }
+
     func hasEarlierMessages(totalCount: Int) -> Bool {
         visibleCount < totalCount
     }
+}
+
+private struct ConversationMessageMerge {
+    let messages: [KTPMessage]
+    let updatedMessages: [KTPMessage]
+    let newMessageIDs: Set<String>
+    let deletedMessageIDs: Set<String>
 }
 
 private enum MessageGrouping {
@@ -1108,10 +1524,15 @@ private struct MessageBubble: View {
     let isSentByCurrentUser: Bool
     let showsSenderIdentity: Bool
     let apiService: KTPAPIService
+    let attachmentSourceID: String
+    let attachmentData: Data?
+    let loadAttachmentData: () async throws -> Data
     let allowsReactions: Bool
     let reactions: [MessageReactionSummary]
     let updatingEmojis: Set<String>
     let toggleReaction: (String) -> Void
+    let deleteMessage: (() -> Void)?
+    let isDeleting: Bool
     let reportMessage: (() -> Void)?
 
     var body: some View {
@@ -1142,15 +1563,30 @@ private struct MessageBubble: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: isSentByCurrentUser ? .trailing : .leading)
-        .accessibilityHint("Touch and hold for reactions and reporting options")
+        .accessibilityHint(
+            isSentByCurrentUser
+                ? "Touch and hold for reactions and message options"
+                : "Touch and hold for reactions and reporting options"
+        )
     }
 
     private var messageSurface: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(message.body)
-                .font(AppFont.subheadline())
-                .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                .fixedSize(horizontal: false, vertical: true)
+            if let attachment = message.attachment, attachment.isImage {
+                MessageAttachmentPreview(
+                    attachment: attachment,
+                    sourceID: attachmentSourceID,
+                    cachedData: attachmentData,
+                    loadData: loadAttachmentData
+                )
+            }
+
+            if !message.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text(message.body)
+                    .font(AppFont.subheadline())
+                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if let createdAt = message.createdAt {
                 Text(createdAt.relativeMessageTime)
@@ -1211,6 +1647,21 @@ private struct MessageBubble: View {
                         .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
                         .contentShape(Rectangle())
                 }
+            }
+
+            if let deleteMessage {
+                Divider()
+
+                Button(role: .destructive) {
+                    showsMessageActions = false
+                    deleteMessage()
+                } label: {
+                    Label(isDeleting ? "Deleting…" : "Delete Message", systemImage: "trash")
+                        .font(AppFont.footnote(weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .disabled(isDeleting)
             }
         }
         .padding(12)
@@ -1273,6 +1724,202 @@ private struct MessageBubble: View {
                     + (reaction.reactedByCurrentUser ? "selected" : "not selected")
                 )
             }
+        }
+    }
+}
+
+private struct MessageAttachmentPreview: View {
+    @Environment(\.displayScale) private var displayScale
+    @EnvironmentObject private var thumbnailRepository: MessageAttachmentThumbnailRepository
+    let attachment: MessageAttachment
+    let sourceID: String
+    let cachedData: Data?
+    let loadData: () async throws -> Data
+
+    @State private var image: UIImage?
+    @State private var gifData: Data?
+    @State private var loadFailed = false
+
+    var body: some View {
+        Group {
+            if attachment.isGIF, let gifData {
+                AnimatedGIFView(data: gifData)
+            } else if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else if loadFailed {
+                unavailableMedia
+            } else {
+                ProgressView()
+                    .frame(width: 220, height: 152)
+            }
+        }
+        .frame(width: 220, height: 152)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .task(id: attachmentLoadID) {
+            do {
+                if attachment.isGIF {
+                    if let cachedData {
+                        gifData = cachedData
+                    } else {
+                        gifData = try await loadData()
+                    }
+                    // GIFs remain animated instead of being flattened into a
+                    // thumbnail. They are not decoded by UIImage in the scroll path.
+                    return
+                }
+
+                image = await thumbnailRepository.image(
+                    for: sourceID,
+                    pointSize: 220,
+                    displayScale: displayScale,
+                    loadData: {
+                        if let cachedData { return cachedData }
+                        return try await loadData()
+                    }
+                )
+                loadFailed = image == nil
+            } catch is CancellationError {
+                return
+            } catch {
+                loadFailed = true
+            }
+        }
+        .accessibilityLabel(attachment.isGIF ? "Animated GIF attachment" : "Image attachment")
+    }
+
+    private var attachmentLoadID: String {
+        "\(sourceID)-\(attachment.filename ?? "attachment")-\(cachedData?.count ?? 0)-\(Int(displayScale * 220))"
+    }
+
+    private var unavailableMedia: some View {
+        Label("Image unavailable", systemImage: "photo.badge.exclamationmark")
+            .font(AppFont.footnote(weight: .semibold))
+            .foregroundStyle(MessageDesign.muted(for: .light))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct AnimatedGIFView: UIViewRepresentable {
+    let data: Data
+
+    final class Coordinator {
+        var loadedContentHash: Int?
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.allowsInlineMediaPlayback = true
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.backgroundColor = .clear
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        // SwiftUI can call updateUIView while an unrelated row state changes.
+        // Reloading a WebKit GIF restarts its animation and unnecessarily
+        // decodes the asset, so only hand WebKit new content.
+        let contentHash = data.hashValue
+        guard context.coordinator.loadedContentHash != contentHash else { return }
+        context.coordinator.loadedContentHash = contentHash
+        webView.load(
+            data,
+            mimeType: "image/gif",
+            characterEncodingName: "utf-8",
+            baseURL: URL(string: "about:blank")!
+        )
+    }
+}
+
+private struct MessageAttachmentDraftPreview: View {
+    let attachment: MessageAttachmentUpload
+    let previewImage: UIImage?
+    let remove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if attachment.isGIF {
+                AnimatedGIFView(data: attachment.data)
+                    .frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            } else if let previewImage {
+                Image(uiImage: previewImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            }
+
+            Spacer(minLength: 0)
+
+            Button(action: remove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 19, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove attachment")
+        }
+        .padding(8)
+        .background(MessageDesign.input(for: .light), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+private extension MessageAttachment {
+    var isImage: Bool {
+        mimeType?.lowercased().hasPrefix("image/") == true || kind.lowercased() == "image"
+    }
+
+    var isGIF: Bool {
+        mimeType?.lowercased() == "image/gif" || filename?.lowercased().hasSuffix(".gif") == true
+    }
+}
+
+private extension MessageAttachmentUpload {
+    var isGIF: Bool {
+        mimeType.lowercased() == "image/gif" || fileName.lowercased().hasSuffix(".gif")
+    }
+}
+
+private enum MessageAttachmentLimits {
+    static let maximumBytes = 25 * 1024 * 1024
+}
+
+private enum MessageAttachmentError: LocalizedError {
+    case unreadableImage
+    case unsupportedType
+    case fileTooLarge
+
+    var errorDescription: String? {
+        switch self {
+        case .unreadableImage:
+            return "Couldn’t read that image or GIF."
+        case .unsupportedType:
+            return "Choose an image or GIF file."
+        case .fileTooLarge:
+            return "Images and GIFs must be 25 MB or smaller."
+        }
+    }
+}
+
+private struct MessagePickedImage: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(importedContentType: .image) { received in
+            let fileExtension = received.file.pathExtension.isEmpty ? "jpg" : received.file.pathExtension
+            let copiedURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(fileExtension)
+            try FileManager.default.copyItem(at: received.file, to: copiedURL)
+            return MessagePickedImage(url: copiedURL)
         }
     }
 }
@@ -1569,8 +2216,12 @@ private extension Date {
         MessageThreadsView()
             .padding(20)
             .background(AppTab.messages.theme.previewBackground())
+            .navigationDestination(for: MessageThread.self) { thread in
+                MessageConversationView(thread: thread)
+            }
     }
     .environmentObject(AuthManager.previewSignedOut)
     .environmentObject(AvatarRepository())
+    .environmentObject(MessageAttachmentThumbnailRepository())
 }
 #endif

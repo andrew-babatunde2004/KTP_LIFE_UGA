@@ -15,6 +15,8 @@ struct AppTabBar: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selectedTab: AppTab
+    let unreadMessageCount: Int
+    let activeGroup: MemberGroup?
     let openProfile: () -> Void
 
     private var activeTheme: PageTheme {
@@ -45,7 +47,7 @@ struct AppTabBar: View {
 
     private var tabButtons: some View {
         HStack(spacing: 12) {
-            ForEach(AppTab.allCases) { tab in
+            ForEach(AppTab.visibleTabs(for: activeGroup)) { tab in
                 AppTabBarButton(
                     tab: tab,
                     isSelected: selectedTab == tab,
@@ -53,6 +55,7 @@ struct AppTabBar: View {
                         isSelected: selectedTab == tab,
                         colorScheme: colorScheme
                     ),
+                    badgeCount: tab == .community ? unreadMessageCount : 0,
                     select: {
                         if reduceMotion {
                             selectedTab = tab
@@ -106,24 +109,44 @@ private struct AppTabBarButton: View {
     let tab: AppTab
     let isSelected: Bool
     let iconColor: Color
+    let badgeCount: Int
     let select: () -> Void
 
     var body: some View {
         Button(action: select) {
-            Image(systemName: tab.icon)
-                .font(.system(size: AppTabBarMetrics.iconSize, weight: .semibold))
-                .frame(
-                    width: AppTabBarMetrics.iconSize,
-                    height: AppTabBarMetrics.iconSize
-                )
-                .frame(
-                    width: AppTabBarMetrics.itemSize,
-                    height: AppTabBarMetrics.itemSize
-                )
-                .contentShape(Rectangle())
-                .accessibilityLabel(tab.title)
-                .foregroundStyle(iconColor)
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: AppTabBarMetrics.iconSize, weight: .semibold))
+                    .frame(
+                        width: AppTabBarMetrics.iconSize,
+                        height: AppTabBarMetrics.iconSize
+                    )
+                    .frame(
+                        width: AppTabBarMetrics.itemSize,
+                        height: AppTabBarMetrics.itemSize
+                    )
+                    .foregroundStyle(iconColor)
+
+                if badgeCount > 0 {
+                    Text(badgeCount > 99 ? "99+" : "\(badgeCount)")
+                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, badgeCount > 9 ? 4 : 0)
+                        .frame(minWidth: 16, minHeight: 16)
+                        .background(Color.red, in: Capsule())
+                        .overlay {
+                            Capsule()
+                                .stroke(Color.white.opacity(0.92), lineWidth: 1.5)
+                        }
+                        .offset(x: 2, y: -2)
+                        .accessibilityHidden(true)
+                }
+            }
+            .frame(width: AppTabBarMetrics.itemSize, height: AppTabBarMetrics.itemSize)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(tab.title)
+        .accessibilityValue(badgeCount > 0 ? "\(badgeCount) unread messages" : "")
     }
 }

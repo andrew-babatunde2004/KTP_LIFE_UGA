@@ -22,6 +22,7 @@ struct Meeting: Identifiable, Equatable, Decodable {
     let status: String
     let myResponse: MeetingResponse?
     let isOrganizer: Bool
+    let organizerID: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -65,6 +66,8 @@ struct Meeting: Identifiable, Equatable, Decodable {
         let responseValue = try container.decodeIfPresent(String.self, forKey: .myResponse)
             ?? container.decodeIfPresent(String.self, forKey: .response)
         myResponse = responseValue.flatMap(MeetingResponse.init(rawValue:))
+        organizerID = try container.decodeIdentifier(forKey: .organizerId)
+            ?? container.decodeIdentifier(forKey: .createdBy)
         isOrganizer = try container.decodeIfPresent(Bool.self, forKey: .isOrganizer) ?? false
     }
 
@@ -82,7 +85,32 @@ struct Meeting: Identifiable, Equatable, Decodable {
             endsAt: endsAt,
             status: status,
             myResponse: response,
-            isOrganizer: isOrganizer
+            isOrganizer: isOrganizer,
+            organizerID: organizerID
+        )
+    }
+
+    /// The API normally returns `is_organizer`, but older deployments only
+    /// return the organizer/creator identifier. Resolve both representations
+    /// against the authenticated user's ID before showing RSVP controls.
+    func resolvedOrganizer(for currentUserID: String?) -> Meeting {
+        let resolved = isOrganizer || organizerID.map {
+            guard let currentUserID else { return false }
+            return $0.caseInsensitiveCompare(currentUserID) == .orderedSame
+        } ?? false
+
+        guard resolved != isOrganizer else { return self }
+        return Meeting(
+            id: id,
+            title: title,
+            message: message,
+            location: location,
+            startsAt: startsAt,
+            endsAt: endsAt,
+            status: status,
+            myResponse: myResponse,
+            isOrganizer: resolved,
+            organizerID: organizerID
         )
     }
 
@@ -95,7 +123,8 @@ struct Meeting: Identifiable, Equatable, Decodable {
         endsAt: Date?,
         status: String,
         myResponse: MeetingResponse?,
-        isOrganizer: Bool
+        isOrganizer: Bool,
+        organizerID: String?
     ) {
         self.id = id
         self.title = title
@@ -106,6 +135,7 @@ struct Meeting: Identifiable, Equatable, Decodable {
         self.status = status
         self.myResponse = myResponse
         self.isOrganizer = isOrganizer
+        self.organizerID = organizerID
     }
 
     static func decodeMeetings(from data: Data) throws -> [Meeting] {
@@ -131,7 +161,35 @@ struct Meeting: Identifiable, Equatable, Decodable {
     }
 }
 
+struct CreateMeetingRequest: Encodable {
+    let title: String
+    let message: String?
+    let location: String?
+    let startsAt: Date
+    let endsAt: Date
+    let inviteeIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case message
+        case location
+        case startsAt = "starts_at"
+        case endsAt = "ends_at"
+        case inviteeIDs = "invitee_ids"
+    }
+}
+
 private extension KeyedDecodingContainer {
+    func decodeIdentifier(forKey key: Key) throws -> String? {
+        if let value = try decodeIfPresent(String.self, forKey: key) {
+            return value
+        }
+        if let value = try decodeIfPresent(Int.self, forKey: key) {
+            return String(value)
+        }
+        return nil
+    }
+
     func meetingDate(for key: Key) throws -> Date? {
         guard let value = try decodeIfPresent(String.self, forKey: key) else { return nil }
         return MeetingDateParser.date(from: value)

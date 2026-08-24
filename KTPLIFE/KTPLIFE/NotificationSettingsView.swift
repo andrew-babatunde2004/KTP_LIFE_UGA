@@ -5,7 +5,7 @@ struct NotificationSettingsView: View {
     @EnvironmentObject private var pushNotificationManager: PushNotificationManager
     let apiService: KTPAPIService
 
-    @State private var preferences = NotificationPreferences(directMessagesEnabled: true, eventsEnabled: true)
+    @State private var preferences = NotificationPreferences()
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var errorMessage: String?
@@ -23,8 +23,21 @@ struct NotificationSettingsView: View {
             Section("Notification types") {
                 Toggle("Direct Messages", isOn: binding(for: \.directMessagesEnabled))
                     .disabled(isLoading || isSaving)
+                Toggle("Announcements", isOn: binding(for: \.announcementsEnabled))
+                    .disabled(isLoading || isSaving)
+                Toggle("Polls", isOn: binding(for: \.pollsEnabled))
+                    .disabled(isLoading || isSaving)
+                Toggle("Meetings", isOn: binding(for: \.meetingsEnabled))
+                    .disabled(isLoading || isSaving)
                 Toggle("Events", isOn: binding(for: \.eventsEnabled))
                     .disabled(isLoading || isSaving)
+            }
+
+            Section {
+                Toggle("Event & Meeting Reminders", isOn: binding(for: \.eventRemindersEnabled))
+                    .disabled(isLoading || isSaving)
+            } footer: {
+                Text("Receive reminders 2 hours and 30 minutes before upcoming events and meetings.")
             }
 
             if let errorMessage {
@@ -85,6 +98,7 @@ struct NotificationSettingsView: View {
         defer { isLoading = false }
         do {
             preferences = try await apiService.fetchNotificationPreferences()
+            preferences.cacheLocally()
             errorMessage = nil
         } catch is CancellationError {
             return
@@ -100,6 +114,8 @@ struct NotificationSettingsView: View {
         defer { isSaving = false }
         do {
             preferences = try await apiService.updateNotificationPreferences(preferences)
+            preferences.cacheLocally()
+            await EventReminderScheduler().updateEnabledState()
             errorMessage = nil
         } catch is CancellationError {
             preferences = previous

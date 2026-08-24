@@ -153,7 +153,6 @@ struct ReportsView: View {
                 AppSectionHeading(
                     eyebrow: "Chapter Leadership",
                     title: "Report queue",
-                    subtitle: "Review member reports and record a clear decision.",
                     systemImage: "checklist"
                 )
                 .padding(.bottom, 6)

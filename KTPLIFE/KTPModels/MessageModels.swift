@@ -93,10 +93,10 @@ struct MessageConversation: Identifiable, Hashable, Decodable {
         )
 
         if let nestedMessage = try container.decodeIfPresent(KTPMessage.self, forKey: .lastMessage) {
-            preview = nestedMessage.body
+            preview = nestedMessage.inboxPreview
             lastMessageDate = nestedMessage.createdAt
         } else if let nestedMessage = try container.decodeIfPresent(KTPMessage.self, forKey: .latestMessage) {
-            preview = nestedMessage.body
+            preview = nestedMessage.inboxPreview
             lastMessageDate = nestedMessage.createdAt
         } else {
             preview = try container.decodeFirstPresentString(
@@ -163,7 +163,7 @@ struct GroupChat: Identifiable, Hashable, Decodable {
         name = try container.decodeFirstPresentString(for: [.name], fallback: "Group Chat")
 
         if let lastMessage = try container.decodeIfPresent(KTPMessage.self, forKey: .lastMessage) {
-            preview = lastMessage.body
+            preview = lastMessage.inboxPreview
             lastMessageDate = lastMessage.createdAt
         } else {
             preview = try container.decodeFirstPresentString(for: [.preview, .body], fallback: "No messages yet.")
@@ -256,8 +256,12 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
     let senderDisplayName: String?
     let senderProfileImageURL: URL?
     let body: String
+    let attachment: MessageAttachment?
     let createdAt: Date?
     let isRead: Bool
+    /// Incremental-sync responses can represent deletions as message tombstones.
+    /// The conversation store removes those records instead of rendering them.
+    let isDeleted: Bool
     let reactions: [MessageReactionSummary]
 
     enum CodingKeys: String, CodingKey {
@@ -278,11 +282,20 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         case body
         case text
         case message
+        case attachment
+        case attachmentKind = "attachment_kind"
+        case attachmentFilename = "attachment_filename"
+        case attachmentMIMEType = "attachment_mime_type"
+        case attachmentSize = "attachment_size"
         case createdAt = "created_at"
         case sentAt = "sent_at"
         case timestamp
         case isRead = "is_read"
         case read
+        case readAt = "read_at"
+        case isDeleted = "is_deleted"
+        case deleted
+        case deletedAt = "deleted_at"
         case reactions
     }
 
@@ -293,8 +306,10 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         senderDisplayName: String? = nil,
         senderProfileImageURL: URL? = nil,
         body: String,
+        attachment: MessageAttachment? = nil,
         createdAt: Date?,
         isRead: Bool,
+        isDeleted: Bool = false,
         reactions: [MessageReactionSummary] = []
     ) {
         self.id = id
@@ -303,8 +318,10 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         self.senderDisplayName = senderDisplayName
         self.senderProfileImageURL = senderProfileImageURL
         self.body = body
+        self.attachment = attachment
         self.createdAt = createdAt
         self.isRead = isRead
+        self.isDeleted = isDeleted
         self.reactions = reactions
     }
 
@@ -328,12 +345,68 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
             for: [.senderProfileImageURL, .senderProfilePictureURL, .senderAvatarURL]
         )
         body = try container.decodeFirstPresentString(for: [.content, .body, .text, .message], fallback: "")
+        if let nestedAttachment = try container.decodeIfPresent(MessageAttachment.self, forKey: .attachment) {
+            attachment = nestedAttachment
+        } else if let kind = try container.decodeIfPresent(String.self, forKey: .attachmentKind) {
+            attachment = MessageAttachment(
+                kind: kind,
+                filename: try container.decodeIfPresent(String.self, forKey: .attachmentFilename),
+                mimeType: try container.decodeIfPresent(String.self, forKey: .attachmentMIMEType),
+                size: try container.decodeFlexibleIntIfPresent(forKey: .attachmentSize)
+            )
+        } else {
+            attachment = nil
+        }
         createdAt = try container.decodeFirstPresentDateIfPresent(for: [.createdAt, .sentAt, .timestamp])
         let directReadValue = try container.decodeIfPresent(Bool.self, forKey: .isRead)
         let fallbackReadValue = try container.decodeIfPresent(Bool.self, forKey: .read)
-        isRead = directReadValue ?? fallbackReadValue ?? false
+        let readAt = try container.decodeIfPresent(String.self, forKey: .readAt)
+        isRead = directReadValue ?? fallbackReadValue ?? (readAt != nil)
+        let directDeletedValue = try container.decodeIfPresent(Bool.self, forKey: .isDeleted)
+        let fallbackDeletedValue = try container.decodeIfPresent(Bool.self, forKey: .deleted)
+        let deletedAt = try container.decodeIfPresent(String.self, forKey: .deletedAt)
+        isDeleted = directDeletedValue ?? fallbackDeletedValue ?? (deletedAt != nil)
         reactions = MessageReactionSummary.decode(from: container, forKey: .reactions)
     }
+}
+
+extension KTPMessage {
+    /// Inbox rows should identify media even when an attachment has no text body.
+    var inboxPreview: String {
+        guard let attachment else { return body }
+
+        let mimeType = attachment.mimeType?.lowercased() ?? ""
+        let filename = attachment.filename?.lowercased() ?? ""
+        if mimeType == "image/gif" || filename.hasSuffix(".gif") {
+            return "GIF"
+        }
+
+        if mimeType.hasPrefix("image/") || attachment.kind.lowercased() == "image" {
+            return "Image"
+        }
+
+        return body
+    }
+}
+
+struct MessageAttachment: Hashable, Decodable {
+    let kind: String
+    let filename: String?
+    let mimeType: String?
+    let size: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case filename
+        case mimeType = "mime_type"
+        case size
+    }
+}
+
+struct MessageAttachmentUpload {
+    let data: Data
+    let fileName: String
+    let mimeType: String
 }
 
 struct MessageReactionSummary: Identifiable, Hashable, Decodable {
@@ -470,20 +543,43 @@ struct MessageConversationsResponse: Decodable {
 
 struct ConversationMessagesResponse: Decodable {
     let messages: [KTPMessage]
+    let nextCursor: String?
+    let hasMoreBefore: Bool
+    let deletedMessageIDs: Set<String>
 
     enum CodingKeys: String, CodingKey {
         case messages
         case data
         case conversation
+        case nextCursor = "next_cursor"
+        case cursor
+        case hasMoreBefore = "has_more_before"
+        case deletedMessageIDs = "deleted_message_ids"
+        case deleted
     }
 
     static func decodeMessages(from data: Data) throws -> [KTPMessage] {
+        try decodePage(from: data).messages
+    }
+
+    static func decodePage(from data: Data) throws -> ConversationMessagePage {
         let decoder = JSONDecoder()
         if let directMessages = try? decoder.decode([KTPMessage].self, from: data) {
-            return directMessages
+            return ConversationMessagePage(
+                messages: directMessages,
+                nextCursor: nil,
+                hasMoreBefore: false,
+                deletedMessageIDs: Set(directMessages.filter(\.isDeleted).map(\.id))
+            )
         }
 
-        return try decoder.decode(ConversationMessagesResponse.self, from: data).messages
+        let response = try decoder.decode(ConversationMessagesResponse.self, from: data)
+        return ConversationMessagePage(
+            messages: response.messages,
+            nextCursor: response.nextCursor,
+            hasMoreBefore: response.hasMoreBefore,
+            deletedMessageIDs: response.deletedMessageIDs.union(response.messages.filter(\.isDeleted).map(\.id))
+        )
     }
 
     init(from decoder: Decoder) throws {
@@ -495,7 +591,20 @@ struct ConversationMessagesResponse: Decodable {
         } else {
             self.messages = try container.decode([KTPMessage].self, forKey: .conversation)
         }
+
+        nextCursor = try container.decodeIfPresent(String.self, forKey: .nextCursor)
+            ?? container.decodeIfPresent(String.self, forKey: .cursor)
+        hasMoreBefore = try container.decodeIfPresent(Bool.self, forKey: .hasMoreBefore) ?? false
+        deletedMessageIDs = Set(try container.decodeIfPresent([String].self, forKey: .deletedMessageIDs) ?? [])
+            .union(try container.decodeIfPresent([String].self, forKey: .deleted) ?? [])
     }
+}
+
+struct ConversationMessagePage {
+    let messages: [KTPMessage]
+    let nextCursor: String?
+    let hasMoreBefore: Bool
+    let deletedMessageIDs: Set<String>
 }
 
 #if DEBUG
@@ -592,6 +701,16 @@ private extension KeyedDecodingContainer {
             }
         }
 
+        return nil
+    }
+
+    func decodeFlexibleIntIfPresent(forKey key: Key) throws -> Int? {
+        if let value = try decodeIfPresent(Int.self, forKey: key) {
+            return value
+        }
+        if let value = try decodeIfPresent(String.self, forKey: key) {
+            return Int(value)
+        }
         return nil
     }
 }

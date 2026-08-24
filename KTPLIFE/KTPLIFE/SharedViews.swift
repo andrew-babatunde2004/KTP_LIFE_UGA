@@ -9,32 +9,25 @@ import SwiftUI
 enum AppAppearance: String, CaseIterable, Identifiable {
     static let storageKey = "appAppearance"
 
+    case system
     case light
     case dark
-    case gray
 
     var id: Self { self }
 
     var title: String {
         switch self {
+        case .system: "System"
         case .light: "Light"
         case .dark: "Dark"
-        case .gray: "Gray"
         }
     }
 
-    var description: String {
+    var preferredColorScheme: ColorScheme? {
         switch self {
-        case .light: "A bright white background with dark text."
-        case .dark: "A true-black background designed for low-light use."
-        case .gray: "A softer blue-gray background inspired by classic social-app themes."
-        }
-    }
-
-    var preferredColorScheme: ColorScheme {
-        switch self {
+        case .system: nil
         case .light: .light
-        case .dark, .gray: .dark
+        case .dark: .dark
         }
     }
 
@@ -42,14 +35,14 @@ enum AppAppearance: String, CaseIterable, Identifiable {
         guard let rawValue = UserDefaults.standard.string(forKey: storageKey),
               let appearance = AppAppearance(rawValue: rawValue)
         else {
-            return .light
+            return .system
         }
         return appearance
     }
 }
 
 private struct AppAppearanceKey: EnvironmentKey {
-    static let defaultValue = AppAppearance.light
+    static let defaultValue = AppAppearance.system
 }
 
 extension EnvironmentValues {
@@ -97,18 +90,15 @@ struct EmptyState: View {
 struct AppSectionHeading: View {
     let eyebrow: String?
     let title: String
-    let subtitle: String?
     let systemImage: String?
 
     init(
         eyebrow: String? = nil,
         title: String,
-        subtitle: String? = nil,
         systemImage: String? = nil
     ) {
         self.eyebrow = eyebrow
         self.title = title
-        self.subtitle = subtitle
         self.systemImage = systemImage
     }
 
@@ -126,13 +116,9 @@ struct AppSectionHeading: View {
                 Text(title)
                     .font(AppFont.largeTitle())
                     .foregroundStyle(AppSystemColor.primaryLabel)
-
-                if let subtitle {
-                    Text(subtitle)
-                        .font(AppFont.subheadline())
-                        .foregroundStyle(AppSystemColor.secondaryLabel)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .allowsTightening(true)
             }
 
             Spacer(minLength: 8)
@@ -240,67 +226,55 @@ enum AppSurfaceColor {
 enum AppSystemColor {
     static var background: Color {
         switch AppAppearance.current {
-        case .light:
+        case .system, .light:
             Color(uiColor: .systemBackground)
         case .dark:
             Color.black
-        case .gray:
-            Color(red: 0.082, green: 0.125, blue: 0.169)
         }
     }
 
     static var elevatedBackground: Color {
         switch AppAppearance.current {
-        case .light:
+        case .system, .light:
             Color(uiColor: .secondarySystemBackground)
         case .dark:
             Color(white: 0.09)
-        case .gray:
-            Color(red: 0.118, green: 0.176, blue: 0.227)
         }
     }
 
     static var insetBackground: Color {
         switch AppAppearance.current {
-        case .light:
+        case .system, .light:
             Color(uiColor: .tertiarySystemFill)
         case .dark:
             Color.white.opacity(0.12)
-        case .gray:
-            Color(red: 0.165, green: 0.231, blue: 0.286)
         }
     }
 
     static var primaryLabel: Color {
         switch AppAppearance.current {
-        case .light:
+        case .system, .light:
             Color(uiColor: .label)
         case .dark:
             Color.white
-        case .gray:
-            Color(red: 0.961, green: 0.973, blue: 0.980)
         }
     }
 
     static var secondaryLabel: Color {
         switch AppAppearance.current {
-        case .light:
+        case .system, .light:
             Color(uiColor: .secondaryLabel)
         case .dark:
             Color.white.opacity(0.68)
-        case .gray:
-            Color(red: 0.667, green: 0.722, blue: 0.761)
         }
     }
 
     static var separator: Color {
         switch AppAppearance.current {
-        case .light:
+        case .system, .light:
             Color(uiColor: .separator)
         case .dark:
             Color.white.opacity(0.18)
-        case .gray:
-            Color(red: 0.220, green: 0.267, blue: 0.302)
         }
     }
 }

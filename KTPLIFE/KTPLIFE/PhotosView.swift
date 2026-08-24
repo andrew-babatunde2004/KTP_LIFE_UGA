@@ -42,8 +42,10 @@ struct PhotosView: View {
         GridItem(.flexible(minimum: 0), spacing: 0),
         GridItem(.flexible(minimum: 0), spacing: 0),
     ]
-    
+
     var body: some View {
+        let service = photoService
+
         PageScaffold(showsPageHeader: false) {
             VStack(alignment: .leading, spacing: 0) {
                 galleryToolbar
@@ -68,7 +70,7 @@ struct PhotosView: View {
                         GeometryReader { proxy in
                             AuthenticatedPhotoTile(
                                 photo: photos[index],
-                                photoService: photoService,
+                                photoService: service,
                                 select: { selectedMedia = MediaSelection(index: index) }
                             )
                             .frame(width: proxy.size.width, height: proxy.size.width)
@@ -120,7 +122,7 @@ struct PhotosView: View {
             AuthenticatedMediaViewer(
                 photos: photos,
                 initialIndex: selection.index,
-                photoService: photoService
+                photoService: service
             )
         }
     }
@@ -128,7 +130,6 @@ struct PhotosView: View {
     private var galleryToolbar: some View {
         HStack {
             Spacer()
-
             addPhotoButton
         }
         .padding(.horizontal, 20)
@@ -196,43 +197,124 @@ struct PhotosView: View {
                     }
                     defer { try? FileManager.default.removeItem(at: video.url) }
                     data = try Data(contentsOf: video.url)
-                    contentType = mediaContentType(for: video.url, fallback: .mpeg4Movie)
+                    contentType = mediaContentType(
+                        for: video.url,
+                        supportedTypes: item.supportedContentTypes,
+                        fallback: .mpeg4Movie
+                    )
                 } else {
-                    // Request an image file instead of generic Data. Some library items
-                    // (notably HEIC and Live Photos) don't expose a generic data
-                    // representation even though they have a usable image file.
-                    guard let image = try await item.loadTransferable(type: PickedImage.self) else {
-                        throw PhotoTransferError.unreadableMedia
+                    // Data.self is the native PhotosPicker representation and is
+                    // the path used by older working builds. Some iOS versions
+                    // cannot vend a generic Data value for HEIC/Live Photo items,
+                    // so retain the file fallback for those cases.
+                    if let imageData = try await item.loadTransferable(type: Data.self) {
+                        data = imageData
+                        contentType = item.supportedContentTypes.first(where: { $0.conforms(to: .image) && $0.preferredMIMEType != nil }) ?? .jpeg
+                    } else {
+                        guard let image = try await item.loadTransferable(type: PickedImage.self) else {
+                            throw PhotoTransferError.unreadableMedia
+                        }
+                        defer { try? FileManager.default.removeItem(at: image.url) }
+                        data = try Data(contentsOf: image.url)
+                        contentType = mediaContentType(
+                            for: image.url,
+                            supportedTypes: item.supportedContentTypes,
+                            fallback: .jpeg
+                        )
                     }
-                    defer { try? FileManager.default.removeItem(at: image.url) }
-                    data = try Data(contentsOf: image.url)
-                    contentType = mediaContentType(for: image.url, fallback: .jpeg)
                 }
 
                 let mimeType = contentType.preferredMIMEType ?? "image/jpeg"
                 let fileExtension = contentType.preferredFilenameExtension ?? "jpg"
                 let title = contentType.conforms(to: .movie) ? "Chapter Video" : "Chapter Photo"
+                let fileName = "ktp-media-\(UUID().uuidString).\(fileExtension)"
+                // Keep the same in-memory multipart request used by the last
+                // known-good iOS build for both photos and videos.
                 let uploadedPhoto = try await photoService.uploadPhoto(
                     data: data,
-                    fileName: "ktp-media-\(UUID().uuidString).\(fileExtension)",
+                    fileName: fileName,
                     mimeType: mimeType,
                     title: title
                 )
                 uploadedPhotos.append(uploadedPhoto)
             }
 
-            photos.insert(contentsOf: uploadedPhotos.reversed(), at: 0)
+            if !uploadedPhotos.isEmpty {
+                photos.insert(contentsOf: uploadedPhotos.reversed(), at: 0)
+            }
+
             loadError = nil
         } catch {
-            loadError = photosErrorMessage(for: error)
+            // An upload failure is not a gallery-loading failure. Keep the
+            // existing gallery visible and report the operation that failed.
+            loadError = photoUploadErrorMessage(for: error)
         }
     }
 
-    private func mediaContentType(for url: URL, fallback: UTType) -> UTType {
-        UTType(filenameExtension: url.pathExtension) ?? fallback
+    private func photoUploadErrorMessage(for error: Error) -> String {
+        if let transferError = error as? PhotoTransferError {
+            return transferError.errorDescription ?? "Could not read the selected image or video."
+        }
+
+        if case AuthManagerError.notAuthenticated = error {
+            return "Your sign-in session has expired. Sign in again and retry the upload."
+        }
+
+        if case KTPAPIError.missingAccessToken = error {
+            return "Your sign-in session has expired. Sign in again and retry the upload."
+        }
+
+        if case KTPAPIError.badStatusCode(let statusCode, _) = error {
+            switch statusCode {
+            case 401:
+                return "Your sign-in session has expired. Sign in again and retry the upload."
+            case 403:
+                return "This account is not allowed to upload to the chapter gallery."
+            case 413:
+                return "That photo or video is larger than the 250 MB gallery limit."
+            case 415:
+                return "That media format could not be processed. Try exporting it as a JPEG, PNG, or MOV."
+            default:
+                return "The chapter gallery rejected the upload (HTTP \(statusCode))."
+            }
+        }
+
+        if let urlError = error as? URLError {
+            return "The upload could not reach the chapter gallery (\(urlError.localizedDescription))."
+        }
+
+        if case KTPAPIError.decodeFailed(_) = error {
+            return "The chapter gallery returned an unsupported upload response."
+        }
+
+        return "The photo upload failed. Please try again."
+    }
+
+    private func mediaContentType(for url: URL, supportedTypes: [UTType], fallback: UTType) -> UTType {
+        if let type = UTType(filenameExtension: url.pathExtension) {
+            return type
+        }
+
+        // PhotosPicker may provide a temporary file without an extension. In
+        // that case preserve the library's declared HEIC/HEIF type instead of
+        // falsely labelling its bytes as JPEG, which causes server validation
+        // and HEIC transcoding to fail.
+        if fallback.conforms(to: .movie) {
+            return supportedTypes.first(where: { $0.conforms(to: .movie) && $0 != .movie })
+                ?? supportedTypes.first(where: { $0.conforms(to: .movie) })
+                ?? fallback
+        }
+
+        return supportedTypes.first(where: { $0.conforms(to: .image) && $0 != .image })
+            ?? supportedTypes.first(where: { $0.conforms(to: .image) })
+            ?? fallback
     }
 
     private func photosErrorMessage(for error: Error) -> String {
+        if let transferError = error as? PhotoTransferError {
+            return transferError.errorDescription ?? "Could not read the selected image or video."
+        }
+
         if case AuthManagerError.notAuthenticated = error {
             return "Sign in with SSO to load photos."
         }
@@ -242,8 +324,20 @@ struct PhotosView: View {
         }
 
         if case KTPAPIError.badStatusCode(let statusCode, _) = error {
-            if statusCode == 401 || statusCode == 403 {
+            if statusCode == 401 {
                 return "Your photo access has expired. Sign out and sign in again."
+            }
+
+            if statusCode == 403 {
+                return "This account is not allowed to upload to the chapter gallery."
+            }
+
+            if statusCode == 413 {
+                return "That photo or video is larger than the 250 MB gallery limit."
+            }
+
+            if statusCode == 415 {
+                return "That media format could not be processed. Try exporting it as a JPEG, PNG, or MOV."
             }
 
             return "The chapter gallery is temporarily unavailable. Please try again later."
@@ -333,8 +427,22 @@ private struct AuthenticatedPhotoTile: View {
 
     @MainActor
     private func loadThumbnail(for size: CGSize) async {
-        guard !photo.isVideo, size.width > 0 else {
+        guard size.width > 0 else {
             image = nil
+            return
+        }
+
+        if photo.isVideo {
+            do {
+                let data = try await photoService.fetchMediaData(for: photo)
+                let url = try await MediaTemporaryFile.write(data: data, suggestedPath: photo.imagePath)
+                defer { try? FileManager.default.removeItem(at: url) }
+                image = await VideoThumbnailGenerator.image(from: url)
+            } catch is CancellationError {
+                return
+            } catch {
+                image = nil
+            }
             return
         }
 
@@ -504,9 +612,9 @@ private struct AuthenticatedMediaPage: View {
             guard !Task.isCancelled else { return }
 
             if photo.isVideo {
-                let url = try MediaTemporaryFile.write(data: data, suggestedPath: photo.imagePath)
+                let url = try await MediaTemporaryFile.write(data: data, suggestedPath: photo.imagePath)
                 player = AVPlayer(url: url)
-            } else if let loadedImage = UIImage(data: data) {
+            } else if let loadedImage = await decodeViewerImage(from: data) {
                 image = loadedImage
             } else {
                 errorMessage = "This file is not a supported image."
@@ -516,6 +624,12 @@ private struct AuthenticatedMediaPage: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func decodeViewerImage(from data: Data) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            UIImage(data: data)
+        }.value
     }
 }
 
@@ -558,14 +672,39 @@ private struct PickedImage: Transferable {
 }
 
 private enum MediaTemporaryFile {
-    static func write(data: Data, suggestedPath: String) throws -> URL {
-        let extensionValue = URL(fileURLWithPath: suggestedPath).pathExtension
-        let fileExtension = extensionValue.isEmpty ? "mov" : extensionValue
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension(fileExtension)
-        try data.write(to: url, options: .atomic)
-        return url
+    static func write(data: Data, suggestedPath: String) async throws -> URL {
+        try await Task.detached(priority: .utility) {
+            let extensionValue = URL(fileURLWithPath: suggestedPath).pathExtension
+            let hasVideoExtension = UTType(filenameExtension: extensionValue)?.conforms(to: .movie) == true
+            let fileExtension = hasVideoExtension ? extensionValue : "mp4"
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension(fileExtension)
+            try data.write(to: url, options: .atomic)
+            return url
+        }.value
+    }
+}
+
+private enum VideoThumbnailGenerator {
+    static func image(from url: URL) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            autoreleasepool {
+                let asset = AVAsset(url: url)
+                let generator = AVAssetImageGenerator(asset: asset)
+                generator.appliesPreferredTrackTransform = true
+                generator.maximumSize = CGSize(width: 640, height: 640)
+
+                let requestedTime = CMTime(seconds: 0.1, preferredTimescale: 600)
+                let cgImage = (try? generator.copyCGImage(at: requestedTime, actualTime: nil))
+                    ?? (try? generator.copyCGImage(at: .zero, actualTime: nil))
+                guard let cgImage else {
+                    return nil
+                }
+
+                return UIImage(cgImage: cgImage)
+            }
+        }.value
     }
 }
 

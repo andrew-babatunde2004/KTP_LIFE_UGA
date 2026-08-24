@@ -1,10 +1,25 @@
 import Foundation
 
 /// Directory entry returned by `GET /members`. JSON keys match `memberModel.toDirectoryJSON` in ktp-api.
-struct DirectoryMember: Identifiable, Codable {
+struct DirectoryMember: Identifiable, Codable, Hashable {
     let id: String
     let name: String
+    let username: String?
+    let firstName: String?
+    let lastName: String?
+    let preferredName: String?
     let email: String?
+    let personalEmail: String?
+    let phone: String?
+    let dateOfBirth: String?
+    let linkedinURL: String?
+    let major: String?
+    let graduationDate: String?
+    let pledgeClass: String?
+    let aboutMe: String?
+    let executiveTitle: String?
+    let chairedCommittees: [String]
+    let profilePictureAssetID: String?
     let role: String
     let year: String?
     let group: MemberGroup
@@ -22,9 +37,22 @@ struct DirectoryMember: Identifiable, Codable {
         case email
         case emailAddress = "email_address"
         case personalEmail = "personal_email"
+        case phone
+        case dob
+        case linkedin
+        case linkedinURL = "linkedin_url"
+        case camelLinkedinURL = "linkedinUrl"
+        case linkedIn = "linkedIn"
+        case camelLinkedInURL = "linkedInUrl"
         case role
         case title
         case major
+        case pledgeClass = "pledge_class"
+        case aboutMe = "about_me"
+        case executiveTitle = "exec_title"
+        case chairedCommittees
+        case snakeChairedCommittees = "chaired_committees"
+        case profilePictureAssetID = "profile_picture_asset_id"
         case memberGroup = "member_group"
         case year
         case graduationYear = "graduation_year"
@@ -34,10 +62,47 @@ struct DirectoryMember: Identifiable, Codable {
         case status
     }
 
-    init(id: String, name: String, email: String? = nil, role: String, year: String?, group: MemberGroup) {
+    init(
+        id: String,
+        name: String,
+        username: String? = nil,
+        firstName: String? = nil,
+        lastName: String? = nil,
+        preferredName: String? = nil,
+        email: String? = nil,
+        personalEmail: String? = nil,
+        phone: String? = nil,
+        dateOfBirth: String? = nil,
+        linkedinURL: String? = nil,
+        major: String? = nil,
+        graduationDate: String? = nil,
+        pledgeClass: String? = nil,
+        aboutMe: String? = nil,
+        executiveTitle: String? = nil,
+        chairedCommittees: [String] = [],
+        profilePictureAssetID: String? = nil,
+        role: String,
+        year: String?,
+        group: MemberGroup
+    ) {
         self.id = id
         self.name = name
+        self.username = username
+        self.firstName = firstName
+        self.lastName = lastName
+        self.preferredName = preferredName
         self.email = email
+        self.personalEmail = personalEmail
+        self.phone = phone
+        self.dateOfBirth = dateOfBirth
+        self.linkedinURL = linkedinURL
+        self.major = major
+        self.graduationDate = graduationDate ?? year
+        self.pledgeClass = pledgeClass
+        self.aboutMe = aboutMe
+        self.executiveTitle = executiveTitle
+        self.chairedCommittees = chairedCommittees
+        self.profilePictureAssetID = profilePictureAssetID
         self.role = role
         self.year = year
         self.group = group
@@ -54,37 +119,41 @@ struct DirectoryMember: Identifiable, Codable {
             id = try container.decode(String.self, forKey: .authentikId)
         }
 
-        if let directName = try container.decodeFirstPresentStringIfPresent(for: [.name, .displayName, .fullName, .preferredName]) {
+        username = try container.decodeFirstPresentStringIfPresent(for: [.username])
+        firstName = try container.decodeFirstPresentStringIfPresent(for: [.firstName])
+        lastName = try container.decodeFirstPresentStringIfPresent(for: [.lastName])
+        preferredName = try container.decodeFirstPresentStringIfPresent(for: [.preferredName])
+
+        if let directName = try container.decodeFirstPresentStringIfPresent(for: [.name, .displayName, .fullName]) {
             name = directName
         } else {
-            let firstName = try container.decodeFirstPresentStringIfPresent(for: [.firstName])
-            let lastName = try container.decodeFirstPresentStringIfPresent(for: [.lastName])
-            let composedName = [firstName, lastName]
+            let composedName = [preferredName ?? firstName, lastName]
                 .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
                 .joined(separator: " ")
 
             name = composedName.isEmpty
-                ? try container.decodeFirstPresentString(for: [.username], fallback: "Unnamed Member")
+                ? username ?? "Unnamed Member"
                 : composedName
         }
 
-        // Order is the preference order, and `personal_email` last is what makes
-        // alumni work. The API sends both columns but nulls `email` for an
-        // alumnus, because a UGA address stops working at graduation
-        // (memberModel.ALUMNI_EMAIL) — so the chain falls through to the
-        // personal address, which is the only one that still reaches them.
-        // Without this key an alumnus decodes with no email at all and the
-        // card's Email button greys out. Matches the web directory's
-        // `member.email || member.personalEmail`.
         email = try container.decodeFirstPresentStringIfPresent(for: [.email, .emailAddress, .personalEmail])
-
-        role = try container.decodeFirstPresentString(
-            for: [.role, .title, .major, .memberGroup],
-            fallback: "Member"
+        personalEmail = try container.decodeFirstPresentStringIfPresent(for: [.personalEmail])
+        phone = try container.decodeFirstPresentStringIfPresent(for: [.phone])
+        dateOfBirth = try container.decodeFirstPresentStringIfPresent(for: [.dob])
+        linkedinURL = try container.decodeFirstPresentStringIfPresent(
+            for: [.linkedinURL, .camelLinkedinURL, .camelLinkedInURL, .linkedin, .linkedIn]
         )
-
-        year = try container.decodeFirstPresentStringIfPresent(for: [.year, .graduationYear, .classYear, .graduationDate])
+        major = try container.decodeFirstPresentStringIfPresent(for: [.major])
+        graduationDate = try container.decodeFirstPresentStringIfPresent(for: [.graduationDate, .graduationYear, .classYear, .year])
+        year = graduationDate
+        pledgeClass = try container.decodeFirstPresentStringIfPresent(for: [.pledgeClass])
+        aboutMe = try container.decodeFirstPresentStringIfPresent(for: [.aboutMe])
+        executiveTitle = try container.decodeFirstPresentStringIfPresent(for: [.executiveTitle])
+        chairedCommittees = try container.decodeIfPresent([String].self, forKey: .chairedCommittees)
+            ?? container.decodeIfPresent([String].self, forKey: .snakeChairedCommittees)
+            ?? []
+        profilePictureAssetID = try container.decodeFirstPresentStringIfPresent(for: [.profilePictureAssetID])
 
         if let groupValue = try container.decodeIfPresent(MemberGroup.self, forKey: .group) {
             group = groupValue
@@ -95,16 +164,47 @@ struct DirectoryMember: Identifiable, Codable {
         } else {
             group = .active
         }
+
+        let decodedRole = try container.decodeFirstPresentStringIfPresent(for: [.role, .title])
+        role = executiveTitle ?? decodedRole ?? group.memberRoleTitle
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(username, forKey: .username)
+        try container.encodeIfPresent(firstName, forKey: .firstName)
+        try container.encodeIfPresent(lastName, forKey: .lastName)
+        try container.encodeIfPresent(preferredName, forKey: .preferredName)
         try container.encodeIfPresent(email, forKey: .email)
+        try container.encodeIfPresent(personalEmail, forKey: .personalEmail)
+        try container.encodeIfPresent(phone, forKey: .phone)
+        try container.encodeIfPresent(dateOfBirth, forKey: .dob)
+        try container.encodeIfPresent(linkedinURL, forKey: .linkedinURL)
+        try container.encodeIfPresent(major, forKey: .major)
+        try container.encodeIfPresent(graduationDate, forKey: .graduationDate)
+        try container.encodeIfPresent(pledgeClass, forKey: .pledgeClass)
+        try container.encodeIfPresent(aboutMe, forKey: .aboutMe)
+        try container.encodeIfPresent(executiveTitle, forKey: .executiveTitle)
+        try container.encode(chairedCommittees, forKey: .chairedCommittees)
+        try container.encodeIfPresent(profilePictureAssetID, forKey: .profilePictureAssetID)
         try container.encode(role, forKey: .role)
         try container.encodeIfPresent(year, forKey: .year)
         try container.encode(group, forKey: .group)
+    }
+}
+
+private extension MemberGroup {
+    var memberRoleTitle: String {
+        switch self {
+        case .active: "Active Member"
+        case .pledge: "Pledge"
+        case .eboard: "Executive Board"
+        case .chair: "Committee Chair"
+        case .alumni: "Alumni"
+        case .rush: "Rushee"
+        }
     }
 }
 

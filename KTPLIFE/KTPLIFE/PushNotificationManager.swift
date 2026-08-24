@@ -125,7 +125,13 @@ final class PushNotificationManager: NSObject, ObservableObject {
             if let userID = stringValue(userInfo["conversation_user_id"]) {
                 pendingDestination = .directMessage(userID: userID)
             }
-        case "event":
+        case "announcement":
+            pendingDestination = .announcement(id: stringValue(userInfo["announcement_id"]))
+        case "poll":
+            pendingDestination = .poll(id: stringValue(userInfo["poll_id"]))
+        case "meeting", "meeting_reminder":
+            pendingDestination = .meeting(id: stringValue(userInfo["meeting_id"]))
+        case "event", "event_reminder":
             if let eventID = stringValue(userInfo["event_id"]) {
                 pendingDestination = .event(eventID: eventID)
             }
@@ -153,4 +159,5 @@ extension Notification.Name {
     static let apnsDeviceTokenRegistered = Notification.Name("apnsDeviceTokenRegistered")
     static let pushNotificationTapped = Notification.Name("pushNotificationTapped")
     static let messageThreadShouldRefresh = Notification.Name("messageThreadShouldRefresh")
+    static let messageUnreadCountShouldRefresh = Notification.Name("messageUnreadCountShouldRefresh")
 }

@@ -20,6 +20,7 @@ struct CalendarView: View {
 
     private let calendar = Calendar.ktpCalendar
     private let deviceCalendarService = DeviceCalendarService()
+    private let reminderScheduler = EventReminderScheduler()
     private static let addedEventIDsStorageKey = "deviceCalendarAddedEventIDs"
 
     init(deepLinkedEventID: Binding<String?> = .constant(nil)) {
@@ -209,6 +210,7 @@ struct CalendarView: View {
         await viewModel.fetchEvents(accessTokenProvider: { [authManager] in
             try await authManager.validAccessToken()
         })
+        await reminderScheduler.sync(events: viewModel.events)
         syncSelectionToNextEventIfNeeded()
         selectDeepLinkedEventIfNeeded()
     }
@@ -518,6 +520,14 @@ private struct CalendarEventRow: View {
         return description
     }
 
+    private var eventLocation: String? {
+        guard let location = event.location?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !location.isEmpty else {
+            return nil
+        }
+        return location
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 15) {
             VStack(spacing: 2) {
@@ -552,6 +562,13 @@ private struct CalendarEventRow: View {
                         .minimumScaleFactor(0.76)
                 }
                 .foregroundStyle(CalendarDesign.muted(for: colorScheme))
+
+                if let eventLocation {
+                    Label(eventLocation, systemImage: "mappin.and.ellipse")
+                        .font(AppFont.footnote(weight: .medium))
+                        .foregroundStyle(CalendarDesign.muted(for: colorScheme))
+                        .lineLimit(2)
+                }
 
                 if let eventDescription {
                     Text(eventDescription)
