@@ -12,11 +12,17 @@ import CoreTransferable
 
 struct PhotosView: View {
     @EnvironmentObject private var authManager: AuthManager
+    @EnvironmentObject private var thumbnailRepository: GalleryThumbnailRepository
+    @EnvironmentObject private var galleryContentCache: GalleryContentCache
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
     @State private var photos: [PhotoItem] = []
+    @State private var preparedThumbnails: [String: UIImage] = [:]
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var selectedMedia: MediaSelection?
+    @State private var isLoadingGallery = true
+    @State private var galleryLoadProgress = 0.0
     @State private var isUploading = false
     @State private var loadError: String?
 
@@ -46,39 +52,48 @@ struct PhotosView: View {
     var body: some View {
         let service = photoService
 
-        PageScaffold(showsPageHeader: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                galleryToolbar
-
-                if let loadError {
-                    PhotosStatusCard(message: loadError)
+        ZStack(alignment: .topTrailing) {
+            PageScaffold(showsPageHeader: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if isLoadingGallery {
+                        GalleryLoadingView(progress: galleryLoadProgress)
+                            .frame(maxWidth: .infinity, minHeight: 280)
+                            .padding(.horizontal, 20)
+                    } else if let loadError {
+                        PhotosStatusCard(message: loadError)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 16)
+                    } else if photos.isEmpty {
+                        ContentUnavailableView(
+                            "No chapter media yet",
+                            systemImage: "photo.on.rectangle.angled",
+                            description: Text("Use the add button to share the first photo or video.")
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 280)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
-                } else if photos.isEmpty {
-                    ContentUnavailableView(
-                        "No chapter media yet",
-                        systemImage: "photo.on.rectangle.angled",
-                        description: Text("Use the add button to share the first photo or video.")
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 280)
-                    .padding(.horizontal, 20)
-                }
-                
-                // Zero row and column spacing creates one continuous, edge-to-edge grid.
-                LazyVGrid(columns: columns, spacing: 0) {
-                    ForEach(photos.indices, id: \.self) { index in
-                        GeometryReader { proxy in
-                            AuthenticatedPhotoTile(
-                                photo: photos[index],
-                                photoService: service,
-                                select: { selectedMedia = MediaSelection(index: index) }
-                            )
-                            .frame(width: proxy.size.width, height: proxy.size.width)
+                    }
+
+                    // Zero row and column spacing creates one continuous, edge-to-edge grid.
+                    LazyVGrid(columns: columns, spacing: 0) {
+                        ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                            GeometryReader { proxy in
+                                AuthenticatedPhotoTile(
+                                    photo: photo,
+                                    photoService: service,
+                                    preparedImage: preparedThumbnails[photo.id],
+                                    select: { selectedMedia = MediaSelection(index: index) }
+                                )
+                                .frame(width: proxy.size.width, height: proxy.size.width)
+                            }
+                            .aspectRatio(1, contentMode: .fit)
                         }
-                        .aspectRatio(1, contentMode: .fit)
                     }
                 }
             }
+
+            addPhotoButton
+                .padding(12)
+                .zIndex(1)
         }
         // The dismiss control occupies its own top safe-area region, so the first photo
         // cannot receive a tap intended for the back control.
@@ -127,33 +142,90 @@ struct PhotosView: View {
         }
     }
     
-    private var galleryToolbar: some View {
-        HStack {
-            Spacer()
-            addPhotoButton
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(PhotosDesign.galleryBackground(for: colorScheme))
-    }
-
     @MainActor
     private func loadPhotos() async {
+        if galleryContentCache.hasLoaded {
+            photos = galleryContentCache.photos
+            preparedThumbnails = galleryContentCache.thumbnails
+            galleryLoadProgress = 1
+            isLoadingGallery = false
+            loadError = nil
+            return
+        }
+
+        isLoadingGallery = true
+        galleryLoadProgress = 0
 #if DEBUG
         if isPreview {
             photos = PhotoItem.previewSamples
+            galleryLoadProgress = 1
+            isLoadingGallery = false
             loadError = nil
             return
         }
 #endif
         
         do {
-            photos = try await photoService.fetchPhotos()
+            let loadedPhotos = try await photoService.fetchPhotos()
+            var loadedThumbnails: [String: UIImage] = [:]
+            let batchSize = 6
+            for batchStart in stride(from: 0, to: loadedPhotos.count, by: batchSize) {
+                let batchEnd = min(batchStart + batchSize, loadedPhotos.count)
+                let tasks = loadedPhotos[batchStart..<batchEnd].map { photo in
+                    Task { @MainActor in
+                        (photo.id, await prepareThumbnail(for: photo))
+                    }
+                }
+
+                for (batchIndex, task) in tasks.enumerated() {
+                    guard !Task.isCancelled else {
+                        tasks.forEach { $0.cancel() }
+                        return
+                    }
+
+                    let (photoID, thumbnail) = await task.value
+                    if let thumbnail {
+                        loadedThumbnails[photoID] = thumbnail
+                    }
+                    let completedCount = batchStart + batchIndex + 1
+                    galleryLoadProgress = Double(completedCount) / Double(max(loadedPhotos.count, 1))
+                }
+            }
+
+            preparedThumbnails = loadedThumbnails
+            photos = loadedPhotos
+            galleryContentCache.store(photos: loadedPhotos, thumbnails: loadedThumbnails)
+            if loadedPhotos.isEmpty {
+                galleryLoadProgress = 1
+            }
             loadError = nil
         } catch {
             photos = []
+            preparedThumbnails = [:]
             loadError = photosErrorMessage(for: error)
         }
+        isLoadingGallery = false
+    }
+
+    @MainActor
+    private func prepareThumbnail(for photo: PhotoItem) async -> UIImage? {
+        if photo.isVideo {
+            do {
+                let data = try await photoService.fetchMediaData(for: photo)
+                let url = try await MediaTemporaryFile.write(data: data, suggestedPath: photo.imagePath)
+                defer { try? FileManager.default.removeItem(at: url) }
+                return await VideoThumbnailGenerator.image(from: url)
+            } catch {
+                return nil
+            }
+        }
+
+        return await thumbnailRepository.image(
+            for: "gallery-\(photo.id)",
+            pointSize: 180,
+            displayScale: displayScale,
+            loadData: { try await photoService.fetchMediaData(for: photo) }
+        )
     }
     
     
@@ -241,6 +313,14 @@ struct PhotosView: View {
 
             if !uploadedPhotos.isEmpty {
                 photos.insert(contentsOf: uploadedPhotos.reversed(), at: 0)
+
+                for photo in uploadedPhotos {
+                    if let thumbnail = await prepareThumbnail(for: photo) {
+                        preparedThumbnails[photo.id] = thumbnail
+                    }
+                }
+
+                galleryContentCache.store(photos: photos, thumbnails: preparedThumbnails)
             }
 
             loadError = nil
@@ -362,6 +442,7 @@ private struct AuthenticatedPhotoTile: View {
     @EnvironmentObject private var thumbnailRepository: GalleryThumbnailRepository
     let photo: PhotoItem
     let photoService: PhotoService
+    let preparedImage: UIImage?
     let select: () -> Void
 
     @State private var image: UIImage?
@@ -373,8 +454,8 @@ private struct AuthenticatedPhotoTile: View {
             PhotosDesign.tileBackground(for: colorScheme)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay {
-                    if let image {
-                        Image(uiImage: image)
+                    if let displayedImage = image ?? preparedImage {
+                        Image(uiImage: displayedImage)
                             .resizable()
                             .scaledToFill()
                             .clipped()
@@ -427,6 +508,11 @@ private struct AuthenticatedPhotoTile: View {
 
     @MainActor
     private func loadThumbnail(for size: CGSize) async {
+        if preparedImage != nil {
+            image = nil
+            return
+        }
+
         guard size.width > 0 else {
             image = nil
             return
@@ -786,6 +872,32 @@ private struct PhotoCloseButtonLabel: View {
     }
 }
 
+private struct GalleryLoadingView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let progress: Double
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Text("Preparing gallery")
+                .font(AppFont.headline())
+                .foregroundStyle(PhotosDesign.addButtonForeground(for: colorScheme))
+
+            ProgressView(value: progress, total: 1)
+                .progressViewStyle(.linear)
+                .tint(AppSystemColor.primaryLabel)
+                .frame(maxWidth: 260)
+
+            Text(progress > 0 ? "\(Int((progress * 100).rounded()))%" : "Loading photos…")
+                .font(AppFont.footnote())
+                .foregroundStyle(PhotosDesign.secondaryText(for: colorScheme))
+                .monospacedDigit()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Preparing gallery")
+        .accessibilityValue("\(Int((progress * 100).rounded())) percent")
+    }
+}
+
 
 private struct PhotosStatusCard: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -842,5 +954,6 @@ private enum PhotosDesign {
         .background(AppTab.photos.theme.previewBackground())
         .environmentObject(AuthManager.previewSignedOut)
         .environmentObject(GalleryThumbnailRepository())
+        .environmentObject(GalleryContentCache())
 }
 #endif

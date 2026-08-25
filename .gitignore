@@ -9,3 +9,5 @@ ktp-api/uploads/
 # macOS / Xcode
 .DS_Store
 **/.deriveddata/
+**/xcuserdata/
+*.xcuserstate

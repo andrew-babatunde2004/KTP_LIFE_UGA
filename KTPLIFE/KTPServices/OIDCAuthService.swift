@@ -128,46 +128,6 @@ final class OIDCAuthService {
         )
     }
 
-    /// Ends the authentik browser session used by `ASWebAuthenticationSession`.
-    ///
-    /// This is intentionally best-effort: local credentials must still be cleared
-    /// when the provider is unreachable or the user dismisses the logout page.
-    func signOut(idToken: String?) async {
-        do {
-            let configuration = try await discoverConfiguration()
-            var components = URLComponents(
-                url: configuration.endSessionEndpoint ?? AuthConfiguration.endSessionEndpoint,
-                resolvingAgainstBaseURL: false
-            )
-            var queryItems = [
-                URLQueryItem(name: "client_id", value: AuthConfiguration.clientID),
-                URLQueryItem(name: "post_logout_redirect_uri", value: AuthConfiguration.redirectURI.absoluteString)
-            ]
-
-            if let idToken, !idToken.isEmpty {
-                queryItems.append(URLQueryItem(name: "id_token_hint", value: idToken))
-            }
-
-            components?.queryItems = queryItems
-            guard let logoutURL = components?.url else {
-                AuthDebugLog.log("Could not construct OIDC logout URL.")
-                return
-            }
-
-            let endpointDescription = [
-                logoutURL.scheme ?? "https",
-                "://",
-                logoutURL.host ?? "",
-                logoutURL.path
-            ].joined()
-            AuthDebugLog.log("Opening OIDC logout endpoint: \(endpointDescription)")
-            _ = try await startAuthenticationSession(url: logoutURL)
-            AuthDebugLog.log("OIDC logout session completed.")
-        } catch {
-            AuthDebugLog.log("OIDC logout did not complete: \(error.localizedDescription)")
-        }
-    }
-
     private func discoverConfiguration() async throws -> OIDCConfiguration {
         let discoveryURL = AuthConfiguration.issuer.appendingPathComponent(".well-known/openid-configuration")
         AuthDebugLog.log("Fetching discovery document: \(discoveryURL.absoluteString)")
