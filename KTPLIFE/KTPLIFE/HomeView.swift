@@ -164,53 +164,52 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 14) {
             HomeSectionHeader(title: "Chapter resources")
 
-            LazyVGrid(
-                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
-                spacing: 12
-            ) {
-                if canAccessFilesAndPhotos {
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 12) {
+                    if canAccessFilesAndPhotos {
+                        HomeNavigationItem(
+                            title: "Documents",
+                            systemImage: "doc.on.doc.fill",
+                            action: showDocuments
+                        )
+                    }
+
+                    if canAccessCommittees {
+                        HomeNavigationItem(
+                            title: "Committees",
+                            systemImage: "person.3.fill",
+                            action: showCommittees
+                        )
+                    }
+
                     HomeNavigationItem(
-                        title: "Documents",
-                        systemImage: "doc.on.doc.fill",
-                        action: showDocuments
+                        title: "Polls",
+                        systemImage: "chart.bar.fill",
+                        action: showPolls
+                    )
+
+                    HomeNavigationItem(
+                        title: "Announcements",
+                        systemImage: "megaphone.fill",
+                        action: showAnnouncements
+                    )
+
+                    if canAccessMeetings {
+                        HomeNavigationItem(
+                            title: "Meetings",
+                            systemImage: "person.2.badge.gearshape",
+                            action: showMeetings
+                        )
+                    }
+
+                    HomeNavigationItem(
+                        title: "Interviews",
+                        systemImage: "person.crop.rectangle.stack",
+                        action: showInterviews
                     )
                 }
-
-                if canAccessCommittees {
-                    HomeNavigationItem(
-                        title: "Committees",
-                        systemImage: "person.3.fill",
-                        action: showCommittees
-                    )
-                }
-
-                HomeNavigationItem(
-                    title: "Polls",
-                    systemImage: "chart.bar.fill",
-                    action: showPolls
-                )
-
-                HomeNavigationItem(
-                    title: "Announcements",
-                    systemImage: "megaphone.fill",
-                    action: showAnnouncements
-                )
-
-                if canAccessMeetings {
-                    HomeNavigationItem(
-                        title: "Meetings",
-                        systemImage: "person.2.badge.gearshape",
-                        action: showMeetings
-                    )
-                    .gridCellColumns(2)
-                }
-
-                HomeNavigationItem(
-                    title: "Interviews",
-                    systemImage: "person.crop.rectangle.stack",
-                    action: showInterviews
-                )
-                .gridCellColumns(2)
+                .padding(.horizontal, 1)
+                .padding(.bottom, 4)
             }
         }
     }
@@ -661,8 +660,8 @@ private struct HomeNavigationItem: View {
                     .minimumScaleFactor(0.68)
                     .allowsTightening(true)
             }
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, minHeight: 82)
+            .padding(.horizontal, 16)
+            .frame(width: 132, height: 92)
             .background(
                 AppSystemColor.elevatedBackground,
                 in: RoundedRectangle(cornerRadius: 20, style: .continuous)

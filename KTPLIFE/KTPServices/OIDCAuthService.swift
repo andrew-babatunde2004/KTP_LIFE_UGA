@@ -27,7 +27,7 @@ enum AuthServiceError: LocalizedError {
         case .missingCodeVerifier:
             return "Missing PKCE verifier."
         case .invalidCallback:
-            return "Invalid authentication callback."
+            return "Error Try Again"
         case .missingDiscoveryEndpoint:
             return "Unable to load OIDC discovery document."
         case .invalidTokenResponse:

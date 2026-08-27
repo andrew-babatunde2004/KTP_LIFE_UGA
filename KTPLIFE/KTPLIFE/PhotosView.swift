@@ -25,6 +25,9 @@ struct PhotosView: View {
     @State private var galleryLoadProgress = 0.0
     @State private var isUploading = false
     @State private var loadError: String?
+    @State private var photoPendingDeletion: PhotoItem?
+    @State private var deletingPhotoIDs: Set<String> = []
+    @State private var deleteErrorMessage: String?
 
     let showsCloseButton: Bool
 
@@ -81,7 +84,10 @@ struct PhotosView: View {
                                     photo: photo,
                                     photoService: service,
                                     preparedImage: preparedThumbnails[photo.id],
-                                    select: { selectedMedia = MediaSelection(index: index) }
+                                    select: { selectedMedia = MediaSelection(index: index) },
+                                    canDelete: canDelete(photo),
+                                    requestDeletion: { photoPendingDeletion = photo },
+                                    isDeleting: deletingPhotoIDs.contains(photo.id)
                                 )
                                 .frame(width: proxy.size.width, height: proxy.size.width)
                             }
@@ -139,6 +145,62 @@ struct PhotosView: View {
                 initialIndex: selection.index,
                 photoService: service
             )
+        }
+        .confirmationDialog(
+            "Delete this media?",
+            isPresented: Binding(
+                get: { photoPendingDeletion != nil },
+                set: { if !$0 { photoPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                guard let photo = photoPendingDeletion else { return }
+                photoPendingDeletion = nil
+                Task { await deletePhoto(photo) }
+            }
+            Button("Cancel", role: .cancel) { photoPendingDeletion = nil }
+        } message: {
+            Text("This permanently removes the photo or video from the chapter gallery.")
+        }
+        .alert("Couldn’t Delete Media", isPresented: Binding(
+            get: { deleteErrorMessage != nil },
+            set: { if !$0 { deleteErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteErrorMessage ?? "Please try again.")
+        }
+    }
+
+    /// The client only offers deletion when the gallery response positively
+    /// identifies the signed-in member as the uploader. The server still owns
+    /// authorization for the DELETE request.
+    private func canDelete(_ photo: PhotoItem) -> Bool {
+        guard let currentUserID = authManager.currentUserID,
+              let uploadedBy = photo.uploadedBy?.nonEmptyTrimmed
+        else {
+            return false
+        }
+
+        return uploadedBy == currentUserID
+    }
+
+    @MainActor
+    private func deletePhoto(_ photo: PhotoItem) async {
+        guard deletingPhotoIDs.insert(photo.id).inserted else { return }
+        deleteErrorMessage = nil
+        defer { deletingPhotoIDs.remove(photo.id) }
+
+        do {
+            try await photoService.deletePhoto(id: photo.id)
+            photos.removeAll { $0.id == photo.id }
+            preparedThumbnails[photo.id] = nil
+            galleryContentCache.store(photos: photos, thumbnails: preparedThumbnails)
+        } catch is CancellationError {
+            return
+        } catch {
+            deleteErrorMessage = photoDeleteErrorMessage(for: error)
         }
     }
     
@@ -370,6 +432,29 @@ struct PhotosView: View {
         return "The photo upload failed. Please try again."
     }
 
+    private func photoDeleteErrorMessage(for error: Error) -> String {
+        if case AuthManagerError.notAuthenticated = error {
+            return "Your sign-in session has expired. Sign in again and retry the deletion."
+        }
+
+        if case KTPAPIError.missingAccessToken = error {
+            return "Your sign-in session has expired. Sign in again and retry the deletion."
+        }
+
+        if case KTPAPIError.badStatusCode(let statusCode, _) = error {
+            switch statusCode {
+            case 403:
+                return "Only the member who uploaded this media can delete it."
+            case 404:
+                return "This media is no longer in the chapter gallery."
+            default:
+                return "The chapter gallery could not delete this media (HTTP \(statusCode))."
+            }
+        }
+
+        return "The media could not be deleted. Please try again."
+    }
+
     private func mediaContentType(for url: URL, supportedTypes: [UTType], fallback: UTType) -> UTType {
         if let type = UTType(filenameExtension: url.pathExtension) {
             return type
@@ -444,6 +529,9 @@ private struct AuthenticatedPhotoTile: View {
     let photoService: PhotoService
     let preparedImage: UIImage?
     let select: () -> Void
+    let canDelete: Bool
+    let requestDeletion: () -> Void
+    let isDeleting: Bool
 
     @State private var image: UIImage?
     @State private var isDownloading = false
@@ -482,8 +570,17 @@ private struct AuthenticatedPhotoTile: View {
                 Label(isDownloading ? "Saving…" : "Save to Photos", systemImage: "arrow.down.to.line")
             }
             .disabled(isDownloading)
+
+            if canDelete {
+                Divider()
+
+                Button(role: .destructive, action: requestDeletion) {
+                    Label(isDeleting ? "Deleting…" : "Delete", systemImage: "trash")
+                }
+                .disabled(isDeleting)
+            }
         }
-        .accessibilityLabel("\(photo.title). Tap to view full size. Long press to save.")
+        .accessibilityLabel("\(photo.title). Tap to view full size. Long press to save\(canDelete ? " or delete" : "").")
         .background {
             GeometryReader { proxy in
                 Color.clear

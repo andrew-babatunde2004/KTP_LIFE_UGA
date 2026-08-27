@@ -5,13 +5,15 @@
 
 import SwiftUI
 import UIKit
+import PhotosUI
+import UniformTypeIdentifiers
 
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var pushNotificationManager: PushNotificationManager
+    @EnvironmentObject private var avatarRepository: AvatarRepository
     @State private var profile: UserProfile?
-    @State private var preferredName = ""
     @State private var firstName = ""
     @State private var lastName = ""
     @State private var major = ""
@@ -25,6 +27,9 @@ struct ProfileView: View {
     @State private var aboutMe = ""
     @State private var isLoading = true
     @State private var isSaving = false
+    @State private var selectedProfilePhoto: PhotosPickerItem?
+    @State private var profilePhotoPreview: UIImage?
+    @State private var isUpdatingProfilePhoto = false
     @State private var isDeletingAccount = false
     @State private var showsDeleteAccountConfirmation = false
     @State private var errorMessage: String?
@@ -88,9 +93,29 @@ struct ProfileView: View {
         Form {
             Section {
                 VStack(spacing: 12) {
-                    CurrentUserAvatarView(size: 92)
+                    ZStack(alignment: .bottomTrailing) {
+                        CurrentUserAvatarView(size: 92, previewImage: profilePhotoPreview)
 
-                    Text(preferredName.nonEmptyTrimmed ?? profile?.displayName ?? "KTP Member")
+                        PhotosPicker(
+                            selection: $selectedProfilePhoto,
+                            matching: .images,
+                            preferredItemEncoding: .current
+                        ) {
+                            Image(systemName: isUpdatingProfilePhoto ? "hourglass" : "camera.fill")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 30, height: 30)
+                                .background(AppSurfaceColor.primaryControl, in: Circle())
+                                .overlay {
+                                    Circle().stroke(AppSystemColor.elevatedBackground, lineWidth: 2)
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(isUpdatingProfilePhoto || isSaving)
+                        .accessibilityLabel(isUpdatingProfilePhoto ? "Updating profile picture" : "Change profile picture")
+                    }
+
+                    Text(profile?.displayName ?? "KTP Member")
                         .font(AppFont.title(24))
 
                     if let username = profile?.username?.nonEmptyTrimmed {
@@ -108,10 +133,6 @@ struct ProfileView: View {
 
             Section {
                 VStack(alignment: .leading, spacing: 18) {
-                    profileField(title: "Preferred name") {
-                        TextField("How members know you", text: $preferredName)
-                            .textContentType(.nickname)
-                    }
                     profileField(title: "First name") {
                         TextField("First name", text: $firstName)
                             .textContentType(.givenName)
@@ -262,6 +283,10 @@ struct ProfileView: View {
         .listSectionSpacing(20)
         .scrollContentBackground(.hidden)
         .background(AppSystemColor.background)
+        .onChange(of: selectedProfilePhoto) { _, item in
+            guard let item else { return }
+            Task { await updateProfilePicture(from: item) }
+        }
     }
 
     @MainActor
@@ -303,7 +328,7 @@ struct ProfileView: View {
         errorMessage = nil
 
         let request = UpdateUserProfileRequest(
-            preferredName: preferredName.nonEmptyTrimmed,
+            preferredName: nil,
             firstName: firstName.nonEmptyTrimmed,
             lastName: lastName.nonEmptyTrimmed,
             dateOfBirth: requestBirthdate(from: dateOfBirth),
@@ -348,7 +373,6 @@ struct ProfileView: View {
 
     private func apply(_ profile: UserProfile) {
         self.profile = profile
-        preferredName = profile.preferredName ?? ""
         firstName = profile.firstName ?? ""
         lastName = profile.lastName ?? ""
         major = profile.major ?? ""
@@ -360,6 +384,45 @@ struct ProfileView: View {
         linkedinURL = profile.linkedinURL ?? ""
         pledgeClass = profile.pledgeClass ?? ""
         aboutMe = profile.aboutMe ?? ""
+    }
+
+    @MainActor
+    private func updateProfilePicture(from item: PhotosPickerItem) async {
+        guard !isUpdatingProfilePhoto else { return }
+        isUpdatingProfilePhoto = true
+        errorMessage = nil
+        let previousPreview = profilePhotoPreview
+        defer {
+            isUpdatingProfilePhoto = false
+            selectedProfilePhoto = nil
+        }
+
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data)
+            else {
+                throw ProfilePictureError.unreadableImage
+            }
+
+            profilePhotoPreview = image
+            let imageType = item.supportedContentTypes.first(where: { $0.conforms(to: .image) && $0.preferredMIMEType != nil }) ?? .jpeg
+            let fileExtension = imageType.preferredFilenameExtension ?? "jpg"
+            let updatedProfile = try await apiService.updateCurrentUserProfilePicture(
+                MessageAttachmentUpload(
+                    data: data,
+                    fileName: "profile-picture.\(fileExtension)",
+                    mimeType: imageType.preferredMIMEType ?? "image/jpeg"
+                )
+            )
+            avatarRepository.clear()
+            authManager.updateCurrentUserProfile(updatedProfile)
+            apply(updatedProfile)
+        } catch is CancellationError {
+            profilePhotoPreview = previousPreview
+        } catch {
+            profilePhotoPreview = previousPreview
+            errorMessage = "Could not update your profile picture. Please try again."
+        }
     }
 
     @ViewBuilder
@@ -420,6 +483,14 @@ private enum ProfileDateFormatters {
     }
 }
 
+private enum ProfilePictureError: LocalizedError {
+    case unreadableImage
+
+    var errorDescription: String? {
+        "Could not read the selected image."
+    }
+}
+
 private struct AppearanceSettingsView: View {
     @AppStorage(AppAppearance.storageKey) private var appearanceRawValue = AppAppearance.system.rawValue
 
@@ -462,13 +533,21 @@ struct CurrentUserAvatarView: View {
     @State private var image: UIImage?
 
     let size: CGFloat
+    let previewImage: UIImage?
+
+    init(size: CGFloat, previewImage: UIImage? = nil) {
+        self.size = size
+        self.previewImage = previewImage
+    }
 
     private var userID: String? {
         authManager.currentUserID
     }
 
     private var fallbackInitials: String {
-        let name = authManager.currentUserPreferredUsername ?? authManager.currentUserProfile?.displayName ?? "KTP"
+        let name = authManager.currentUserProfile?.displayName
+            ?? authManager.currentUserPreferredUsername
+            ?? "KTP"
         let initials = String(name.split(separator: " ").prefix(2).compactMap(\.first)).uppercased()
         return initials.isEmpty ? "KT" : initials
     }
@@ -484,7 +563,11 @@ struct CurrentUserAvatarView: View {
             Circle()
                 .fill(AppSystemColor.elevatedBackground)
 
-            if let image {
+            if let previewImage {
+                Image(uiImage: previewImage)
+                    .resizable()
+                    .scaledToFill()
+            } else if let image {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
@@ -500,7 +583,7 @@ struct CurrentUserAvatarView: View {
             Circle()
                 .stroke(AppSystemColor.separator.opacity(0.5), lineWidth: 1)
         }
-        .task(id: "\(userID ?? "unknown")-\(Int(size * displayScale))") {
+        .task(id: "\(userID ?? "unknown")-\(authManager.currentUserProfile?.profilePictureAssetID ?? "no-photo")-\(Int(size * displayScale))") {
             await loadImage()
         }
         .accessibilityLabel("Your profile picture")

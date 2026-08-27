@@ -13,7 +13,7 @@ struct MessageThreadsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var authManager: AuthManager
     @State private var threads: [MessageThread] = []
-    @State private var isLoading = false
+    @State private var isLoading = true
     @State private var isRefreshing = false
     @State private var loadError: String?
 
@@ -448,6 +448,10 @@ struct MessageConversationView: View {
     @State private var pendingAttachmentPreview: UIImage?
     @State private var isPreparingAttachment = false
     @State private var attachmentDataByMessageID: [String: Data] = [:]
+    /// Group-message payloads do not always include sender display metadata.
+    /// Keep the existing group-member endpoint as the source of truth for the
+    /// name and profile image shown beside those messages.
+    @State private var groupMembersByID: [String: DirectoryMember] = [:]
     @FocusState private var isComposerFocused: Bool
 
     let thread: MessageThread
@@ -480,7 +484,7 @@ struct MessageConversationView: View {
         // Fill the navigation destination so the safe-area composer is anchored to
         // the bottom of the screen instead of immediately following short content.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .navigationTitle(thread.displayName)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await monitorConversation()
@@ -493,6 +497,10 @@ struct MessageConversationView: View {
             Task { await loadConversation(showsLoadingState: false) }
         }
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                conversationTitleAvatar
+            }
+
             if directConversation != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -613,6 +621,23 @@ struct MessageConversationView: View {
     }
 
     @ViewBuilder
+    private var conversationTitleAvatar: some View {
+        switch thread {
+        case .direct(let conversation):
+            ProfileAvatarView(
+                imageURL: conversation.profileImageURL,
+                profileID: conversation.userId,
+                name: conversation.displayName,
+                isGroup: false,
+                size: 34,
+                apiService: apiService
+            )
+        case .group(let chat):
+            GroupChatAvatar(chat: chat, size: 34, apiService: apiService)
+        }
+    }
+
+    @ViewBuilder
     private var messageComposer: some View {
         if #available(iOS 26.0, *), !reduceTransparency {
             GlassEffectContainer(spacing: 16) {
@@ -634,9 +659,7 @@ struct MessageConversationView: View {
             }
 
             HStack(spacing: 10) {
-                if directConversation != nil {
-                    mediaPicker
-                }
+                mediaPicker
 
                 TextField("Message", text: $draftMessage, axis: .vertical)
                     .font(AppFont.subheadline())
@@ -880,6 +903,23 @@ struct MessageConversationView: View {
                 imageURL: message.senderProfileImageURL
             )
         case .group:
+            if let senderID = message.senderId,
+               let member = groupMembersByID[senderID] {
+                return MessageSender(
+                    id: member.id,
+                    name: member.name,
+                    imageURL: message.senderProfileImageURL
+                )
+            }
+
+            if isSentByCurrentUser(message), let currentUser = authManager.currentUserProfile {
+                return MessageSender(
+                    id: currentUser.id,
+                    name: currentUser.displayName,
+                    imageURL: message.senderProfileImageURL
+                )
+            }
+
             return MessageSender(
                 id: message.senderId,
                 name: message.senderDisplayName ?? "Member",
@@ -963,6 +1003,8 @@ struct MessageConversationView: View {
     @MainActor
     private func monitorConversation() async {
         await loadBlockState()
+        // Sender metadata should not delay the first history request.
+        Task { await loadGroupMembers() }
         await loadConversation(showsLoadingState: true)
 
         while !Task.isCancelled {
@@ -977,6 +1019,23 @@ struct MessageConversationView: View {
 
             guard scenePhase == .active, !isBlocked else { continue }
             await loadConversation(showsLoadingState: false)
+        }
+    }
+
+    /// Resolves group-message sender IDs to the same member identities used by
+    /// direct conversations. A failure here must not prevent the message
+    /// timeline from loading; the message payload remains the fallback.
+    @MainActor
+    private func loadGroupMembers() async {
+        guard case .group(let chat) = thread else { return }
+
+        do {
+            let members = try await apiService.fetchGroupChatMembers(chatID: chat.id)
+            groupMembersByID = Dictionary(uniqueKeysWithValues: members.map { ($0.id, $0) })
+        } catch is CancellationError {
+            return
+        } catch {
+            return
         }
     }
 
@@ -1005,18 +1064,37 @@ struct MessageConversationView: View {
         do {
             let isIncrementalRequest = hasLoadedInitialConversationPage && conversationCursor != nil
             let syncResponse: ConversationSyncResponse
-            switch thread {
-            case .direct(let conversation):
-                syncResponse = try await apiService.syncConversation(
-                    with: conversation.userId,
-                    after: isIncrementalRequest ? conversationCursor : nil,
-                    eTag: conversationETag
-                )
-            case .group(let chat):
-                syncResponse = try await apiService.syncGroupChatMessages(
-                    chatId: chat.id,
-                    after: isIncrementalRequest ? conversationCursor : nil,
-                    eTag: conversationETag
+            if hasLoadedInitialConversationPage {
+                switch thread {
+                case .direct(let conversation):
+                    syncResponse = try await apiService.syncConversation(
+                        with: conversation.userId,
+                        after: isIncrementalRequest ? conversationCursor : nil,
+                        eTag: conversationETag
+                    )
+                case .group(let chat):
+                    syncResponse = try await apiService.syncGroupChatMessages(
+                        chatId: chat.id,
+                        after: isIncrementalRequest ? conversationCursor : nil,
+                        eTag: conversationETag
+                    )
+                }
+            } else {
+                let initialMessages: [KTPMessage]
+                switch thread {
+                case .direct(let conversation):
+                    initialMessages = try await apiService.fetchConversation(with: conversation.userId)
+                case .group(let chat):
+                    initialMessages = try await apiService.fetchGroupChatMessages(chatId: chat.id)
+                }
+                syncResponse = .updated(
+                    page: ConversationMessagePage(
+                        messages: initialMessages,
+                        nextCursor: nil,
+                        hasMoreBefore: false,
+                        deletedMessageIDs: Set(initialMessages.filter(\.isDeleted).map(\.id))
+                    ),
+                    eTag: nil
                 )
             }
 
@@ -1212,7 +1290,11 @@ struct MessageConversationView: View {
                     attachment: attachment
                 )
             case .group(let chat):
-                sentMessage = try await apiService.sendGroupChatMessage(chatId: chat.id, body: content)
+                sentMessage = try await apiService.sendGroupChatMessage(
+                    chatId: chat.id,
+                    body: content.isEmpty ? nil : content,
+                    attachment: attachment
+                )
             }
             if let attachment {
                 attachmentDataByMessageID[sentMessage.id] = attachment.data
@@ -1676,26 +1758,27 @@ private struct MessageBubble: View {
     private var messageHeader: some View {
         if showsSenderIdentity {
             HStack(spacing: 6) {
-                if showsSenderIdentity, isSentByCurrentUser {
-                    Text(sender.name)
-                        .font(AppFont.caption(weight: .bold))
-                        .foregroundStyle(MessageDesign.muted(for: colorScheme))
-                        .lineLimit(1)
-
-                    AuthenticatedMessageAvatar(sender: sender, apiService: apiService)
-                        .frame(width: 24, height: 24)
-                } else if showsSenderIdentity {
-                    AuthenticatedMessageAvatar(sender: sender, apiService: apiService)
-                        .frame(width: 24, height: 24)
-
-                    Text(sender.name)
-                        .font(AppFont.caption(weight: .bold))
-                        .foregroundStyle(MessageDesign.muted(for: colorScheme))
-                        .lineLimit(1)
+                if isSentByCurrentUser {
+                    senderName
+                    senderAvatar
+                } else {
+                    senderAvatar
+                    senderName
                 }
-
             }
         }
+    }
+
+    private var senderName: some View {
+        Text(sender.name)
+            .font(AppFont.caption(weight: .bold))
+            .foregroundStyle(MessageDesign.muted(for: colorScheme))
+            .lineLimit(1)
+    }
+
+    private var senderAvatar: some View {
+        AuthenticatedMessageAvatar(sender: sender, size: 30, apiService: apiService)
+            .frame(width: 30, height: 30)
     }
 
     private var reactionBar: some View {
@@ -1933,6 +2016,7 @@ private struct AuthenticatedMessageAvatar: View {
     @Environment(\.displayScale) private var displayScale
     @EnvironmentObject private var avatarRepository: AvatarRepository
     let sender: MessageSender
+    let size: CGFloat
     let apiService: KTPAPIService
 
     @State private var image: UIImage?
@@ -1957,7 +2041,7 @@ private struct AuthenticatedMessageAvatar: View {
             }
         }
         .clipShape(Circle())
-        .task(id: "\(sender.id ?? sender.imageURL?.absoluteString ?? sender.name)-\(Int(24 * displayScale))") {
+        .task(id: "\(sender.id ?? sender.imageURL?.absoluteString ?? sender.name)-\(Int(size * displayScale))") {
             await loadImage()
         }
         .accessibilityLabel("\(sender.name) profile picture")
@@ -1968,7 +2052,7 @@ private struct AuthenticatedMessageAvatar: View {
         let sourceID = sender.id ?? sender.imageURL?.absoluteString ?? sender.name
         let avatar = await avatarRepository.image(
             for: sourceID,
-            pointSize: 24,
+            pointSize: size,
             displayScale: displayScale,
             loadData: {
                 if let imageURL = sender.imageURL {

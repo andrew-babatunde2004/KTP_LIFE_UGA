@@ -23,14 +23,14 @@ struct UserProfile: Identifiable, Decodable, Equatable {
     var graduationDate: String? { graduationYear }
 
     var displayName: String {
-        if let preferredName = preferredName?.nonEmptyTrimmed {
-            return preferredName
-        }
-
         let fullName = [firstName, lastName]
             .compactMap { $0?.nonEmptyTrimmed }
             .joined(separator: " ")
-        return fullName.isEmpty ? "KTP Member" : fullName
+        if !fullName.isEmpty {
+            return fullName
+        }
+
+        return username?.nonEmptyTrimmed ?? "KTP Member"
     }
 
     enum CodingKeys: String, CodingKey {
