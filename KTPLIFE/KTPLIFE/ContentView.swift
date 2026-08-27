@@ -220,6 +220,11 @@ struct ContentView: View {
                     Task {
                         await authManager.signInWithSSO()
                     }
+                },
+                signInWithDifferentAccount: {
+                    Task {
+                        await authManager.signInWithSSO(useEphemeralSession: true)
+                    }
                 }
             )
         case .profileIncomplete:

@@ -16,6 +16,19 @@ struct SSOLoginView: View {
     let isLoading: Bool
     let errorMessage: String?
     let signIn: () -> Void
+    let signInWithDifferentAccount: () -> Void
+
+    init(
+        isLoading: Bool,
+        errorMessage: String?,
+        signIn: @escaping () -> Void,
+        signInWithDifferentAccount: @escaping () -> Void = {}
+    ) {
+        self.isLoading = isLoading
+        self.errorMessage = errorMessage
+        self.signIn = signIn
+        self.signInWithDifferentAccount = signInWithDifferentAccount
+    }
 
     private let recruitmentQuestion = "Ready to join the University of Georgia’s premier Professional Technology Fraternity?"
     private let rushEnrollmentURL = URL(
@@ -164,6 +177,19 @@ struct SSOLoginView: View {
                 tint: SSOLoginPalette.rushButton,
                 useGlass: useGlass
             ))
+
+            Button(action: signInWithDifferentAccount) {
+                Text("Sign in with a different account")
+                    .font(.system(size: 15, weight: .semibold, design: .default))
+                    .foregroundStyle(.white.opacity(isLoading ? 0.55 : 0.90))
+                    .underline()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isLoading)
+            .accessibilityHint("Opens a private sign-in session without using the previously selected account")
         }
     }
 

@@ -54,7 +54,7 @@ final class OIDCAuthService {
         self.session = session
     }
 
-    func signIn() async throws -> AuthTokens {
+    func signIn(prefersEphemeralSession: Bool = false) async throws -> AuthTokens {
         AuthDebugLog.log("Starting OIDC sign-in with issuer=\(AuthConfiguration.issuer.absoluteString), clientID=\(AuthConfiguration.clientID)")
         let configuration = try await discoverConfiguration()
         let pkce = PKCE.generate()
@@ -62,7 +62,7 @@ final class OIDCAuthService {
         let nonce = RandomString.generate(length: 32)
 
         var components = URLComponents(url: configuration.authorizationEndpoint, resolvingAgainstBaseURL: false)
-        components?.queryItems = [
+        var authorizationQueryItems = [
             URLQueryItem(name: "client_id", value: AuthConfiguration.clientID),
             URLQueryItem(name: "redirect_uri", value: AuthConfiguration.redirectURI.absoluteString),
             URLQueryItem(name: "response_type", value: "code"),
@@ -72,13 +72,20 @@ final class OIDCAuthService {
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "nonce", value: nonce)
         ]
+        if prefersEphemeralSession {
+            authorizationQueryItems.append(URLQueryItem(name: "prompt", value: "login"))
+        }
+        components?.queryItems = authorizationQueryItems
 
         guard let authorizationURL = components?.url else {
             throw AuthServiceError.missingDiscoveryEndpoint
         }
 
         AuthDebugLog.log("Opening authorization URL: \(authorizationURL.absoluteString)")
-        let callbackURL = try await startAuthenticationSession(url: authorizationURL)
+        let callbackURL = try await startAuthenticationSession(
+            url: authorizationURL,
+            prefersEphemeralSession: prefersEphemeralSession
+        )
         AuthDebugLog.log("Received callback URL: \(callbackURL.absoluteString)")
         guard callbackURL.scheme == AuthConfiguration.redirectURI.scheme else {
             throw AuthServiceError.invalidCallback
@@ -126,6 +133,40 @@ final class OIDCAuthService {
             fallbackRefreshToken: refreshToken,
             fallbackIDToken: idToken
         )
+    }
+
+    func signOut(idToken: String?) async {
+        do {
+            let configuration = try await discoverConfiguration()
+            guard let endSessionEndpoint = configuration.endSessionEndpoint else {
+                return
+            }
+
+            var components = URLComponents(
+                url: endSessionEndpoint,
+                resolvingAgainstBaseURL: false
+            )
+            var queryItems = [
+                URLQueryItem(
+                    name: "post_logout_redirect_uri",
+                    value: AuthConfiguration.redirectURI.absoluteString
+                )
+            ]
+            if let idToken, !idToken.isEmpty {
+                queryItems.append(URLQueryItem(name: "id_token_hint", value: idToken))
+            }
+            components?.queryItems = queryItems
+
+            guard let logoutURL = components?.url else { return }
+            _ = try await startAuthenticationSession(
+                url: logoutURL,
+                prefersEphemeralSession: false
+            )
+        } catch {
+            // Local credentials are already cleared by AuthManager. Provider
+            // logout is best-effort and must not prevent returning to sign in.
+            AuthDebugLog.log("Provider sign-out did not complete: \(error.localizedDescription)")
+        }
     }
 
     private func discoverConfiguration() async throws -> OIDCConfiguration {
@@ -208,7 +249,10 @@ final class OIDCAuthService {
         }
     }
 
-    private func startAuthenticationSession(url: URL) async throws -> URL {
+    private func startAuthenticationSession(
+        url: URL,
+        prefersEphemeralSession: Bool
+    ) async throws -> URL {
         try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(
                 url: url,
@@ -239,7 +283,7 @@ final class OIDCAuthService {
             }
 
             session.presentationContextProvider = PresentationContextProvider.shared
-            session.prefersEphemeralWebBrowserSession = false
+            session.prefersEphemeralWebBrowserSession = prefersEphemeralSession
             authenticationSession = session
             session.start()
         }
