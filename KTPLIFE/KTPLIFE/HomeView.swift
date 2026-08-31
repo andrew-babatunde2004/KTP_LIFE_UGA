@@ -164,52 +164,53 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 14) {
             HomeSectionHeader(title: "Chapter resources")
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
-                    if canAccessFilesAndPhotos {
-                        HomeNavigationItem(
-                            title: "Documents",
-                            systemImage: "doc.on.doc.fill",
-                            action: showDocuments
-                        )
-                    }
-
-                    if canAccessCommittees {
-                        HomeNavigationItem(
-                            title: "Committees",
-                            systemImage: "person.3.fill",
-                            action: showCommittees
-                        )
-                    }
-
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                spacing: 12
+            ) {
+                if canAccessFilesAndPhotos {
                     HomeNavigationItem(
-                        title: "Polls",
-                        systemImage: "chart.bar.fill",
-                        action: showPolls
-                    )
-
-                    HomeNavigationItem(
-                        title: "Announcements",
-                        systemImage: "megaphone.fill",
-                        action: showAnnouncements
-                    )
-
-                    if canAccessMeetings {
-                        HomeNavigationItem(
-                            title: "Meetings",
-                            systemImage: "person.2.badge.gearshape",
-                            action: showMeetings
-                        )
-                    }
-
-                    HomeNavigationItem(
-                        title: "Interviews",
-                        systemImage: "person.crop.rectangle.stack",
-                        action: showInterviews
+                        title: "Documents",
+                        systemImage: "doc.on.doc.fill",
+                        action: showDocuments
                     )
                 }
-                .padding(.horizontal, 1)
-                .padding(.bottom, 4)
+
+                if canAccessCommittees {
+                    HomeNavigationItem(
+                        title: "Committees",
+                        systemImage: "person.3.fill",
+                        action: showCommittees
+                    )
+                }
+
+                HomeNavigationItem(
+                    title: "Polls",
+                    systemImage: "chart.bar.fill",
+                    action: showPolls
+                )
+
+                HomeNavigationItem(
+                    title: "Announcements",
+                    systemImage: "megaphone.fill",
+                    action: showAnnouncements
+                )
+
+                if canAccessMeetings {
+                    HomeNavigationItem(
+                        title: "Meetings",
+                        systemImage: "person.2.badge.gearshape",
+                        action: showMeetings
+                    )
+                    .gridCellColumns(2)
+                }
+
+                HomeNavigationItem(
+                    title: "Interviews",
+                    systemImage: "person.crop.rectangle.stack",
+                    action: showInterviews
+                )
+                .gridCellColumns(2)
             }
         }
     }
@@ -649,9 +650,9 @@ private struct HomeNavigationItem: View {
                 Image(systemName: systemImage)
                     .font(.system(size: 18, weight: .semibold))
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(HomeDesign.accent)
+                    .foregroundStyle(AppSystemColor.primaryLabel)
                     .frame(width: 38, height: 38)
-                    .background(HomeDesign.accent.opacity(0.09), in: Circle())
+                    .background(AppSystemColor.insetBackground, in: Circle())
 
                 Text(title)
                     .font(AppFont.footnote(weight: .semibold))
@@ -660,8 +661,8 @@ private struct HomeNavigationItem: View {
                     .minimumScaleFactor(0.68)
                     .allowsTightening(true)
             }
-            .padding(.horizontal, 16)
-            .frame(width: 132, height: 92)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, minHeight: 82)
             .background(
                 AppSystemColor.elevatedBackground,
                 in: RoundedRectangle(cornerRadius: 20, style: .continuous)

@@ -46,14 +46,15 @@ final class ChapterResourcesService {
         return try ChapterResourceResponse.decodeCommittees(from: data)
     }
 
-    func joinCommittee(id: String) async throws {
+    /// The website now treats this route as a chair-approved membership request.
+    func requestCommitteeMembership(id: String) async throws {
         let url = baseURL
             .appendingPathComponent("committees")
             .appendingPathComponent(id)
             .appendingPathComponent("join")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        _ = try await perform(request, label: "join committee")
+        _ = try await perform(request, label: "committee membership request")
     }
 
     func leaveCommittee(id: String) async throws {

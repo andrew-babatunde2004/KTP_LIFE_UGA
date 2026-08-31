@@ -110,7 +110,7 @@ struct AppSectionHeading: View {
                         .font(AppFont.caption(weight: .bold))
                         .tracking(1.2)
                         .textCase(.uppercase)
-                        .foregroundStyle(AppSurfaceColor.primaryControl)
+                        .foregroundStyle(AppSystemColor.secondaryLabel)
                 }
 
                 Text(title)
@@ -138,7 +138,7 @@ struct AppIconBadge: View {
     var body: some View {
         Image(systemName: systemImage)
             .font(.system(size: size * 0.4, weight: .semibold))
-            .foregroundStyle(AppSurfaceColor.primaryControl)
+            .foregroundStyle(AppSystemColor.primaryLabel)
             .frame(width: size, height: size)
             .background(AppSystemColor.insetBackground, in: RoundedRectangle(cornerRadius: size * 0.34, style: .continuous))
             .overlay {

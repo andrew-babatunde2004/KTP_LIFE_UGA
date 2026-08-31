@@ -14,7 +14,7 @@ struct PhotoAlbum: Identifiable, Hashable, Decodable {
     /// The server stores this shared destination as photos whose album_id is NULL.
     static let general = PhotoAlbum(
         id: "general",
-        name: "General",
+        name: "Shared Album",
         description: nil,
         createdBy: nil,
         audience: [],
@@ -58,7 +58,7 @@ struct PhotoAlbum: Identifiable, Hashable, Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let stringID = try container.decodeIfPresent(String.self, forKey: .id) {
+        if let stringID = try? container.decode(String.self, forKey: .id) {
             id = stringID
         } else {
             id = String(try container.decode(Int.self, forKey: .id))

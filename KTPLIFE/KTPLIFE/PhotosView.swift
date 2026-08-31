@@ -19,7 +19,10 @@ struct PhotosView: View {
     @Environment(\.displayScale) private var displayScale
     @State private var photos: [PhotoItem] = []
     @State private var preparedThumbnails: [String: UIImage] = [:]
+    @State private var albums: [PhotoAlbum] = [.general]
+    @State private var selectedAlbum = PhotoAlbum.general
     @State private var selectedItems: [PhotosPickerItem] = []
+    @State private var isPhotoPickerPresented = false
     @State private var selectedMedia: MediaSelection?
     @State private var isLoadingGallery = true
     @State private var galleryLoadProgress = 0.0
@@ -97,7 +100,7 @@ struct PhotosView: View {
                 }
             }
 
-            addPhotoButton
+            photoActionsMenu
                 .padding(12)
                 .zIndex(1)
         }
@@ -137,8 +140,16 @@ struct PhotosView: View {
                 }
         )
         .task {
+            await loadAlbums()
             await loadPhotos()
         }
+        .photosPicker(
+            isPresented: $isPhotoPickerPresented,
+            selection: $selectedItems,
+            maxSelectionCount: 10,
+            matching: .any(of: [.images, .videos]),
+            preferredItemEncoding: .current
+        )
         .sheet(item: $selectedMedia) { selection in
             AuthenticatedMediaViewer(
                 photos: photos,
@@ -186,6 +197,18 @@ struct PhotosView: View {
         return uploadedBy == currentUserID
     }
 
+    private func selectAlbum(_ album: PhotoAlbum) {
+        guard selectedAlbum.id != album.id else { return }
+        selectedAlbum = album
+        selectedMedia = nil
+        photos = []
+        preparedThumbnails = [:]
+        galleryLoadProgress = 0
+        isLoadingGallery = true
+        loadError = nil
+        Task { await loadPhotos() }
+    }
+
     @MainActor
     private func deletePhoto(_ photo: PhotoItem) async {
         guard deletingPhotoIDs.insert(photo.id).inserted else { return }
@@ -196,7 +219,9 @@ struct PhotosView: View {
             try await photoService.deletePhoto(id: photo.id)
             photos.removeAll { $0.id == photo.id }
             preparedThumbnails[photo.id] = nil
-            galleryContentCache.store(photos: photos, thumbnails: preparedThumbnails)
+            if selectedAlbum.apiAlbumID == nil {
+                galleryContentCache.store(photos: photos, thumbnails: preparedThumbnails)
+            }
         } catch is CancellationError {
             return
         } catch {
@@ -206,7 +231,8 @@ struct PhotosView: View {
     
     @MainActor
     private func loadPhotos() async {
-        if galleryContentCache.hasLoaded {
+        let album = selectedAlbum
+        if album.apiAlbumID == nil, galleryContentCache.hasLoaded {
             photos = galleryContentCache.photos
             preparedThumbnails = galleryContentCache.thumbnails
             galleryLoadProgress = 1
@@ -228,7 +254,7 @@ struct PhotosView: View {
 #endif
         
         do {
-            let loadedPhotos = try await photoService.fetchPhotos()
+            let loadedPhotos = try await photoService.fetchPhotos(albumId: album.apiAlbumID)
             var loadedThumbnails: [String: UIImage] = [:]
             let batchSize = 6
             for batchStart in stride(from: 0, to: loadedPhotos.count, by: batchSize) {
@@ -256,7 +282,9 @@ struct PhotosView: View {
 
             preparedThumbnails = loadedThumbnails
             photos = loadedPhotos
-            galleryContentCache.store(photos: loadedPhotos, thumbnails: loadedThumbnails)
+            if album.apiAlbumID == nil {
+                galleryContentCache.store(photos: loadedPhotos, thumbnails: loadedThumbnails)
+            }
             if loadedPhotos.isEmpty {
                 galleryLoadProgress = 1
             }
@@ -267,6 +295,27 @@ struct PhotosView: View {
             loadError = photosErrorMessage(for: error)
         }
         isLoadingGallery = false
+    }
+
+    @MainActor
+    private func loadAlbums() async {
+        do {
+            let loadedAlbums = try await photoService.fetchAlbums()
+            let namedAlbums = loadedAlbums.filter { $0.id != PhotoAlbum.general.id }
+            albums = [.general] + namedAlbums.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+
+            if !albums.contains(where: { $0.id == selectedAlbum.id }) {
+                selectedAlbum = .general
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            // The shared album remains available even if named-album metadata is
+            // temporarily unavailable.
+            albums = [.general]
+        }
     }
 
     @MainActor
@@ -291,14 +340,33 @@ struct PhotosView: View {
     }
     
     
-    private var addPhotoButton: some View {
-        PhotosPicker(
-            selection: $selectedItems,
-            maxSelectionCount: 10,
-            matching: .any(of: [.images, .videos]),
-            preferredItemEncoding: .current
-        ) {
-            PhotoUploadButtonLabel(isUploading: isUploading)
+    private var photoActionsMenu: some View {
+        Menu {
+            Section("Albums") {
+                ForEach(albums) { album in
+                    Button {
+                        selectAlbum(album)
+                    } label: {
+                        Label(
+                            album.name,
+                            systemImage: selectedAlbum.id == album.id ? "checkmark" : "photo.on.rectangle"
+                        )
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    isPhotoPickerPresented = true
+                } label: {
+                    Label("Upload Photos or Videos", systemImage: "photo.badge.plus")
+                }
+            }
+        } label: {
+            PhotoGalleryMenuLabel(
+                albumName: selectedAlbum.name,
+                isUploading: isUploading
+            )
         }
         .fixedSize()
         .disabled(isUploading)
@@ -368,7 +436,8 @@ struct PhotosView: View {
                     data: data,
                     fileName: fileName,
                     mimeType: mimeType,
-                    title: title
+                    title: title,
+                    albumId: selectedAlbum.apiAlbumID
                 )
                 uploadedPhotos.append(uploadedPhoto)
             }
@@ -382,7 +451,9 @@ struct PhotosView: View {
                     }
                 }
 
-                galleryContentCache.store(photos: photos, thumbnails: preparedThumbnails)
+                if selectedAlbum.apiAlbumID == nil {
+                    galleryContentCache.store(photos: photos, thumbnails: preparedThumbnails)
+                }
             }
 
             loadError = nil
@@ -929,25 +1000,32 @@ private enum PhotoLibrarySaveError: LocalizedError {
     }
 }
 
-private struct PhotoUploadButtonLabel: View {
+private struct PhotoGalleryMenuLabel: View {
     @Environment(\.colorScheme) private var colorScheme
 
+    let albumName: String
     let isUploading: Bool
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: isUploading ? "hourglass" : "square.and.arrow.up")
+            Image(systemName: isUploading ? "hourglass" : "photo.on.rectangle.angled")
                 .font(.system(size: 16, weight: .semibold))
 
-            Text(isUploading ? "Uploading" : "Upload")
+            Text(isUploading ? "Uploading" : albumName)
                 .font(AppFont.headline())
+                .lineLimit(1)
+
+            if !isUploading {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .bold))
+            }
         }
         .foregroundStyle(PhotosDesign.addButtonForeground(for: colorScheme))
         .padding(.horizontal, 16)
         .frame(height: 44)
         .contentShape(Capsule())
         .fixedSize(horizontal: true, vertical: true)
-        .accessibilityLabel(isUploading ? "Uploading media" : "Upload media from photo library")
+        .accessibilityLabel(isUploading ? "Uploading media" : "Choose album or upload media")
         .background(.ultraThinMaterial, in: Capsule())
         .overlay {
             Capsule()

@@ -55,6 +55,12 @@ struct MessagesView: View {
                 inboxRefreshVersion += 1
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .messageThreadShouldRefresh)) { _ in
+            // A successful send changes a thread's preview and sort position.
+            // Refresh the inbox immediately instead of waiting for its poll or
+            // for the user to leave and reopen the conversation.
+            inboxRefreshVersion += 1
+        }
         .onDisappear {
             deepLinkTask?.cancel()
             isConversationPresented = false

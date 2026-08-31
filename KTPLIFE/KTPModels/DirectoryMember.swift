@@ -3,6 +3,9 @@ import Foundation
 /// Directory entry returned by `GET /members`. JSON keys match `memberModel.toDirectoryJSON` in ktp-api.
 struct DirectoryMember: Identifiable, Codable, Hashable {
     let id: String
+    /// Stable user identity used by message senders and profile-picture routes.
+    /// Some directory responses also include a legacy numeric `id`.
+    let authentikID: String?
     let name: String
     let username: String?
     let firstName: String?
@@ -64,6 +67,7 @@ struct DirectoryMember: Identifiable, Codable, Hashable {
 
     init(
         id: String,
+        authentikID: String? = nil,
         name: String,
         username: String? = nil,
         firstName: String? = nil,
@@ -86,6 +90,7 @@ struct DirectoryMember: Identifiable, Codable, Hashable {
         group: MemberGroup
     ) {
         self.id = id
+        self.authentikID = authentikID
         self.name = name
         self.username = username
         self.firstName = firstName
@@ -111,13 +116,10 @@ struct DirectoryMember: Identifiable, Codable, Hashable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        if let stringId = try container.decodeIfPresent(String.self, forKey: .id) {
-            id = stringId
-        } else if let intId = try container.decodeIfPresent(Int.self, forKey: .id) {
-            id = String(intId)
-        } else {
-            id = try container.decode(String.self, forKey: .authentikId)
-        }
+        let decodedAuthentikID = try container.decodeFirstPresentStringIfPresent(for: [.authentikId])
+        let decodedID = try container.decodeFirstPresentStringIfPresent(for: [.id])
+        authentikID = decodedAuthentikID
+        id = decodedAuthentikID ?? decodedID ?? UUID().uuidString
 
         username = try container.decodeFirstPresentStringIfPresent(for: [.username])
         firstName = try container.decodeFirstPresentStringIfPresent(for: [.firstName])
@@ -172,6 +174,7 @@ struct DirectoryMember: Identifiable, Codable, Hashable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(authentikID, forKey: .authentikId)
         try container.encode(name, forKey: .name)
         try container.encodeIfPresent(username, forKey: .username)
         try container.encodeIfPresent(firstName, forKey: .firstName)

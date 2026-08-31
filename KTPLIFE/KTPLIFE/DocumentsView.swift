@@ -31,6 +31,7 @@ struct DocumentsView: View {
                 }
             }
         }
+        .tint(AppSystemColor.primaryLabel)
         .background(AppSystemColor.background.ignoresSafeArea())
         .sheet(item: $previewItem) { item in
             DocumentQuickLookView(url: item.url)

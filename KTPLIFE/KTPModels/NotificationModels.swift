@@ -76,6 +76,31 @@ struct NotificationDeviceRegistration: Encodable {
     let environment: String
 }
 
+/// Stores each member's per-group mute choices on this device. A server-side
+/// preference route is still required to suppress remote APNs while the app is
+/// not running; this preserves the user's selection until that route is added.
+enum GroupChatMutePreferences {
+    private static let storageKey = "mutedGroupChatIDs"
+
+    static func isMuted(_ chatID: String) -> Bool {
+        mutedChatIDs.contains(chatID)
+    }
+
+    static func setMuted(_ isMuted: Bool, for chatID: String) {
+        var ids = mutedChatIDs
+        if isMuted {
+            ids.insert(chatID)
+        } else {
+            ids.remove(chatID)
+        }
+        UserDefaults.standard.set(Array(ids), forKey: storageKey)
+    }
+
+    private static var mutedChatIDs: Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: storageKey) ?? [])
+    }
+}
+
 enum PushNotificationDestination: Equatable {
     case directMessage(userID: String)
     case announcement(id: String?)

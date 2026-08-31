@@ -77,6 +77,7 @@ struct Committee: Identifiable, Hashable, Decodable {
     let name: String
     let role: String?
     let isMember: Bool
+    let membershipStatus: String?
     let memberCount: Int?
     let groupChatID: String?
 
@@ -89,6 +90,9 @@ struct Committee: Identifiable, Hashable, Decodable {
         case isMember = "is_member"
         case joined
         case membership
+        case membershipStatus = "membership_status"
+        case requestStatus = "request_status"
+        case status
         case memberCount = "member_count"
         case membersCount = "members_count"
         case groupChatID = "group_chat_id"
@@ -97,6 +101,7 @@ struct Committee: Identifiable, Hashable, Decodable {
 
     private struct Membership: Decodable {
         let role: String?
+        let status: String?
     }
 
     init(
@@ -104,6 +109,7 @@ struct Committee: Identifiable, Hashable, Decodable {
         name: String,
         role: String? = nil,
         isMember: Bool = false,
+        membershipStatus: String? = nil,
         memberCount: Int? = nil,
         groupChatID: String? = nil
     ) {
@@ -111,6 +117,7 @@ struct Committee: Identifiable, Hashable, Decodable {
         self.name = name
         self.role = role
         self.isMember = isMember
+        self.membershipStatus = membershipStatus
         self.memberCount = memberCount
         self.groupChatID = groupChatID
     }
@@ -127,6 +134,10 @@ struct Committee: Identifiable, Hashable, Decodable {
             ?? container.decodeIfPresent(String.self, forKey: .membershipRole)
             ?? membership?.role
         role = resolvedRole
+        membershipStatus = try container.decodeIfPresent(String.self, forKey: .membershipStatus)
+            ?? container.decodeIfPresent(String.self, forKey: .requestStatus)
+            ?? container.decodeIfPresent(String.self, forKey: .status)
+            ?? membership?.status
         isMember = try container.decodeIfPresent(Bool.self, forKey: .isMember)
             ?? container.decodeIfPresent(Bool.self, forKey: .joined)
             ?? (membership != nil || resolvedRole != nil)
@@ -134,6 +145,13 @@ struct Committee: Identifiable, Hashable, Decodable {
             ?? container.flexibleInt(forKey: .membersCount)
         groupChatID = try container.flexibleString(forKey: .groupChatID)
             ?? container.flexibleString(forKey: .chatID)
+    }
+
+    var hasPendingMembershipRequest: Bool {
+        guard !isMember else { return false }
+        return ["pending", "requested", "awaiting_approval", "awaiting approval"].contains(
+            membershipStatus?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        )
     }
 }
 
