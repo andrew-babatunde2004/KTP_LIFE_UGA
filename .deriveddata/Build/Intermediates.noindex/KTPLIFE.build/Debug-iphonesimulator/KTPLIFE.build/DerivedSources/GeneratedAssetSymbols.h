@@ -9,4 +9,7 @@
 /// The "KTPLogo" asset catalog image resource.
 static NSString * const ACImageNameKTPLogo AC_SWIFT_PRIVATE = @"KTPLogo";
 
+/// The "Linkedin" asset catalog image resource.
+static NSString * const ACImageNameLinkedin AC_SWIFT_PRIVATE = @"Linkedin";
+
 #undef AC_SWIFT_PRIVATE

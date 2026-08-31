@@ -34,6 +34,9 @@ extension DeveloperToolsSupport.ImageResource {
     /// The "KTPLogo" asset catalog image resource.
     static let ktpLogo = DeveloperToolsSupport.ImageResource(name: "KTPLogo", bundle: resourceBundle)
 
+    /// The "Linkedin" asset catalog image resource.
+    static let linkedin = DeveloperToolsSupport.ImageResource(name: "Linkedin", bundle: resourceBundle)
+
 }
 
 // MARK: - Color Symbol Extensions -
@@ -82,6 +85,15 @@ extension AppKit.NSImage {
 #endif
     }
 
+    /// The "Linkedin" asset catalog image.
+    static var linkedin: AppKit.NSImage {
+#if !targetEnvironment(macCatalyst)
+        .init(resource: .linkedin)
+#else
+        .init()
+#endif
+    }
+
 }
 #endif
 
@@ -94,6 +106,15 @@ extension UIKit.UIImage {
     static var ktpLogo: UIKit.UIImage {
 #if !os(watchOS)
         .init(resource: .ktpLogo)
+#else
+        .init()
+#endif
+    }
+
+    /// The "Linkedin" asset catalog image.
+    static var linkedin: UIKit.UIImage {
+#if !os(watchOS)
+        .init(resource: .linkedin)
 #else
         .init()
 #endif

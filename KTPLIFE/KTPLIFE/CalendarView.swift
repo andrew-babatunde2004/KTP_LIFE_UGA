@@ -7,6 +7,7 @@ import SwiftUI
 
 struct CalendarView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var authManager: AuthManager
     @State private var viewModel = CalendarViewModel()
     @State private var displayedMonth = Date()
@@ -82,6 +83,13 @@ struct CalendarView: View {
             selectDeepLinkedEventIfNeeded()
         }
         .onChange(of: deepLinkedEventID) { _, _ in selectDeepLinkedEventIfNeeded() }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await loadCalendarEvents() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .connectivityRestored)) { _ in
+            Task { await loadCalendarEvents() }
+        }
         .alert("Couldn’t Add Event", isPresented: Binding(
             get: { calendarErrorMessage != nil },
             set: { if !$0 { calendarErrorMessage = nil } }
@@ -102,6 +110,10 @@ struct CalendarView: View {
                     : selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day()),
                 count: viewModel.isLoading ? nil : visibleUpcomingEvents.count
             )
+
+            if viewModel.isShowingCachedEvents {
+                CalendarCacheStatus(updatedAt: viewModel.cacheUpdatedAt)
+            }
 
             if viewModel.isLoading {
                 CalendarStatusRow(
@@ -207,9 +219,12 @@ struct CalendarView: View {
         }
 #endif
 
-        await viewModel.fetchEvents(accessTokenProvider: { [authManager] in
-            try await authManager.validAccessToken()
-        })
+        await viewModel.fetchEvents(
+            accountID: authManager.currentUserID ?? "authenticated-user",
+            accessTokenProvider: { [authManager] in
+                try await authManager.validAccessToken()
+            }
+        )
         await reminderScheduler.sync(events: viewModel.events)
         syncSelectionToNextEventIfNeeded()
         selectDeepLinkedEventIfNeeded()
@@ -646,6 +661,26 @@ private struct CalendarStatusRow: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(CalendarDesign.border(for: colorScheme).opacity(0.30), lineWidth: 1)
         }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct CalendarCacheStatus: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let updatedAt: Date?
+
+    var body: some View {
+        Label {
+            if let updatedAt {
+                Text("Offline calendar · Updated \(updatedAt.formatted(.relative(presentation: .named)))")
+            } else {
+                Text("Showing saved calendar events")
+            }
+        } icon: {
+            Image(systemName: "icloud.slash")
+        }
+        .font(AppFont.footnote(weight: .medium))
+        .foregroundStyle(CalendarDesign.muted(for: colorScheme))
         .accessibilityElement(children: .combine)
     }
 }

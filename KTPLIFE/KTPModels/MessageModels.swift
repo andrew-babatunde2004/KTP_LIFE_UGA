@@ -45,7 +45,7 @@ struct MessageConversation: Identifiable, Hashable, Decodable {
         case isUnread = "is_unread"
     }
 
-    init(
+    nonisolated init(
         id: String,
         userId: String,
         displayName: String,
@@ -141,7 +141,7 @@ struct GroupChat: Identifiable, Hashable, Decodable {
         case photoAssetID = "photo_asset_id"
     }
 
-    init(
+    nonisolated init(
         id: String,
         name: String,
         preview: String,
@@ -299,7 +299,7 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         case reactions
     }
 
-    init(
+    nonisolated init(
         id: String,
         senderId: String?,
         recipientId: String?,
@@ -426,7 +426,7 @@ struct MessageReactionSummary: Identifiable, Hashable, Decodable {
         case reacted
     }
 
-    init(emoji: String, count: Int, reactedByCurrentUser: Bool) {
+    nonisolated init(emoji: String, count: Int, reactedByCurrentUser: Bool) {
         self.emoji = emoji
         self.count = count
         self.reactedByCurrentUser = reactedByCurrentUser

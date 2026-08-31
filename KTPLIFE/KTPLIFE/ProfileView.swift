@@ -406,12 +406,12 @@ struct ProfileView: View {
 
             profilePhotoPreview = image
             let imageType = item.supportedContentTypes.first(where: { $0.conforms(to: .image) && $0.preferredMIMEType != nil }) ?? .jpeg
-            let fileExtension = imageType.preferredFilenameExtension ?? "jpg"
+            let uploadImage = try ImageUploadEncoder.encodeForUpload(data: data, contentType: imageType)
             let updatedProfile = try await apiService.updateCurrentUserProfilePicture(
                 MessageAttachmentUpload(
-                    data: data,
-                    fileName: "profile-picture.\(fileExtension)",
-                    mimeType: imageType.preferredMIMEType ?? "image/jpeg"
+                    data: uploadImage.data,
+                    fileName: "profile-picture.\(uploadImage.fileExtension)",
+                    mimeType: uploadImage.mimeType
                 )
             )
             avatarRepository.clear()

@@ -16,6 +16,9 @@ struct MessageThreadsView: View {
     @State private var isLoading = true
     @State private var isRefreshing = false
     @State private var loadError: String?
+    @State private var isShowingCachedThreads = false
+
+    private let offlineStore = MessageOfflineStore.shared
 
     let refreshVersion: Int
 
@@ -43,6 +46,10 @@ struct MessageThreadsView: View {
                 MessagesStatusCard(message: "No conversations yet.")
             } else {
                 VStack(alignment: .leading, spacing: MessageThreadLayout.sectionSpacing) {
+                    if isShowingCachedThreads {
+                        MessageOfflineBanner(message: "Showing saved conversations")
+                    }
+
                     if !directThreads.isEmpty {
                         MessageThreadSection(title: nil, threads: directThreads, apiService: apiService)
                     }
@@ -63,6 +70,12 @@ struct MessageThreadsView: View {
         .onReceive(NotificationCenter.default.publisher(for: .messageThreadShouldRefresh)) { _ in
             Task { await loadConversations(showsLoadingState: false) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .connectivityRestored)) { _ in
+            Task {
+                await flushPendingMessages()
+                await loadConversations(showsLoadingState: false)
+            }
+        }
     }
 
     private var directThreads: [MessageThread] {
@@ -75,6 +88,8 @@ struct MessageThreadsView: View {
 
     @MainActor
     private func monitorConversations() async {
+        await hydrateInboxCache()
+        await flushPendingMessages()
         await loadConversations(showsLoadingState: true)
 
         while !Task.isCancelled {
@@ -120,10 +135,12 @@ struct MessageThreadsView: View {
         let resolvedDirectThreads: [MessageThread]
         let resolvedGroupThreads: [MessageThread]
         var loadFailures: [Error] = []
+        var loadedFromNetwork = false
 
         switch loadedDirectResult {
         case .success(let conversations):
             resolvedDirectThreads = conversations.map(MessageThread.direct)
+            loadedFromNetwork = true
         case .failure(let error):
             resolvedDirectThreads = previousDirectThreads
             loadFailures.append(error)
@@ -132,12 +149,17 @@ struct MessageThreadsView: View {
         switch loadedGroupResult {
         case .success(let chats):
             resolvedGroupThreads = chats.map(MessageThread.group)
+            loadedFromNetwork = true
         case .failure(let error):
             resolvedGroupThreads = previousGroupThreads
             loadFailures.append(error)
         }
 
         threads = sortedThreads(resolvedDirectThreads + resolvedGroupThreads)
+        isShowingCachedThreads = !loadFailures.isEmpty && !threads.isEmpty
+        if loadedFromNetwork {
+            await offlineStore.saveInbox(threads, accountID: accountID)
+        }
 
         // A group-chat outage should not erase working direct messages (or vice
         // versa). Only replace the inbox with an error when neither request
@@ -148,6 +170,55 @@ struct MessageThreadsView: View {
 
         isLoading = false
         isRefreshing = false
+    }
+
+    @MainActor
+    private func hydrateInboxCache() async {
+        let cachedThreads = await offlineStore.loadInbox(accountID: accountID)
+        guard threads.isEmpty, !cachedThreads.isEmpty else { return }
+        threads = sortedThreads(cachedThreads)
+        isLoading = false
+        isShowingCachedThreads = true
+    }
+
+    @MainActor
+    private func flushPendingMessages() async {
+        guard ConnectivityMonitor.shared.isConnected else { return }
+        let deliveries = await offlineStore.claimPendingDeliveries(accountID: accountID)
+        guard !deliveries.isEmpty else { return }
+
+        for delivery in deliveries {
+            do {
+                switch delivery.destination {
+                case .direct:
+                    _ = try await apiService.sendMessage(
+                        to: delivery.destinationID,
+                        body: delivery.body,
+                        attachment: delivery.attachment
+                    )
+                case .group:
+                    _ = try await apiService.sendGroupChatMessage(
+                        chatId: delivery.destinationID,
+                        body: delivery.body,
+                        attachment: delivery.attachment
+                    )
+                }
+                await offlineStore.removeDelivery(id: delivery.id, accountID: accountID)
+            } catch is CancellationError {
+                await offlineStore.releaseDeliveries(ids: deliveries.map(\.id))
+                return
+            } catch {
+                await offlineStore.releaseDeliveries(ids: [delivery.id])
+                if isOfflineTransportError(error) {
+                    await offlineStore.releaseDeliveries(ids: deliveries.map(\.id))
+                    return
+                }
+            }
+        }
+    }
+
+    private var accountID: String {
+        authManager.currentUserID ?? "authenticated-user"
     }
 
     private func fetchDirectConversationsResult() async -> Result<[MessageConversation], Error> {
@@ -446,6 +517,9 @@ struct MessageConversationView: View {
     @State private var attachmentDataByMessageID: [String: Data] = [:]
     @State private var groupDetailsChat: GroupChat?
     @State private var isGroupChatMuted = false
+    @State private var isShowingCachedMessages = false
+    @State private var pendingDeliveryCount = 0
+    private let offlineStore = MessageOfflineStore.shared
     /// Group-message payloads do not always include sender display metadata.
     /// Keep the existing group-member endpoint as the source of truth for the
     /// name and profile image shown beside those messages.
@@ -464,8 +538,12 @@ struct MessageConversationView: View {
         })
     }
 
-    var body: some View {
+    private var conversationBase: some View {
         VStack(spacing: 12) {
+            if isShowingCachedMessages || pendingDeliveryCount > 0 {
+                MessageOfflineBanner(message: offlineStatusMessage)
+            }
+
             if isBlocked {
                 MessagesStatusCard(message: "You blocked \(thread.displayName). Unblock them to resume this conversation.")
             } else if isLoading && messages.isEmpty {
@@ -491,10 +569,19 @@ struct MessageConversationView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
-            Task { await loadConversation(showsLoadingState: false) }
+            Task {
+                await flushPendingMessages()
+                await loadConversation(showsLoadingState: false)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .messageThreadShouldRefresh)) { _ in
             Task { await loadConversation(showsLoadingState: false) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .connectivityRestored)) { _ in
+            Task {
+                await flushPendingMessages()
+                await loadConversation(showsLoadingState: false)
+            }
         }
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -568,6 +655,10 @@ struct MessageConversationView: View {
             }
         }
         .background(MessageDesign.background(for: colorScheme).ignoresSafeArea())
+    }
+
+    var body: some View {
+        conversationBase
         .sheet(item: $reportTarget) { target in
             ReportContentSheet(target: target)
         }
@@ -602,10 +693,7 @@ struct MessageConversationView: View {
         } message: {
             Text(reactionErrorMessage ?? "Please try again.")
         }
-        .alert("Couldn’t Send Message", isPresented: Binding(
-            get: { sendErrorMessage != nil },
-            set: { if !$0 { sendErrorMessage = nil } }
-        )) {
+        .alert("Couldn’t Send Message", isPresented: sendErrorAlertBinding) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(sendErrorMessage ?? "Please try again.")
@@ -644,6 +732,29 @@ struct MessageConversationView: View {
     private var directConversation: MessageConversation? {
         guard case .direct(let conversation) = thread else { return nil }
         return conversation
+    }
+
+    private var sendErrorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { sendErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented { sendErrorMessage = nil }
+            }
+        )
+    }
+
+    private var accountID: String {
+        authManager.currentUserID ?? "authenticated-user"
+    }
+
+    private var offlineStatusMessage: String {
+        if pendingDeliveryCount == 1 {
+            return "1 message waiting to send"
+        }
+        if pendingDeliveryCount > 1 {
+            return "\(pendingDeliveryCount) messages waiting to send"
+        }
+        return "Showing saved messages"
     }
 
     @ViewBuilder
@@ -1002,12 +1113,14 @@ struct MessageConversationView: View {
 
     @MainActor
     private func monitorConversation() async {
+        await hydrateConversationCache()
         await loadBlockState()
         if case .group(let chat) = thread {
             isGroupChatMuted = GroupChatMutePreferences.isMuted(chat.id)
         }
         // Sender metadata should not delay the first history request.
         Task { await loadGroupMembers() }
+        await flushPendingMessages()
         await loadConversation(showsLoadingState: true)
 
         while !Task.isCancelled {
@@ -1083,7 +1196,14 @@ struct MessageConversationView: View {
             }
 
             let existingMessageIDs = Set(messages.map(\.id))
-            let resolvedMessages = loadedMessages
+            let pendingDeliveries = await offlineStore.pendingDeliveries(
+                accountID: accountID,
+                threadID: thread.id
+            )
+            let pendingMessages = pendingDeliveries.map { $0.localMessage(currentUserID: authManager.currentUserID) }
+            sentMessageIDs.formUnion(pendingMessages.map(\.id))
+            pendingDeliveryCount = pendingDeliveries.count
+            let resolvedMessages = (loadedMessages + pendingMessages)
                 .filter { !$0.isDeleted }
                 .sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
             let hasNewMessages = !Set(resolvedMessages.map(\.id))
@@ -1099,6 +1219,8 @@ struct MessageConversationView: View {
                 )
                 renderWindow.reset(totalCount: resolvedMessages.count)
             }
+            await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
+            isShowingCachedMessages = false
 
             if showsLoadingState || (hasNewMessages && !isAwayFromLatest) {
                 scrollRequest = .latest(UUID())
@@ -1121,11 +1243,95 @@ struct MessageConversationView: View {
         } catch {
             if showsLoadingState, messages.isEmpty {
                 loadError = messagesErrorMessage(for: error)
+            } else if !messages.isEmpty {
+                isShowingCachedMessages = true
             }
         }
 
         if showsLoadingState {
             isLoading = false
+        }
+    }
+
+    @MainActor
+    private func hydrateConversationCache() async {
+        let cachedMessages = await offlineStore.loadConversation(threadID: thread.id, accountID: accountID)
+        let pendingDeliveries = await offlineStore.pendingDeliveries(
+            accountID: accountID,
+            threadID: thread.id
+        )
+        let pendingMessages = pendingDeliveries.map { $0.localMessage(currentUserID: authManager.currentUserID) }
+        let pendingIDs = Set(pendingMessages.map(\.id))
+        let combined = cachedMessages.filter { !pendingIDs.contains($0.id) } + pendingMessages
+        guard !combined.isEmpty else { return }
+
+        messages = combined.sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+        sentMessageIDs.formUnion(pendingIDs)
+        pendingDeliveryCount = pendingDeliveries.count
+        seedReactionState(from: messages)
+        renderWindow.reset(totalCount: messages.count)
+        scrollRequest = .latest(UUID())
+        isLoading = false
+        isShowingCachedMessages = true
+        for delivery in pendingDeliveries {
+            if let attachment = delivery.attachment {
+                attachmentDataByMessageID["pending-\(delivery.id)"] = attachment.data
+            }
+        }
+    }
+
+    @MainActor
+    private func flushPendingMessages() async {
+        guard ConnectivityMonitor.shared.isConnected else { return }
+        let deliveries = await offlineStore.claimPendingDeliveries(accountID: accountID, threadID: thread.id)
+        pendingDeliveryCount = deliveries.count
+
+        for delivery in deliveries {
+            do {
+                let sentMessage: KTPMessage
+                switch delivery.destination {
+                case .direct:
+                    sentMessage = try await apiService.sendMessage(
+                        to: delivery.destinationID,
+                        body: delivery.body,
+                        attachment: delivery.attachment
+                    )
+                case .group:
+                    sentMessage = try await apiService.sendGroupChatMessage(
+                        chatId: delivery.destinationID,
+                        body: delivery.body,
+                        attachment: delivery.attachment
+                    )
+                }
+
+                let pendingID = "pending-\(delivery.id)"
+                messages.removeAll { $0.id == pendingID }
+                sentMessageIDs.remove(pendingID)
+                messages.append(sentMessage)
+                sentMessageIDs.insert(sentMessage.id)
+                if let attachment = delivery.attachment {
+                    attachmentDataByMessageID[sentMessage.id] = attachment.data
+                }
+                attachmentDataByMessageID[pendingID] = nil
+                await offlineStore.removeDelivery(id: delivery.id, accountID: accountID)
+                pendingDeliveryCount -= 1
+            } catch is CancellationError {
+                await offlineStore.releaseDeliveries(ids: deliveries.map(\.id))
+                return
+            } catch {
+                await offlineStore.releaseDeliveries(ids: [delivery.id])
+                if isOfflineTransportError(error) {
+                    await offlineStore.releaseDeliveries(ids: deliveries.map(\.id))
+                    break
+                }
+            }
+        }
+
+        messages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+        renderWindow.reset(totalCount: messages.count)
+        await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
+        if deliveries.count > pendingDeliveryCount {
+            NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
         }
     }
 
@@ -1276,6 +1482,7 @@ struct MessageConversationView: View {
             scrollRequest = .latest(UUID())
             clearPendingAttachment()
             loadError = nil
+            await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
             NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
         } catch is CancellationError {
             if draftMessage.isEmpty {
@@ -1284,10 +1491,44 @@ struct MessageConversationView: View {
             isSending = false
             return
         } catch {
-            if draftMessage.isEmpty {
-                draftMessage = draftBeforeSending
+            if isOfflineTransportError(error) || !ConnectivityMonitor.shared.isConnected {
+                let destination: MessageOfflineStore.PendingDelivery.Destination
+                let destinationID: String
+                switch thread {
+                case .direct(let conversation):
+                    destination = .direct
+                    destinationID = conversation.userId
+                case .group(let chat):
+                    destination = .group
+                    destinationID = chat.id
+                }
+                let delivery = await offlineStore.enqueue(
+                    destination: destination,
+                    destinationID: destinationID,
+                    body: content.isEmpty ? nil : content,
+                    attachment: attachment,
+                    accountID: accountID
+                )
+                let pendingMessage = delivery.localMessage(currentUserID: authManager.currentUserID)
+                messages.append(pendingMessage)
+                sentMessageIDs.insert(pendingMessage.id)
+                pendingDeliveryCount += 1
+                if let attachment {
+                    attachmentDataByMessageID[pendingMessage.id] = attachment.data
+                }
+                renderWindow.reset(totalCount: messages.count)
+                scrollRequest = .latest(UUID())
+                clearPendingAttachment()
+                loadError = nil
+                isShowingCachedMessages = true
+                await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
+                NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
+            } else {
+                if draftMessage.isEmpty {
+                    draftMessage = draftBeforeSending
+                }
+                sendErrorMessage = messageSendErrorMessage(for: error)
             }
-            sendErrorMessage = messageSendErrorMessage(for: error)
         }
 
         isSending = false
@@ -1317,11 +1558,14 @@ struct MessageConversationView: View {
                 throw MessageAttachmentError.unsupportedType
             }
 
-            let fileExtension = contentType.preferredFilenameExtension ?? "jpg"
+            let uploadImage = try ImageUploadEncoder.encodeForUpload(data: data, contentType: contentType)
+            guard uploadImage.data.count <= MessageAttachmentLimits.maximumBytes else {
+                throw MessageAttachmentError.fileTooLarge
+            }
             pendingAttachment = MessageAttachmentUpload(
-                data: data,
-                fileName: "ktp-message-\(UUID().uuidString).\(fileExtension)",
-                mimeType: contentType.preferredMIMEType ?? "image/jpeg"
+                data: uploadImage.data,
+                fileName: "ktp-message-\(UUID().uuidString).\(uploadImage.fileExtension)",
+                mimeType: uploadImage.mimeType
             )
             pendingAttachmentPreview = await decodeAttachmentPreview(from: data)
             sendErrorMessage = nil
@@ -1456,6 +1700,7 @@ struct MessageConversationView: View {
             sentMessageIDs.remove(message.id)
             reactionsByMessageID[message.id] = nil
             renderWindow.reset(totalCount: messages.count)
+            await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
             NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
         } catch is CancellationError {
             return
@@ -2175,6 +2420,19 @@ private struct AuthenticatedMessageAvatar: View {
         )
         guard !Task.isCancelled else { return }
         image = avatar
+    }
+}
+
+private struct MessageOfflineBanner: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let message: String
+
+    var body: some View {
+        Label(message, systemImage: "arrow.triangle.2.circlepath.icloud")
+            .font(AppFont.footnote(weight: .medium))
+            .foregroundStyle(MessageDesign.secondary(for: colorScheme))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
     }
 }
 

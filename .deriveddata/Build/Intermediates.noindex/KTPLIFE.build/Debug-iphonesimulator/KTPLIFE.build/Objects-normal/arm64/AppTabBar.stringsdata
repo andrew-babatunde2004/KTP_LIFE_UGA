@@ -1,5 +1,48 @@
 {
   "source": "/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/AppTabBar.swift",
-  "tables": {},
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Open your profile",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 80
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld unread messages",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 150
+        }
+      },
+      {
+        "comment": "",
+        "key": "",
+        "location": {
+          "startingColumn": 80,
+          "startingLine": 150
+        }
+      },
+      {
+        "comment": "",
+        "key": "99+",
+        "location": {
+          "startingColumn": 44,
+          "startingLine": 131
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 52,
+          "startingLine": 131
+        }
+      }
+    ]
+  },
   "version": 1
 }

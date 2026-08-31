@@ -84,6 +84,7 @@ private struct MeetingCalendarEntry: Decodable {
     let endDate: Date
     let description: String?
     let location: String?
+    let url: URL?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -98,6 +99,10 @@ private struct MeetingCalendarEntry: Decodable {
         case description
         case message
         case location
+        case url
+        case link
+        case eventUrl
+        case calendlyUrl
     }
 
     init(from decoder: Decoder) throws {
@@ -132,6 +137,10 @@ private struct MeetingCalendarEntry: Decodable {
         description = try container.decodeIfPresent(String.self, forKey: .description)
             ?? container.decodeIfPresent(String.self, forKey: .message)
         location = try container.decodeIfPresent(String.self, forKey: .location)
+        url = try container.decodeIfPresent(URL.self, forKey: .url)
+            ?? container.decodeIfPresent(URL.self, forKey: .link)
+            ?? container.decodeIfPresent(URL.self, forKey: .eventUrl)
+            ?? container.decodeIfPresent(URL.self, forKey: .calendlyUrl)
     }
 
     private var calendarEvent: CalendarEvent {
@@ -141,7 +150,8 @@ private struct MeetingCalendarEntry: Decodable {
             startDate: startDate,
             endDate: endDate,
             description: description,
-            location: location
+            location: location,
+            url: url
         )
     }
 

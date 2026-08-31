@@ -426,14 +426,17 @@ struct PhotosView: View {
                     }
                 }
 
-                let mimeType = contentType.preferredMIMEType ?? "image/jpeg"
-                let fileExtension = contentType.preferredFilenameExtension ?? "jpg"
+                let uploadImage = contentType.conforms(to: .image)
+                    ? try ImageUploadEncoder.encodeForUpload(data: data, contentType: contentType)
+                    : nil
+                let mimeType = uploadImage?.mimeType ?? contentType.preferredMIMEType ?? "image/jpeg"
+                let fileExtension = uploadImage?.fileExtension ?? contentType.preferredFilenameExtension ?? "jpg"
                 let title = contentType.conforms(to: .movie) ? "Chapter Video" : "Chapter Photo"
                 let fileName = "ktp-media-\(UUID().uuidString).\(fileExtension)"
                 // Keep the same in-memory multipart request used by the last
                 // known-good iOS build for both photos and videos.
                 let uploadedPhoto = try await photoService.uploadPhoto(
-                    data: data,
+                    data: uploadImage?.data ?? data,
                     fileName: fileName,
                     mimeType: mimeType,
                     title: title,
