@@ -34,6 +34,9 @@ struct ChapterDocument: Identifiable, Hashable, Decodable {
     let folderID: String?
     let mimeType: String?
     let byteCount: Int?
+    /// A browser-based document (for example, a Google Doc) supplied by the
+    /// chapter library instead of an uploaded previewable file.
+    let externalURL: URL?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -46,14 +49,29 @@ struct ChapterDocument: Identifiable, Hashable, Decodable {
         case contentType = "content_type"
         case byteCount = "size"
         case fileSize = "file_size"
+        case externalURL = "external_url"
+        case externalLink = "external_link"
+        case hyperlink
+        case link
+        case documentURL = "document_url"
+        case fileURL = "file_url"
+        case url
     }
 
-    init(id: String, name: String, folderID: String? = nil, mimeType: String? = nil, byteCount: Int? = nil) {
+    init(
+        id: String,
+        name: String,
+        folderID: String? = nil,
+        mimeType: String? = nil,
+        byteCount: Int? = nil,
+        externalURL: URL? = nil
+    ) {
         self.id = id
         self.name = name
         self.folderID = folderID
         self.mimeType = mimeType
         self.byteCount = byteCount
+        self.externalURL = externalURL
     }
 
     init(from decoder: Decoder) throws {
@@ -69,7 +87,18 @@ struct ChapterDocument: Identifiable, Hashable, Decodable {
             ?? container.decodeIfPresent(String.self, forKey: .contentType)
         byteCount = try container.flexibleInt(forKey: .byteCount)
             ?? container.flexibleInt(forKey: .fileSize)
+        externalURL = [
+            CodingKeys.externalURL,
+            .externalLink,
+            .hyperlink,
+            .link,
+            .documentURL,
+            .fileURL,
+            .url,
+        ].lazy.compactMap { try? container.flexibleURL(forKey: $0) }.first
     }
+
+    var opensExternalLink: Bool { externalURL != nil }
 }
 
 struct Committee: Identifiable, Hashable, Decodable {
@@ -262,6 +291,17 @@ private extension KeyedDecodingContainer {
             return Int(value)
         }
         return nil
+    }
+
+    func flexibleURL(forKey key: Key) throws -> URL? {
+        guard let value = try flexibleString(forKey: key),
+              let url = URL(string: value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme)
+        else {
+            return nil
+        }
+        return url
     }
 }
 

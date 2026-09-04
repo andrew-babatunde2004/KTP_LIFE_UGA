@@ -35,7 +35,10 @@ enum MemberGroup: String, Codable, Identifiable, CaseIterable {
     }
 
     var canAccessAttendance: Bool {
-        self != .rush
+        // Attendance is intentionally available to every authenticated group,
+        // including rushees. The API still validates each event's check-in
+        // window and eligibility when a QR code is submitted.
+        true
     }
 
     var title: String {

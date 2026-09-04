@@ -1,10 +1,11 @@
 import QuickLook
+import SafariServices
 import SwiftUI
 
 struct DocumentsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var authManager: AuthManager
-    @State private var previewItem: LocalDocumentPreview?
+    @State private var documentDestination: DocumentDestination?
     @State private var openingDocumentID: String?
     @State private var previewError: String?
 
@@ -33,9 +34,15 @@ struct DocumentsView: View {
         }
         .tint(AppSystemColor.primaryLabel)
         .background(AppSystemColor.background.ignoresSafeArea())
-        .sheet(item: $previewItem) { item in
-            DocumentQuickLookView(url: item.url)
-                .ignoresSafeArea()
+        .sheet(item: $documentDestination) { destination in
+            switch destination {
+            case .preview(let item):
+                DocumentQuickLookView(url: item.url)
+                    .ignoresSafeArea()
+            case .externalLink(let item):
+                ExternalDocumentView(url: item.url)
+                    .ignoresSafeArea()
+            }
         }
         .alert("Could Not Open Document", isPresented: Binding(
             get: { previewError != nil },
@@ -50,6 +57,15 @@ struct DocumentsView: View {
     @MainActor
     private func openDocument(_ document: ChapterDocument) {
         guard openingDocumentID == nil else { return }
+
+        // Linked resources such as Google Docs do not have a file payload for
+        // Quick Look. Present them in the app's browser instead of requesting
+        // the upload-only preview endpoint.
+        if let externalURL = document.externalURL {
+            documentDestination = .externalLink(ExternalDocumentLink(url: externalURL))
+            return
+        }
+
         openingDocumentID = document.id
 
         Task {
@@ -63,7 +79,7 @@ struct DocumentsView: View {
                 let filename = sanitizedFilename(payload.suggestedFilename, fallback: document.name)
                 let fileURL = directory.appendingPathComponent(filename)
                 try payload.data.write(to: fileURL, options: .atomic)
-                previewItem = LocalDocumentPreview(url: fileURL)
+                documentDestination = .preview(LocalDocumentPreview(url: fileURL))
             } catch is CancellationError {
                 return
             } catch {
@@ -251,11 +267,15 @@ private struct DocumentRow: View {
     }
 
     private var detailText: String? {
+        if document.opensExternalLink { return "Web link" }
         guard let byteCount = document.byteCount else { return document.mimeType }
         return ByteCountFormatter.string(fromByteCount: Int64(byteCount), countStyle: .file)
     }
 
     private var documentSystemImage: String {
+        if document.opensExternalLink {
+            return "safari.fill"
+        }
         let loweredName = document.name.lowercased()
         if loweredName.hasSuffix(".pdf") {
             return "doc.richtext.fill"
@@ -278,6 +298,23 @@ private struct ChapterResourceStatusView: View {
 private struct LocalDocumentPreview: Identifiable {
     let url: URL
     var id: URL { url }
+}
+
+private struct ExternalDocumentLink: Identifiable {
+    let url: URL
+    var id: URL { url }
+}
+
+private enum DocumentDestination: Identifiable {
+    case preview(LocalDocumentPreview)
+    case externalLink(ExternalDocumentLink)
+
+    var id: String {
+        switch self {
+        case .preview(let item): "preview-\(item.url.absoluteString)"
+        case .externalLink(let item): "external-\(item.url.absoluteString)"
+        }
+    }
 }
 
 private struct DocumentQuickLookView: UIViewControllerRepresentable {
@@ -308,6 +345,19 @@ private struct DocumentQuickLookView: UIViewControllerRepresentable {
             url as NSURL
         }
     }
+}
+
+/// `SFSafariViewController` keeps a linked chapter resource within the
+/// documents experience while still letting Google Drive, Notion, and similar
+/// providers handle their own authentication and document rendering.
+private struct ExternalDocumentView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
 
 func chapterResourceErrorMessage(for error: Error) -> String {

@@ -94,11 +94,16 @@ enum GroupChatMutePreferences {
             ids.remove(chatID)
         }
         UserDefaults.standard.set(Array(ids), forKey: storageKey)
+        NotificationCenter.default.post(name: .groupChatMutePreferencesDidChange, object: nil)
     }
 
-    private static var mutedChatIDs: Set<String> {
+    static var mutedChatIDs: Set<String> {
         Set(UserDefaults.standard.stringArray(forKey: storageKey) ?? [])
     }
+}
+
+extension Notification.Name {
+    static let groupChatMutePreferencesDidChange = Notification.Name("groupChatMutePreferencesDidChange")
 }
 
 enum PushNotificationDestination: Equatable {

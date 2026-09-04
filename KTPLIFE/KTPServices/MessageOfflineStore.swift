@@ -14,6 +14,7 @@ actor MessageOfflineStore {
         let destinationID: String
         let body: String?
         let attachment: MessageAttachmentUpload?
+        let replyTo: MessageReplyReference?
         let createdAt: Date
 
         var threadID: String {
@@ -39,7 +40,8 @@ actor MessageOfflineStore {
                     )
                 },
                 createdAt: createdAt,
-                isRead: true
+                isRead: true,
+                replyTo: replyTo
             )
         }
     }
@@ -121,6 +123,12 @@ actor MessageOfflineStore {
             let emoji: String
             let count: Int
             let reactedByCurrentUser: Bool
+            let users: [ReactionUser]?
+        }
+
+        struct ReactionUser: Codable {
+            let id: String
+            let displayName: String?
         }
 
         let id: String
@@ -132,6 +140,7 @@ actor MessageOfflineStore {
         let attachment: Attachment?
         let createdAt: Date?
         let isRead: Bool
+        let replyTo: MessageReplyReference?
         let reactions: [Reaction]
 
         init(_ message: KTPMessage) {
@@ -146,8 +155,14 @@ actor MessageOfflineStore {
             }
             createdAt = message.createdAt
             isRead = message.isRead
+            replyTo = message.replyTo
             reactions = message.reactions.map {
-                Reaction(emoji: $0.emoji, count: $0.count, reactedByCurrentUser: $0.reactedByCurrentUser)
+                Reaction(
+                    emoji: $0.emoji,
+                    count: $0.count,
+                    reactedByCurrentUser: $0.reactedByCurrentUser,
+                    users: $0.users.map { ReactionUser(id: $0.id, displayName: $0.displayName) }
+                )
             }
         }
 
@@ -164,11 +179,15 @@ actor MessageOfflineStore {
                 },
                 createdAt: createdAt,
                 isRead: isRead,
+                replyTo: replyTo,
                 reactions: reactions.map {
                     MessageReactionSummary(
                         emoji: $0.emoji,
                         count: $0.count,
-                        reactedByCurrentUser: $0.reactedByCurrentUser
+                        reactedByCurrentUser: $0.reactedByCurrentUser,
+                        users: ($0.users ?? []).map {
+                            MessageReactionUser(id: $0.id, displayName: $0.displayName)
+                        }
                     )
                 }
             )
@@ -184,6 +203,7 @@ actor MessageOfflineStore {
         let attachmentData: Data?
         let attachmentFileName: String?
         let attachmentMIMEType: String?
+        let replyTo: MessageReplyReference?
         let createdAt: Date
 
         var pendingDelivery: PendingDelivery {
@@ -196,6 +216,7 @@ actor MessageOfflineStore {
                     guard let attachmentFileName, let attachmentMIMEType else { return nil }
                     return MessageAttachmentUpload(data: data, fileName: attachmentFileName, mimeType: attachmentMIMEType)
                 },
+                replyTo: replyTo,
                 createdAt: createdAt
             )
         }
@@ -243,6 +264,7 @@ actor MessageOfflineStore {
         destinationID: String,
         body: String?,
         attachment: MessageAttachmentUpload?,
+        replyTo: MessageReplyReference?,
         accountID: String
     ) -> PendingDelivery {
         let delivery = StoredDelivery(
@@ -254,6 +276,7 @@ actor MessageOfflineStore {
             attachmentData: attachment?.data,
             attachmentFileName: attachment?.fileName,
             attachmentMIMEType: attachment?.mimeType,
+            replyTo: replyTo,
             createdAt: Date()
         )
         store.outbox.append(delivery)

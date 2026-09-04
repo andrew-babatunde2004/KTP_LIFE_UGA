@@ -17,6 +17,7 @@ struct MessageThreadsView: View {
     @State private var isRefreshing = false
     @State private var loadError: String?
     @State private var isShowingCachedThreads = false
+    @State private var mutedGroupChatIDs: Set<String> = []
 
     private let offlineStore = MessageOfflineStore.shared
 
@@ -51,11 +52,21 @@ struct MessageThreadsView: View {
                     }
 
                     if !directThreads.isEmpty {
-                        MessageThreadSection(title: nil, threads: directThreads, apiService: apiService)
+                        MessageThreadSection(
+                            title: nil,
+                            threads: directThreads,
+                            mutedGroupChatIDs: mutedGroupChatIDs,
+                            apiService: apiService
+                        )
                     }
 
                     if !groupThreads.isEmpty {
-                        MessageThreadSection(title: "Group Chats", threads: groupThreads, apiService: apiService)
+                        MessageThreadSection(
+                            title: "Group Chats",
+                            threads: groupThreads,
+                            mutedGroupChatIDs: mutedGroupChatIDs,
+                            apiService: apiService
+                        )
                     }
                 }
             }
@@ -76,6 +87,9 @@ struct MessageThreadsView: View {
                 await loadConversations(showsLoadingState: false)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .groupChatMutePreferencesDidChange)) { _ in
+            mutedGroupChatIDs = GroupChatMutePreferences.mutedChatIDs
+        }
     }
 
     private var directThreads: [MessageThread] {
@@ -88,6 +102,7 @@ struct MessageThreadsView: View {
 
     @MainActor
     private func monitorConversations() async {
+        mutedGroupChatIDs = GroupChatMutePreferences.mutedChatIDs
         await hydrateInboxCache()
         await flushPendingMessages()
         await loadConversations(showsLoadingState: true)
@@ -194,13 +209,15 @@ struct MessageThreadsView: View {
                     _ = try await apiService.sendMessage(
                         to: delivery.destinationID,
                         body: delivery.body,
-                        attachment: delivery.attachment
+                        attachment: delivery.attachment,
+                        replyToMessageID: delivery.replyTo?.id
                     )
                 case .group:
                     _ = try await apiService.sendGroupChatMessage(
                         chatId: delivery.destinationID,
                         body: delivery.body,
-                        attachment: delivery.attachment
+                        attachment: delivery.attachment,
+                        replyToMessageID: delivery.replyTo?.id
                     )
                 }
                 await offlineStore.removeDelivery(id: delivery.id, accountID: accountID)
@@ -267,6 +284,7 @@ private struct MessageThreadSection: View {
     @Environment(\.colorScheme) private var colorScheme
     let title: String?
     let threads: [MessageThread]
+    let mutedGroupChatIDs: Set<String>
     let apiService: KTPAPIService
 
     var body: some View {
@@ -285,7 +303,11 @@ private struct MessageThreadSection: View {
         LazyVStack(spacing: MessageThreadLayout.rowSpacing) {
             ForEach(threads) { thread in
                 NavigationLink(value: thread) {
-                    MessageThreadCard(thread: thread, apiService: apiService)
+                    MessageThreadCard(
+                        thread: thread,
+                        isMuted: mutedGroupChatIDs.contains(thread.groupChatID ?? ""),
+                        apiService: apiService
+                    )
                 }
                 .buttonStyle(.plain)
             }
@@ -296,6 +318,7 @@ private struct MessageThreadSection: View {
 private struct MessageThreadCard: View {
     @Environment(\.colorScheme) private var colorScheme
     let thread: MessageThread
+    let isMuted: Bool
     let apiService: KTPAPIService
 
     private var profileID: String? {
@@ -308,11 +331,20 @@ private struct MessageThreadCard: View {
             threadAvatar
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(thread.displayName)
-                    .font(AppFont.subheadline(weight: .semibold))
-                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                HStack(spacing: 5) {
+                    Text(thread.displayName)
+                        .font(AppFont.subheadline(weight: .semibold))
+                        .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+
+                    if isMuted {
+                        Image(systemName: "bell.slash.fill")
+                            .font(AppFont.caption(weight: .semibold))
+                            .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                            .accessibilityLabel("Muted")
+                    }
+                }
 
                 Text(thread.preview)
                     .font(AppFont.subheadline())
@@ -506,7 +538,9 @@ struct MessageConversationView: View {
     @State private var reactionsByMessageID: [String: [String: MessageReactionSummary]] = [:]
     @State private var updatingReactionKeys: Set<String> = []
     @State private var reactionErrorMessage: String?
+    @State private var reactionDetails: MessageReactionDetails?
     @State private var sendErrorMessage: String?
+    @State private var replyingTo: KTPMessage?
     @State private var messagePendingDeletion: KTPMessage?
     @State private var deletingMessageIDs: Set<String> = []
     @State private var deleteErrorMessage: String?
@@ -665,6 +699,9 @@ struct MessageConversationView: View {
         .sheet(item: $groupDetailsChat) { chat in
             GroupChatDetailsView(chat: chat, apiService: apiService)
         }
+        .sheet(item: $reactionDetails) { details in
+            MessageReactionDetailsView(details: details)
+        }
         .confirmationDialog(
             "Block \(thread.displayName)?",
             isPresented: $showsBlockConfirmation,
@@ -780,6 +817,13 @@ struct MessageConversationView: View {
 
     private var messageComposerContent: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let replyingTo {
+                MessageReplyComposerPreview(
+                    replyTo: replyReference(for: replyingTo),
+                    cancel: { self.replyingTo = nil }
+                )
+            }
+
             if let pendingAttachment {
                 MessageAttachmentDraftPreview(
                     attachment: pendingAttachment,
@@ -936,11 +980,16 @@ struct MessageConversationView: View {
                     attachmentSourceID: "\(thread.id)-\(message.id)",
                     attachmentData: attachmentDataByMessageID[message.id],
                     loadAttachmentData: { try await attachmentData(for: message) },
+                    replyTo: resolvedReply(for: message),
+                    replyMessage: { beginReply(to: message) },
                     allowsReactions: true,
                     reactions: reactionSummaries(for: message),
                     updatingEmojis: updatingEmojis(for: message),
                     toggleReaction: { emoji in
                         Task { await toggleReaction(emoji, on: message) }
+                    },
+                    showReactionDetails: { reaction in
+                        reactionDetails = MessageReactionDetails(messageID: message.id, reaction: reaction)
                     },
                     deleteMessage: isSentByCurrentUser(message) && !message.id.hasPrefix("local-") ? {
                         messagePendingDeletion = message
@@ -1037,6 +1086,56 @@ struct MessageConversationView: View {
                 imageURL: message.senderProfileImageURL
             )
         }
+    }
+
+    private func replyReference(for message: KTPMessage) -> MessageReplyReference {
+        MessageReplyReference(
+            id: message.id,
+            senderID: message.senderId,
+            senderDisplayName: sender(for: message).name,
+            body: message.body,
+            attachment: message.attachment
+        )
+    }
+
+    private func resolvedReply(for message: KTPMessage) -> MessageReplyReference? {
+        guard let reply = message.replyTo else { return nil }
+
+        // Some API versions send only `reply_to_id`. Fill in that preview from
+        // the loaded timeline whenever the original message is still available.
+        if reply.body?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
+           reply.attachment == nil,
+           let original = messages.first(where: { $0.id == reply.id }) {
+            return replyReference(for: original)
+        }
+
+        return reply
+    }
+
+    private func beginReply(to message: KTPMessage) {
+        replyingTo = message
+        isComposerFocused = true
+    }
+
+    private func preservingReply(
+        _ reply: MessageReplyReference?,
+        on message: KTPMessage
+    ) -> KTPMessage {
+        guard message.replyTo == nil, let reply else { return message }
+        return KTPMessage(
+            id: message.id,
+            senderId: message.senderId,
+            recipientId: message.recipientId,
+            senderDisplayName: message.senderDisplayName,
+            senderProfileImageURL: message.senderProfileImageURL,
+            body: message.body,
+            attachment: message.attachment,
+            createdAt: message.createdAt,
+            isRead: message.isRead,
+            isDeleted: message.isDeleted,
+            replyTo: reply,
+            reactions: message.reactions
+        )
     }
 
     private func isSentByCurrentUser(_ message: KTPMessage) -> Bool {
@@ -1294,23 +1393,26 @@ struct MessageConversationView: View {
                     sentMessage = try await apiService.sendMessage(
                         to: delivery.destinationID,
                         body: delivery.body,
-                        attachment: delivery.attachment
+                        attachment: delivery.attachment,
+                        replyToMessageID: delivery.replyTo?.id
                     )
                 case .group:
                     sentMessage = try await apiService.sendGroupChatMessage(
                         chatId: delivery.destinationID,
                         body: delivery.body,
-                        attachment: delivery.attachment
+                        attachment: delivery.attachment,
+                        replyToMessageID: delivery.replyTo?.id
                     )
                 }
 
                 let pendingID = "pending-\(delivery.id)"
                 messages.removeAll { $0.id == pendingID }
                 sentMessageIDs.remove(pendingID)
-                messages.append(sentMessage)
-                sentMessageIDs.insert(sentMessage.id)
+                let resolvedSentMessage = preservingReply(delivery.replyTo, on: sentMessage)
+                messages.append(resolvedSentMessage)
+                sentMessageIDs.insert(resolvedSentMessage.id)
                 if let attachment = delivery.attachment {
-                    attachmentDataByMessageID[sentMessage.id] = attachment.data
+                    attachmentDataByMessageID[resolvedSentMessage.id] = attachment.data
                 }
                 attachmentDataByMessageID[pendingID] = nil
                 await offlineStore.removeDelivery(id: delivery.id, accountID: accountID)
@@ -1447,6 +1549,7 @@ struct MessageConversationView: View {
         let draftBeforeSending = draftMessage
         let content = draftBeforeSending.trimmingCharacters(in: .whitespacesAndNewlines)
         let attachment = pendingAttachment
+        let reply = replyingTo.map(replyReference(for:))
         guard (!content.isEmpty || attachment != nil), !isSending else { return }
 
         isSending = true
@@ -1463,24 +1566,28 @@ struct MessageConversationView: View {
                 sentMessage = try await apiService.sendMessage(
                     to: conversation.userId,
                     body: content.isEmpty ? nil : content,
-                    attachment: attachment
+                    attachment: attachment,
+                    replyToMessageID: reply?.id
                 )
             case .group(let chat):
                 sentMessage = try await apiService.sendGroupChatMessage(
                     chatId: chat.id,
                     body: content.isEmpty ? nil : content,
-                    attachment: attachment
+                    attachment: attachment,
+                    replyToMessageID: reply?.id
                 )
             }
+            let resolvedSentMessage = preservingReply(reply, on: sentMessage)
             if let attachment {
-                attachmentDataByMessageID[sentMessage.id] = attachment.data
+                attachmentDataByMessageID[resolvedSentMessage.id] = attachment.data
             }
-            messages.append(sentMessage)
+            messages.append(resolvedSentMessage)
             messages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
-            sentMessageIDs.insert(sentMessage.id)
+            sentMessageIDs.insert(resolvedSentMessage.id)
             renderWindow.reset(totalCount: messages.count)
             scrollRequest = .latest(UUID())
             clearPendingAttachment()
+            replyingTo = nil
             loadError = nil
             await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
             NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
@@ -1507,6 +1614,7 @@ struct MessageConversationView: View {
                     destinationID: destinationID,
                     body: content.isEmpty ? nil : content,
                     attachment: attachment,
+                    replyTo: reply,
                     accountID: accountID
                 )
                 let pendingMessage = delivery.localMessage(currentUserID: authManager.currentUserID)
@@ -1519,6 +1627,7 @@ struct MessageConversationView: View {
                 renderWindow.reset(totalCount: messages.count)
                 scrollRequest = .latest(UUID())
                 clearPendingAttachment()
+                replyingTo = nil
                 loadError = nil
                 isShowingCachedMessages = true
                 await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
@@ -1643,24 +1752,41 @@ struct MessageConversationView: View {
         let previous = reactionsByMessageID[message.id]?[emoji]
             ?? MessageReactionSummary(emoji: emoji, count: 0, reactedByCurrentUser: false)
         let isAdding = !previous.reactedByCurrentUser
+        var updatedUsers = previous.users
+        if let currentUserID = authManager.currentUserID {
+            updatedUsers.removeAll { $0.id == currentUserID }
+            if isAdding {
+                updatedUsers.append(
+                    MessageReactionUser(
+                        id: currentUserID,
+                        displayName: authManager.currentUserProfile?.displayName ?? "You"
+                    )
+                )
+            }
+        }
         let updated = MessageReactionSummary(
             emoji: emoji,
             count: max(0, previous.count + (isAdding ? 1 : -1)),
-            reactedByCurrentUser: isAdding
+            reactedByCurrentUser: isAdding,
+            users: updatedUsers
         )
         setReaction(updated, on: message.id)
 
         do {
+            let serverReactions: [MessageReactionSummary]
             switch thread {
             case .direct:
-                try await apiService.toggleMessageReaction(messageId: message.id, emoji: emoji)
+                serverReactions = try await apiService.toggleMessageReaction(messageId: message.id, emoji: emoji)
             case .group(let chat):
-                try await apiService.toggleGroupChatMessageReaction(
+                serverReactions = try await apiService.toggleGroupChatMessageReaction(
                     chatId: chat.id,
                     messageId: message.id,
                     emoji: emoji
                 )
             }
+            reactionsByMessageID[message.id] = Dictionary(
+                uniqueKeysWithValues: serverReactions.map { ($0.emoji, $0) }
+            )
         } catch is CancellationError {
             setReaction(previous, on: message.id)
         } catch {
@@ -1953,6 +2079,155 @@ private struct MessageSender {
     let imageURL: URL?
 }
 
+private struct MessageReactionDetails: Identifiable {
+    let messageID: String
+    let reaction: MessageReactionSummary
+
+    var id: String { "\(messageID)-\(reaction.emoji)" }
+}
+
+private struct MessageReplyPreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let replyTo: MessageReplyReference
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Capsule()
+                .fill(MessageDesign.primary(for: colorScheme).opacity(0.55))
+                .frame(width: 3)
+
+            VStack(alignment: .leading, spacing: 2) {
+                if let name = replyTo.senderDisplayName, !name.isEmpty {
+                    Text(name)
+                        .font(AppFont.caption(weight: .semibold))
+                        .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                }
+
+                Text(replyTo.preview)
+                    .font(AppFont.caption())
+                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(MessageDesign.input(for: colorScheme).opacity(0.72), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Reply to \(replyTo.senderDisplayName ?? "message"): \(replyTo.preview)")
+    }
+}
+
+private struct MessageReplyComposerPreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let replyTo: MessageReplyReference
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "arrowshape.turn.up.left.fill")
+                .font(AppFont.footnote(weight: .semibold))
+                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Replying to \(replyTo.senderDisplayName ?? "message")")
+                    .font(AppFont.caption(weight: .semibold))
+                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
+
+                Text(replyTo.preview)
+                    .font(AppFont.caption())
+                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            Button(action: cancel) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(AppFont.subheadline())
+                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cancel reply")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(MessageDesign.card(for: colorScheme), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
+        }
+    }
+}
+
+private struct MessageReactionDetailsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    let details: MessageReactionDetails
+
+    private var namedUsers: [MessageReactionUser] {
+        details.reaction.users.filter {
+            guard let name = $0.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
+            return !name.isEmpty
+        }
+    }
+
+    private var totalLabel: String {
+        let count = details.reaction.count
+        return "\(count) \(count == 1 ? "person" : "people") reacted"
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 10) {
+                        Text(details.reaction.emoji)
+                            .font(.system(size: 30))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(totalLabel)
+                                .font(AppFont.subheadline(weight: .semibold))
+                                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                            if details.reaction.reactedByCurrentUser {
+                                Text("You reacted")
+                                    .font(AppFont.caption())
+                                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                            }
+                        }
+                    }
+                }
+
+                if namedUsers.isEmpty {
+                    Section {
+                        Text("Names will appear here when the conversation refresh includes reaction details.")
+                            .font(AppFont.subheadline())
+                            .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                    }
+                } else {
+                    Section("Reactions") {
+                        ForEach(namedUsers) { user in
+                            Text(user.displayName ?? "Member")
+                                .font(AppFont.subheadline())
+                                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(MessageDesign.background(for: colorScheme))
+            .navigationTitle("Reactions")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
 private struct MessageBubble: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var showsMessageActions = false
@@ -1965,10 +2240,13 @@ private struct MessageBubble: View {
     let attachmentSourceID: String
     let attachmentData: Data?
     let loadAttachmentData: () async throws -> Data
+    let replyTo: MessageReplyReference?
+    let replyMessage: () -> Void
     let allowsReactions: Bool
     let reactions: [MessageReactionSummary]
     let updatingEmojis: Set<String>
     let toggleReaction: (String) -> Void
+    let showReactionDetails: (MessageReactionSummary) -> Void
     let deleteMessage: (() -> Void)?
     let isDeleting: Bool
     let reportMessage: (() -> Void)?
@@ -2010,6 +2288,10 @@ private struct MessageBubble: View {
 
     private var messageSurface: some View {
         VStack(alignment: .leading, spacing: 5) {
+            if let replyTo {
+                MessageReplyPreview(replyTo: replyTo)
+            }
+
             if let attachment = message.attachment, attachment.isImage {
                 MessageAttachmentPreview(
                     attachment: attachment,
@@ -2043,7 +2325,19 @@ private struct MessageBubble: View {
 
     private var messageActionsPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Button {
+                showsMessageActions = false
+                replyMessage()
+            } label: {
+                Label("Reply", systemImage: "arrowshape.turn.up.left")
+                    .font(AppFont.footnote(weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+
             if allowsReactions {
+                Divider()
+
                 HStack(spacing: 4) {
                     ForEach(MessageReactionOptions.emojis, id: \.self) { emoji in
                         Button {
@@ -2139,28 +2433,34 @@ private struct MessageBubble: View {
     private var reactionBar: some View {
         HStack(spacing: 6) {
             ForEach(reactions) { reaction in
-                HStack(spacing: 4) {
-                    Text(reaction.emoji)
-                    Text("\(reaction.count)")
-                        .font(AppFont.caption(weight: .semibold))
+                Button {
+                    showReactionDetails(reaction)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(reaction.emoji)
+                        Text("\(reaction.count)")
+                            .font(AppFont.caption(weight: .semibold))
+                    }
+                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                    .padding(.horizontal, 9)
+                    .frame(height: 30)
+                    .background(
+                        reaction.reactedByCurrentUser
+                            ? MessageDesign.selectionTint(for: colorScheme)
+                            : MessageDesign.card(for: colorScheme),
+                        in: Capsule()
+                    )
+                    .overlay {
+                        Capsule()
+                            .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
+                    }
                 }
-                .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                .padding(.horizontal, 9)
-                .frame(height: 30)
-                .background(
-                    reaction.reactedByCurrentUser
-                        ? MessageDesign.selectionTint(for: colorScheme)
-                        : MessageDesign.card(for: colorScheme),
-                    in: Capsule()
-                )
-                .overlay {
-                    Capsule()
-                        .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
-                }
+                .buttonStyle(.plain)
                 .accessibilityLabel(
                     "\(reaction.emoji) reaction, \(reaction.count), "
                     + (reaction.reactedByCurrentUser ? "selected" : "not selected")
                 )
+                .accessibilityHint("Shows who reacted")
             }
         }
     }
