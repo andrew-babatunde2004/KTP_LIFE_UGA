@@ -34,6 +34,9 @@ struct ChapterDocument: Identifiable, Hashable, Decodable {
     let folderID: String?
     let mimeType: String?
     let byteCount: Int?
+    /// A browser-based document (for example, a Google Doc) supplied by the
+    /// chapter library instead of an uploaded previewable file.
+    let externalURL: URL?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -46,14 +49,29 @@ struct ChapterDocument: Identifiable, Hashable, Decodable {
         case contentType = "content_type"
         case byteCount = "size"
         case fileSize = "file_size"
+        case externalURL = "external_url"
+        case externalLink = "external_link"
+        case hyperlink
+        case link
+        case documentURL = "document_url"
+        case fileURL = "file_url"
+        case url
     }
 
-    init(id: String, name: String, folderID: String? = nil, mimeType: String? = nil, byteCount: Int? = nil) {
+    init(
+        id: String,
+        name: String,
+        folderID: String? = nil,
+        mimeType: String? = nil,
+        byteCount: Int? = nil,
+        externalURL: URL? = nil
+    ) {
         self.id = id
         self.name = name
         self.folderID = folderID
         self.mimeType = mimeType
         self.byteCount = byteCount
+        self.externalURL = externalURL
     }
 
     init(from decoder: Decoder) throws {
@@ -69,7 +87,18 @@ struct ChapterDocument: Identifiable, Hashable, Decodable {
             ?? container.decodeIfPresent(String.self, forKey: .contentType)
         byteCount = try container.flexibleInt(forKey: .byteCount)
             ?? container.flexibleInt(forKey: .fileSize)
+        externalURL = [
+            CodingKeys.externalURL,
+            .externalLink,
+            .hyperlink,
+            .link,
+            .documentURL,
+            .fileURL,
+            .url,
+        ].lazy.compactMap { try? container.flexibleURL(forKey: $0) }.first
     }
+
+    var opensExternalLink: Bool { externalURL != nil }
 }
 
 struct Committee: Identifiable, Hashable, Decodable {
@@ -77,6 +106,7 @@ struct Committee: Identifiable, Hashable, Decodable {
     let name: String
     let role: String?
     let isMember: Bool
+    let membershipStatus: String?
     let memberCount: Int?
     let groupChatID: String?
 
@@ -89,6 +119,9 @@ struct Committee: Identifiable, Hashable, Decodable {
         case isMember = "is_member"
         case joined
         case membership
+        case membershipStatus = "membership_status"
+        case requestStatus = "request_status"
+        case status
         case memberCount = "member_count"
         case membersCount = "members_count"
         case groupChatID = "group_chat_id"
@@ -97,6 +130,7 @@ struct Committee: Identifiable, Hashable, Decodable {
 
     private struct Membership: Decodable {
         let role: String?
+        let status: String?
     }
 
     init(
@@ -104,6 +138,7 @@ struct Committee: Identifiable, Hashable, Decodable {
         name: String,
         role: String? = nil,
         isMember: Bool = false,
+        membershipStatus: String? = nil,
         memberCount: Int? = nil,
         groupChatID: String? = nil
     ) {
@@ -111,6 +146,7 @@ struct Committee: Identifiable, Hashable, Decodable {
         self.name = name
         self.role = role
         self.isMember = isMember
+        self.membershipStatus = membershipStatus
         self.memberCount = memberCount
         self.groupChatID = groupChatID
     }
@@ -127,6 +163,10 @@ struct Committee: Identifiable, Hashable, Decodable {
             ?? container.decodeIfPresent(String.self, forKey: .membershipRole)
             ?? membership?.role
         role = resolvedRole
+        membershipStatus = try container.decodeIfPresent(String.self, forKey: .membershipStatus)
+            ?? container.decodeIfPresent(String.self, forKey: .requestStatus)
+            ?? container.decodeIfPresent(String.self, forKey: .status)
+            ?? membership?.status
         isMember = try container.decodeIfPresent(Bool.self, forKey: .isMember)
             ?? container.decodeIfPresent(Bool.self, forKey: .joined)
             ?? (membership != nil || resolvedRole != nil)
@@ -134,6 +174,13 @@ struct Committee: Identifiable, Hashable, Decodable {
             ?? container.flexibleInt(forKey: .membersCount)
         groupChatID = try container.flexibleString(forKey: .groupChatID)
             ?? container.flexibleString(forKey: .chatID)
+    }
+
+    var hasPendingMembershipRequest: Bool {
+        guard !isMember else { return false }
+        return ["pending", "requested", "awaiting_approval", "awaiting approval"].contains(
+            membershipStatus?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        )
     }
 }
 
@@ -244,6 +291,17 @@ private extension KeyedDecodingContainer {
             return Int(value)
         }
         return nil
+    }
+
+    func flexibleURL(forKey key: Key) throws -> URL? {
+        guard let value = try flexibleString(forKey: key),
+              let url = URL(string: value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme)
+        else {
+            return nil
+        }
+        return url
     }
 }
 

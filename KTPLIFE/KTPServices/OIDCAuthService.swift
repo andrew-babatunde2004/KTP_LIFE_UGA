@@ -27,7 +27,7 @@ enum AuthServiceError: LocalizedError {
         case .missingCodeVerifier:
             return "Missing PKCE verifier."
         case .invalidCallback:
-            return "Invalid authentication callback."
+            return "Error Try Again"
         case .missingDiscoveryEndpoint:
             return "Unable to load OIDC discovery document."
         case .invalidTokenResponse:
@@ -54,7 +54,7 @@ final class OIDCAuthService {
         self.session = session
     }
 
-    func signIn() async throws -> AuthTokens {
+    func signIn(prefersEphemeralSession: Bool = false) async throws -> AuthTokens {
         AuthDebugLog.log("Starting OIDC sign-in with issuer=\(AuthConfiguration.issuer.absoluteString), clientID=\(AuthConfiguration.clientID)")
         let configuration = try await discoverConfiguration()
         let pkce = PKCE.generate()
@@ -62,7 +62,7 @@ final class OIDCAuthService {
         let nonce = RandomString.generate(length: 32)
 
         var components = URLComponents(url: configuration.authorizationEndpoint, resolvingAgainstBaseURL: false)
-        components?.queryItems = [
+        var authorizationQueryItems = [
             URLQueryItem(name: "client_id", value: AuthConfiguration.clientID),
             URLQueryItem(name: "redirect_uri", value: AuthConfiguration.redirectURI.absoluteString),
             URLQueryItem(name: "response_type", value: "code"),
@@ -72,13 +72,20 @@ final class OIDCAuthService {
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "nonce", value: nonce)
         ]
+        if prefersEphemeralSession {
+            authorizationQueryItems.append(URLQueryItem(name: "prompt", value: "login"))
+        }
+        components?.queryItems = authorizationQueryItems
 
         guard let authorizationURL = components?.url else {
             throw AuthServiceError.missingDiscoveryEndpoint
         }
 
         AuthDebugLog.log("Opening authorization URL: \(authorizationURL.absoluteString)")
-        let callbackURL = try await startAuthenticationSession(url: authorizationURL)
+        let callbackURL = try await startAuthenticationSession(
+            url: authorizationURL,
+            prefersEphemeralSession: prefersEphemeralSession
+        )
         AuthDebugLog.log("Received callback URL: \(callbackURL.absoluteString)")
         guard callbackURL.scheme == AuthConfiguration.redirectURI.scheme else {
             throw AuthServiceError.invalidCallback
@@ -128,43 +135,37 @@ final class OIDCAuthService {
         )
     }
 
-    /// Ends the authentik browser session used by `ASWebAuthenticationSession`.
-    ///
-    /// This is intentionally best-effort: local credentials must still be cleared
-    /// when the provider is unreachable or the user dismisses the logout page.
     func signOut(idToken: String?) async {
         do {
             let configuration = try await discoverConfiguration()
-            var components = URLComponents(
-                url: configuration.endSessionEndpoint ?? AuthConfiguration.endSessionEndpoint,
-                resolvingAgainstBaseURL: false
-            )
-            var queryItems = [
-                URLQueryItem(name: "client_id", value: AuthConfiguration.clientID),
-                URLQueryItem(name: "post_logout_redirect_uri", value: AuthConfiguration.redirectURI.absoluteString)
-            ]
-
-            if let idToken, !idToken.isEmpty {
-                queryItems.append(URLQueryItem(name: "id_token_hint", value: idToken))
-            }
-
-            components?.queryItems = queryItems
-            guard let logoutURL = components?.url else {
-                AuthDebugLog.log("Could not construct OIDC logout URL.")
+            guard let endSessionEndpoint = configuration.endSessionEndpoint else {
                 return
             }
 
-            let endpointDescription = [
-                logoutURL.scheme ?? "https",
-                "://",
-                logoutURL.host ?? "",
-                logoutURL.path
-            ].joined()
-            AuthDebugLog.log("Opening OIDC logout endpoint: \(endpointDescription)")
-            _ = try await startAuthenticationSession(url: logoutURL)
-            AuthDebugLog.log("OIDC logout session completed.")
+            var components = URLComponents(
+                url: endSessionEndpoint,
+                resolvingAgainstBaseURL: false
+            )
+            var queryItems = [
+                URLQueryItem(
+                    name: "post_logout_redirect_uri",
+                    value: AuthConfiguration.redirectURI.absoluteString
+                )
+            ]
+            if let idToken, !idToken.isEmpty {
+                queryItems.append(URLQueryItem(name: "id_token_hint", value: idToken))
+            }
+            components?.queryItems = queryItems
+
+            guard let logoutURL = components?.url else { return }
+            _ = try await startAuthenticationSession(
+                url: logoutURL,
+                prefersEphemeralSession: false
+            )
         } catch {
-            AuthDebugLog.log("OIDC logout did not complete: \(error.localizedDescription)")
+            // Local credentials are already cleared by AuthManager. Provider
+            // logout is best-effort and must not prevent returning to sign in.
+            AuthDebugLog.log("Provider sign-out did not complete: \(error.localizedDescription)")
         }
     }
 
@@ -248,7 +249,10 @@ final class OIDCAuthService {
         }
     }
 
-    private func startAuthenticationSession(url: URL) async throws -> URL {
+    private func startAuthenticationSession(
+        url: URL,
+        prefersEphemeralSession: Bool
+    ) async throws -> URL {
         try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(
                 url: url,
@@ -279,7 +283,7 @@ final class OIDCAuthService {
             }
 
             session.presentationContextProvider = PresentationContextProvider.shared
-            session.prefersEphemeralWebBrowserSession = false
+            session.prefersEphemeralWebBrowserSession = prefersEphemeralSession
             authenticationSession = session
             session.start()
         }

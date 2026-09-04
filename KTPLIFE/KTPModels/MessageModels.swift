@@ -45,7 +45,7 @@ struct MessageConversation: Identifiable, Hashable, Decodable {
         case isUnread = "is_unread"
     }
 
-    init(
+    nonisolated init(
         id: String,
         userId: String,
         displayName: String,
@@ -141,7 +141,7 @@ struct GroupChat: Identifiable, Hashable, Decodable {
         case photoAssetID = "photo_asset_id"
     }
 
-    init(
+    nonisolated init(
         id: String,
         name: String,
         preview: String,
@@ -247,6 +247,11 @@ enum MessageThread: Identifiable, Hashable {
         }
         return false
     }
+
+    var groupChatID: String? {
+        guard case .group(let chat) = self else { return nil }
+        return chat.id
+    }
 }
 
 struct KTPMessage: Identifiable, Hashable, Decodable {
@@ -262,6 +267,10 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
     /// Incremental-sync responses can represent deletions as message tombstones.
     /// The conversation store removes those records instead of rendering them.
     let isDeleted: Bool
+    /// When present, this message is an inline reply to another message in the
+    /// same conversation. The API may provide either a full reply preview or
+    /// only its message identifier.
+    let replyTo: MessageReplyReference?
     let reactions: [MessageReactionSummary]
 
     enum CodingKeys: String, CodingKey {
@@ -296,10 +305,16 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         case isDeleted = "is_deleted"
         case deleted
         case deletedAt = "deleted_at"
+        case replyTo = "reply_to"
+        case camelReplyTo = "replyTo"
+        case replyToMessage = "reply_to_message"
+        case replyToMessageID = "reply_to_message_id"
+        case replyToID = "reply_to_id"
+        case parentMessageID = "parent_message_id"
         case reactions
     }
 
-    init(
+    nonisolated init(
         id: String,
         senderId: String?,
         recipientId: String?,
@@ -310,6 +325,7 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         createdAt: Date?,
         isRead: Bool,
         isDeleted: Bool = false,
+        replyTo: MessageReplyReference? = nil,
         reactions: [MessageReactionSummary] = []
     ) {
         self.id = id
@@ -322,6 +338,7 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         self.createdAt = createdAt
         self.isRead = isRead
         self.isDeleted = isDeleted
+        self.replyTo = replyTo
         self.reactions = reactions
     }
 
@@ -366,6 +383,23 @@ struct KTPMessage: Identifiable, Hashable, Decodable {
         let fallbackDeletedValue = try container.decodeIfPresent(Bool.self, forKey: .deleted)
         let deletedAt = try container.decodeIfPresent(String.self, forKey: .deletedAt)
         isDeleted = directDeletedValue ?? fallbackDeletedValue ?? (deletedAt != nil)
+        var decodedReply: MessageReplyReference?
+        decodedReply = try? container.decodeIfPresent(MessageReplyReference.self, forKey: .replyTo)
+        if decodedReply == nil {
+            decodedReply = try? container.decodeIfPresent(MessageReplyReference.self, forKey: .camelReplyTo)
+        }
+        if decodedReply == nil {
+            decodedReply = try? container.decodeIfPresent(MessageReplyReference.self, forKey: .replyToMessage)
+        }
+        if decodedReply == nil {
+            let replyID = try? container.decodeFirstPresentStringIfPresent(
+                for: [.replyToMessageID, .replyToID, .parentMessageID, .replyTo, .camelReplyTo]
+            )
+            if let replyID {
+                decodedReply = MessageReplyReference(id: replyID)
+            }
+        }
+        replyTo = decodedReply
         reactions = MessageReactionSummary.decode(from: container, forKey: .reactions)
     }
 }
@@ -389,7 +423,7 @@ extension KTPMessage {
     }
 }
 
-struct MessageAttachment: Hashable, Decodable {
+struct MessageAttachment: Hashable, Codable {
     let kind: String
     let filename: String?
     let mimeType: String?
@@ -409,10 +443,130 @@ struct MessageAttachmentUpload {
     let mimeType: String
 }
 
+/// A lightweight representation of a message that is being replied to. It is
+/// deliberately independent from `KTPMessage` so nested API responses cannot
+/// recurse indefinitely and locally queued replies can still render a preview.
+struct MessageReplyReference: Hashable, Codable {
+    let id: String
+    let senderID: String?
+    let senderDisplayName: String?
+    let body: String?
+    let attachment: MessageAttachment?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case messageId = "message_id"
+        case senderID = "sender_id"
+        case fromUserID = "from_user_id"
+        case senderName = "sender_name"
+        case senderDisplayName = "sender_display_name"
+        case name
+        case content
+        case body
+        case text
+        case message
+        case attachment
+    }
+
+    nonisolated init(
+        id: String,
+        senderID: String? = nil,
+        senderDisplayName: String? = nil,
+        body: String? = nil,
+        attachment: MessageAttachment? = nil
+    ) {
+        self.id = id
+        self.senderID = senderID
+        self.senderDisplayName = senderDisplayName
+        self.body = body
+        self.attachment = attachment
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeFirstPresentString(for: [.id, .messageId], fallback: UUID().uuidString)
+        senderID = try container.decodeFirstPresentStringIfPresent(for: [.senderID, .fromUserID])
+        senderDisplayName = try container.decodeFirstPresentStringIfPresent(
+            for: [.senderName, .senderDisplayName, .name]
+        )
+        body = try container.decodeFirstPresentStringIfPresent(for: [.content, .body, .text, .message])
+        attachment = try container.decodeIfPresent(MessageAttachment.self, forKey: .attachment)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(senderID, forKey: .senderID)
+        try container.encodeIfPresent(senderDisplayName, forKey: .senderDisplayName)
+        try container.encodeIfPresent(body, forKey: .body)
+        try container.encodeIfPresent(attachment, forKey: .attachment)
+    }
+
+    var preview: String {
+        let text = body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !text.isEmpty { return text }
+        if attachment != nil { return "Attachment" }
+        return "Message"
+    }
+}
+
+/// The member identity supplied with an emoji reaction. Older API responses
+/// only contain counts, so `displayName` remains optional and the UI degrades
+/// cleanly to the count in that case.
+struct MessageReactionUser: Identifiable, Hashable, Codable {
+    let id: String
+    let displayName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userID = "user_id"
+        case authentikID = "authentik_id"
+        case memberID = "member_id"
+        case name
+        case displayName = "display_name"
+        case senderName = "sender_name"
+        case fullName = "full_name"
+        case preferredName = "preferred_name"
+        case username
+        case firstName = "first_name"
+        case lastName = "last_name"
+    }
+
+    nonisolated init(id: String, displayName: String? = nil) {
+        self.id = id
+        self.displayName = displayName
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let firstName = try container.decodeIfPresent(String.self, forKey: .firstName)
+        let lastName = try container.decodeIfPresent(String.self, forKey: .lastName)
+        let composedName = [firstName, lastName]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        let resolvedName = try container.decodeFirstPresentStringIfPresent(
+            for: [.displayName, .name, .senderName, .fullName, .preferredName, .username]
+        ) ?? (composedName.isEmpty ? nil : composedName)
+        id = try container.decodeFirstPresentString(
+            for: [.id, .userID, .authentikID, .memberID],
+            fallback: resolvedName ?? UUID().uuidString
+        )
+        displayName = resolvedName
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+    }
+}
+
 struct MessageReactionSummary: Identifiable, Hashable, Decodable {
     let emoji: String
     let count: Int
     let reactedByCurrentUser: Bool
+    let users: [MessageReactionUser]
 
     var id: String { emoji }
 
@@ -424,25 +578,44 @@ struct MessageReactionSummary: Identifiable, Hashable, Decodable {
         case reactedByCurrentUser = "reacted_by_current_user"
         case userReacted = "user_reacted"
         case reacted
+        case users
+        case reactionUsers = "reaction_users"
+        case reactedByUsers = "reacted_by_users"
+        case reactors
+        case members
+        case user
+        case reactor
+        case reactedBy = "reacted_by"
+        case userID = "user_id"
+        case userName = "user_name"
+        case displayName = "display_name"
     }
 
-    init(emoji: String, count: Int, reactedByCurrentUser: Bool) {
+    nonisolated init(
+        emoji: String,
+        count: Int,
+        reactedByCurrentUser: Bool,
+        users: [MessageReactionUser] = []
+    ) {
         self.emoji = emoji
         self.count = count
         self.reactedByCurrentUser = reactedByCurrentUser
+        self.users = users
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         emoji = try container.decodeIfPresent(String.self, forKey: .emoji)
             ?? container.decode(String.self, forKey: .reaction)
-        count = try container.decodeIfPresent(Int.self, forKey: .count)
+        let decodedUsers = Self.decodeUsers(from: container)
+        let directCount = try container.decodeIfPresent(Int.self, forKey: .count)
             ?? container.decodeIfPresent(Int.self, forKey: .total)
-            ?? 1
+        count = directCount ?? max(1, decodedUsers.count)
         reactedByCurrentUser = try container.decodeIfPresent(Bool.self, forKey: .reactedByCurrentUser)
             ?? container.decodeIfPresent(Bool.self, forKey: .userReacted)
             ?? container.decodeIfPresent(Bool.self, forKey: .reacted)
             ?? false
+        users = Self.uniqueUsers(decodedUsers)
     }
 
     fileprivate static func decode(
@@ -470,11 +643,47 @@ struct MessageReactionSummary: Identifiable, Hashable, Decodable {
             values[reaction.emoji] = MessageReactionSummary(
                 emoji: reaction.emoji,
                 count: (existing?.count ?? 0) + reaction.count,
-                reactedByCurrentUser: (existing?.reactedByCurrentUser ?? false) || reaction.reactedByCurrentUser
+                reactedByCurrentUser: (existing?.reactedByCurrentUser ?? false) || reaction.reactedByCurrentUser,
+                users: uniqueUsers((existing?.users ?? []) + reaction.users)
             )
         }
 
         return values.values.sorted { $0.emoji < $1.emoji }
+    }
+
+    private static func decodeUsers(
+        from container: KeyedDecodingContainer<CodingKeys>
+    ) -> [MessageReactionUser] {
+        var decodedUsers: [MessageReactionUser] = []
+
+        for key in [CodingKeys.users, .reactionUsers, .reactedByUsers, .reactors, .members] {
+            if let users = try? container.decode([MessageReactionUser].self, forKey: key) {
+                decodedUsers.append(contentsOf: users)
+            } else if let names = try? container.decode([String].self, forKey: key) {
+                decodedUsers.append(contentsOf: names.map { MessageReactionUser(id: $0, displayName: $0) })
+            }
+        }
+
+        for key in [CodingKeys.user, .reactor, .reactedBy] {
+            if let user = try? container.decode(MessageReactionUser.self, forKey: key) {
+                decodedUsers.append(user)
+            } else if let name = try? container.decode(String.self, forKey: key), !name.isEmpty {
+                decodedUsers.append(MessageReactionUser(id: name, displayName: name))
+            }
+        }
+
+        let directUserID = try? container.decodeFirstPresentStringIfPresent(for: [.userID])
+        if let directUserID, !directUserID.isEmpty {
+            let directName = try? container.decodeFirstPresentStringIfPresent(for: [.userName, .displayName])
+            decodedUsers.append(MessageReactionUser(id: directUserID, displayName: directName))
+        }
+
+        return decodedUsers
+    }
+
+    private static func uniqueUsers(_ users: [MessageReactionUser]) -> [MessageReactionUser] {
+        var seen = Set<String>()
+        return users.filter { seen.insert($0.id).inserted }
     }
 }
 

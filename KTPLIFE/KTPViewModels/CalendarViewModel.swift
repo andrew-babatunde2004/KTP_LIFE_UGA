@@ -6,10 +6,20 @@ class CalendarViewModel {
     var events: [CalendarEvent] = []
     var isLoading = false 
     var errorMessage: String? = nil
+    var isShowingCachedEvents = false
+    var cacheUpdatedAt: Date?
+
+    private let cache = CalendarEventCache.shared
 
     @MainActor
-    func fetchEvents(accessTokenProvider: @escaping () async throws -> String?) async {
-        isLoading = true
+    func fetchEvents(accountID: String, accessTokenProvider: @escaping () async throws -> String?) async {
+        if events.isEmpty, let snapshot = await cache.load(accountID: accountID) {
+            events = snapshot.events
+            cacheUpdatedAt = snapshot.updatedAt
+            isShowingCachedEvents = true
+        }
+
+        isLoading = events.isEmpty
         errorMessage = nil
         do {
             let networkService = CalendarNetworkService(accessTokenProvider: accessTokenProvider)
@@ -27,8 +37,16 @@ class CalendarViewModel {
 
             self.events = (calendarEvents + meetingEvents)
                 .sorted { $0.startDate < $1.startDate }
+            let refreshedAt = Date()
+            await cache.save(self.events, accountID: accountID, updatedAt: refreshedAt)
+            cacheUpdatedAt = refreshedAt
+            isShowingCachedEvents = false
         } catch {
-            self.errorMessage = "Failed to load calendar events"
+            if events.isEmpty {
+                self.errorMessage = "Failed to load calendar events"
+            } else {
+                isShowingCachedEvents = true
+            }
         }
 
         isLoading = false

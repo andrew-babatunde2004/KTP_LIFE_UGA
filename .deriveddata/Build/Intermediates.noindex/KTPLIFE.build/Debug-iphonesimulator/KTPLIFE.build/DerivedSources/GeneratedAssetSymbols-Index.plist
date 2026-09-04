@@ -16,6 +16,16 @@
 			<key>swiftSymbol</key>
 			<string>ktpLogo</string>
 		</dict>
+		<dict>
+			<key>catalogPath</key>
+			<string>/Users/andrew/Documents/KTPLIFE/KTP_LIFE_UGA/KTPLIFE/KTPLIFE/Assets.xcassets</string>
+			<key>objcSymbol</key>
+			<string>ACImageNameLinkedin</string>
+			<key>relativePath</key>
+			<string>./Linkedin.imageset</string>
+			<key>swiftSymbol</key>
+			<string>linkedin</string>
+		</dict>
 	</array>
 	<key>symbols</key>
 	<array/>

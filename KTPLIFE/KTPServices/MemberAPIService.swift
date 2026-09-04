@@ -105,6 +105,20 @@ final class KTPAPIService {
         return try await fetchCurrentUserProfile()
     }
 
+    /// Replaces the authenticated user's profile picture through protected
+    /// `PUT /users/me/profile-picture`.
+    func updateCurrentUserProfilePicture(_ image: MessageAttachmentUpload) async throws -> UserProfile {
+        let url = baseURL.appendingPathComponent("users/me/profile-picture")
+        let request = Self.multipartRequest(url: url, method: "PUT", fields: [:], file: image)
+        let data = try await fetchProtectedData(for: request, logLabel: "update current user profile picture")
+
+        if !data.isEmpty, let updatedProfile = try? UserProfile.decodeResponse(from: data) {
+            return updatedProfile
+        }
+
+        return try await fetchCurrentUserProfile()
+    }
+
     /// Anonymizes the authenticated user's account through protected `DELETE /users/me`.
     func deleteCurrentUser() async throws {
         let url = baseURL.appendingPathComponent("users/me")
@@ -226,7 +240,6 @@ final class KTPAPIService {
         let url = baseURL
             .appendingPathComponent("messages/conversations")
             .appendingPathComponent(userId)
-            .appendingPathComponent("messages")
         let data = try await fetchProtectedData(from: url, logLabel: "conversation with \(userId)")
 
         do {
@@ -323,13 +336,18 @@ final class KTPAPIService {
     func sendMessage(
         to userId: String,
         body: String?,
-        attachment: MessageAttachmentUpload?
+        attachment: MessageAttachmentUpload?,
+        replyToMessageID: String? = nil
     ) async throws -> KTPMessage {
         let url = baseURL.appendingPathComponent("messages")
         let request = Self.multipartRequest(
             url: url,
             method: "POST",
-            fields: ["recipient_id": userId, "body": body],
+            fields: [
+                "recipient_id": userId,
+                "body": body,
+                "reply_to_id": replyToMessageID,
+            ],
             file: attachment
         )
 
@@ -352,7 +370,8 @@ final class KTPAPIService {
                 MessageAttachment(kind: "file", filename: $0.fileName, mimeType: $0.mimeType, size: $0.data.count)
             },
             createdAt: Date(),
-            isRead: true
+            isRead: true,
+            replyTo: replyToMessageID.map { MessageReplyReference(id: $0) }
         )
     }
 
@@ -379,7 +398,7 @@ final class KTPAPIService {
     }
 
     /// Toggles the authenticated user's emoji reaction on one direct message.
-    func toggleMessageReaction(messageId: String, emoji: String) async throws {
+    func toggleMessageReaction(messageId: String, emoji: String) async throws -> [MessageReactionSummary] {
         let url = baseURL
             .appendingPathComponent("messages")
             .appendingPathComponent(messageId)
@@ -388,11 +407,12 @@ final class KTPAPIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(MessageReactionRequest(emoji: emoji))
-        _ = try await fetchProtectedData(for: request, logLabel: "toggle reaction on message \(messageId)")
+        let data = try await fetchProtectedData(for: request, logLabel: "toggle reaction on message \(messageId)")
+        return try JSONDecoder().decode([MessageReactionSummary].self, from: data)
     }
 
     /// Toggles the authenticated user's emoji reaction on one group-chat message.
-    func toggleGroupChatMessageReaction(chatId: String, messageId: String, emoji: String) async throws {
+    func toggleGroupChatMessageReaction(chatId: String, messageId: String, emoji: String) async throws -> [MessageReactionSummary] {
         let url = baseURL
             .appendingPathComponent("group-chats")
             .appendingPathComponent(chatId)
@@ -403,7 +423,8 @@ final class KTPAPIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(MessageReactionRequest(emoji: emoji))
-        _ = try await fetchProtectedData(for: request, logLabel: "toggle reaction on group chat \(chatId) message \(messageId)")
+        let data = try await fetchProtectedData(for: request, logLabel: "toggle reaction on group chat \(chatId) message \(messageId)")
+        return try JSONDecoder().decode([MessageReactionSummary].self, from: data)
     }
 
     func createGroupChat(name: String, memberIDs: [String]) async throws -> GroupChat {
@@ -601,7 +622,8 @@ final class KTPAPIService {
     func sendGroupChatMessage(
         chatId: String,
         body: String?,
-        attachment: MessageAttachmentUpload?
+        attachment: MessageAttachmentUpload?,
+        replyToMessageID: String? = nil
     ) async throws -> KTPMessage {
         let url = baseURL
             .appendingPathComponent("group-chats")
@@ -610,7 +632,10 @@ final class KTPAPIService {
         let request = Self.multipartRequest(
             url: url,
             method: "POST",
-            fields: ["body": body],
+            fields: [
+                "body": body,
+                "reply_to_id": replyToMessageID,
+            ],
             file: attachment
         )
 
@@ -953,6 +978,7 @@ private struct SentMessageResponse: Decodable {
 
     nonisolated private static func hasContent(_ message: KTPMessage) -> Bool {
         !message.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || message.attachment != nil
     }
 
     init(from decoder: Decoder) throws {

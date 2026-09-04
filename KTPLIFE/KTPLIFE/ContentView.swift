@@ -17,6 +17,7 @@ struct ContentView: View {
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var avatarRepository: AvatarRepository
     @EnvironmentObject private var galleryThumbnailRepository: GalleryThumbnailRepository
+    @EnvironmentObject private var galleryContentCache: GalleryContentCache
     @EnvironmentObject private var messageAttachmentThumbnailRepository: MessageAttachmentThumbnailRepository
     @EnvironmentObject private var pushNotificationManager: PushNotificationManager
     @State private var selectedTab: AppTab = .home
@@ -98,6 +99,7 @@ struct ContentView: View {
             if newPhase == .signedOut {
                 avatarRepository.clear()
                 galleryThumbnailRepository.clear()
+                galleryContentCache.clear()
                 messageAttachmentThumbnailRepository.clear()
             }
         }
@@ -191,28 +193,6 @@ struct ContentView: View {
         .onOpenURL { url in
             handleIncomingURL(url)
         }
-        .alert(
-            checkInResult?.title ?? "",
-            isPresented: Binding(
-                get: { checkInResult != nil },
-                set: { if !$0 { checkInResult = nil } }
-            )
-        ) {
-            Button("Done") { checkInResult = nil }
-        } message: {
-            Text(checkInResult?.message ?? "")
-        }
-        .overlay {
-            if isCheckingIn {
-                ZStack {
-                    Color.black.opacity(0.35).ignoresSafeArea()
-                    ProgressView("Checking you in…")
-                        .padding(20)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-                }
-                .transition(.opacity)
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             isKeyboardPresented = true
         }
@@ -239,6 +219,11 @@ struct ContentView: View {
                 signIn: {
                     Task {
                         await authManager.signInWithSSO()
+                    }
+                },
+                signInWithDifferentAccount: {
+                    Task {
+                        await authManager.signInWithSSO(useEphemeralSession: true)
                     }
                 }
             )
@@ -377,7 +362,7 @@ struct ContentView: View {
     private func makeQRAlert(_ alert: QRAlert) -> Alert {
         switch alert.kind {
         case .checkInResult:
-            Alert(
+            return Alert(
                 title: Text(alert.title),
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
@@ -500,55 +485,13 @@ private enum AppSheetDestination: String, Identifiable {
     var id: String { rawValue }
 }
 
-private struct CheckInAlert: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
-}
-
 private extension ContentView {
-    /// Routes a scanned code. Attendance links check the member in directly;
-    /// anything else keeps the previous generic behaviour (open/copy), since
-    /// the scanner is a general-purpose QR reader, not attendance-only.
-    func handleScannedPayload(_ payload: String) {
-        if let link = CheckInLink(payload: payload) {
-            performCheckIn(link)
-        } else {
-            scannedQRCode = ScannedQRCode(payload: payload)
-        }
-    }
-
     /// Universal Link arrivals. Non-check-in URLs are ignored rather than
     /// shown as a scan result — the app only claims /checkin/* in its
     /// apple-app-site-association, so nothing else should reach this.
     func handleIncomingURL(_ url: URL) {
-        guard let link = CheckInLink(url: url) else { return }
-        performCheckIn(link)
-    }
-
-    func performCheckIn(_ link: CheckInLink) {
-        guard !isCheckingIn else { return }
-        isCheckingIn = true
-
-        Task { @MainActor in
-            defer { isCheckingIn = false }
-            do {
-                let accessToken = try await authManager.validAccessToken()
-                let result = try await CheckInService.checkIn(link, accessToken: accessToken)
-                checkInResult = CheckInAlert(
-                    title: "You're checked in",
-                    message: result.eventTitle ?? result.message
-                )
-            } catch {
-                // CheckInError carries the server's own member-facing wording
-                // ("Check-in isn't open for this event right now"), which is
-                // more useful than anything generic we'd write here.
-                checkInResult = CheckInAlert(
-                    title: "Check-in failed",
-                    message: error.localizedDescription
-                )
-            }
-        }
+        guard AttendanceQRCode(payload: url.absoluteString) != nil else { return }
+        handleScannedQRCode(url.absoluteString)
     }
 }
 
@@ -619,5 +562,6 @@ private extension AppTab {
         .environmentObject(AuthManager.previewSignedOut)
         .environmentObject(AvatarRepository())
         .environmentObject(GalleryThumbnailRepository())
+        .environmentObject(GalleryContentCache())
 }
 #endif

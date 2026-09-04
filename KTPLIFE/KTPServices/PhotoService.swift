@@ -31,6 +31,35 @@ class PhotoService {
         return try decoder.decode([PhotoItem].self, from: data)
     }
 
+    /// Fetches member-visible named albums. The general shared album is modeled
+    /// locally because its photos are represented by a null `album_id`.
+    func fetchAlbums() async throws -> [PhotoAlbum] {
+        let data = try await fetchProtectedData(
+            from: baseURL.appendingPathComponent("albums"),
+            logLabel: "photo albums"
+        )
+        let decoder = JSONDecoder()
+
+        if let albums = try? decoder.decode([PhotoAlbum].self, from: data) {
+            return albums
+        }
+
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let response = object as? [String: Any] else {
+            throw KTPAPIError.decodeFailed("Expected an array or keyed albums response.")
+        }
+
+        for key in ["albums", "data"] {
+            guard let value = response[key], JSONSerialization.isValidJSONObject(value) else { continue }
+            let nestedData = try JSONSerialization.data(withJSONObject: value)
+            if let albums = try? decoder.decode([PhotoAlbum].self, from: nestedData) {
+                return albums
+            }
+        }
+
+        throw KTPAPIError.decodeFailed("The response did not contain a supported albums list.")
+    }
+
     func mediaURL(for photo: PhotoItem) -> URL {
         baseURL
             .appendingPathComponent("photos")

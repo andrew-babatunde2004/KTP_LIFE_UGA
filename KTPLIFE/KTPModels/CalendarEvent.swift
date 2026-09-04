@@ -7,6 +7,7 @@ struct CalendarEvent: Identifiable, Codable {
     let endDate: Date
     let description: String?
     let location: String?
+    let url: URL?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -15,6 +16,10 @@ struct CalendarEvent: Identifiable, Codable {
         case endDate
         case description
         case location
+        case url
+        case link
+        case eventUrl
+        case calendlyUrl
     }
 
     init(
@@ -23,7 +28,8 @@ struct CalendarEvent: Identifiable, Codable {
         startDate: Date,
         endDate: Date,
         description: String?,
-        location: String? = nil
+        location: String? = nil,
+        url: URL? = nil
     ) {
         self.id = id
         self.title = title
@@ -31,6 +37,7 @@ struct CalendarEvent: Identifiable, Codable {
         self.endDate = endDate
         self.description = description
         self.location = location
+        self.url = url
     }
 
     init(from decoder: Decoder) throws {
@@ -48,6 +55,10 @@ struct CalendarEvent: Identifiable, Codable {
         endDate = try container.decodeIfPresent(Date.self, forKey: .endDate) ?? decodedStartDate
         description = try container.decodeIfPresent(String.self, forKey: .description)
         location = try container.decodeIfPresent(String.self, forKey: .location)
+        url = try container.decodeIfPresent(URL.self, forKey: .url)
+            ?? container.decodeIfPresent(URL.self, forKey: .link)
+            ?? container.decodeIfPresent(URL.self, forKey: .eventUrl)
+            ?? container.decodeIfPresent(URL.self, forKey: .calendlyUrl)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -58,6 +69,7 @@ struct CalendarEvent: Identifiable, Codable {
         try container.encode(endDate, forKey: .endDate)
         try container.encodeIfPresent(description, forKey: .description)
         try container.encodeIfPresent(location, forKey: .location)
+        try container.encodeIfPresent(url, forKey: .url)
     }
 }
 

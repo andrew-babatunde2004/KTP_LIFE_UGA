@@ -6,7 +6,7 @@
 	<integer>12</integer>
 	<key>logs</key>
 	<dict>
-		<key>001D20E7-7BA6-4619-BB04-69F67ADD80B6</key>
+		<key>24866DD7-7C42-4D4E-8990-6991894569F1</key>
 		<dict>
 			<key>className</key>
 			<string>IDECommandLineBuildLog</string>
@@ -15,7 +15,7 @@
 			<key>domainType</key>
 			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
 			<key>fileName</key>
-			<string>001D20E7-7BA6-4619-BB04-69F67ADD80B6.xcactivitylog</string>
+			<string>24866DD7-7C42-4D4E-8990-6991894569F1.xcactivitylog</string>
 			<key>hasPrimaryLog</key>
 			<true/>
 			<key>primaryObservable</key>
@@ -29,7 +29,7 @@
 				<key>totalNumberOfTestFailures</key>
 				<integer>0</integer>
 				<key>totalNumberOfWarnings</key>
-				<integer>24</integer>
+				<integer>16</integer>
 			</dict>
 			<key>schemeIdentifier-containerName</key>
 			<string>KTPLIFE project</string>
@@ -40,15 +40,15 @@
 			<key>signature</key>
 			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
 			<key>timeStartedRecording</key>
-			<real>805605944.11886096</real>
+			<real>809880855.31239903</real>
 			<key>timeStoppedRecording</key>
-			<real>805605951.46112502</real>
+			<real>809880889.85271299</real>
 			<key>title</key>
 			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
 			<key>uniqueIdentifier</key>
-			<string>001D20E7-7BA6-4619-BB04-69F67ADD80B6</string>
+			<string>24866DD7-7C42-4D4E-8990-6991894569F1</string>
 		</dict>
-		<key>10102018-5F23-4948-9CBF-FFEA32C6B255</key>
+		<key>47CFB339-F198-4922-884A-ED71790DF719</key>
 		<dict>
 			<key>className</key>
 			<string>IDECommandLineBuildLog</string>
@@ -57,7 +57,175 @@
 			<key>domainType</key>
 			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
 			<key>fileName</key>
-			<string>10102018-5F23-4948-9CBF-FFEA32C6B255.xcactivitylog</string>
+			<string>47CFB339-F198-4922-884A-ED71790DF719.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>E</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>2</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>16</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>KTPLIFE project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>KTPLIFE</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>809880611.65122294</real>
+			<key>timeStoppedRecording</key>
+			<real>809880681.98552299</real>
+			<key>title</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>47CFB339-F198-4922-884A-ED71790DF719</string>
+		</dict>
+		<key>9F388DCF-9A0F-4ABF-B7C5-84578C1C2C09</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>9F388DCF-9A0F-4ABF-B7C5-84578C1C2C09.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>E</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>6</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>16</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>KTPLIFE project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>KTPLIFE</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>809880735.389575</real>
+			<key>timeStoppedRecording</key>
+			<real>809880805.58224797</real>
+			<key>title</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>9F388DCF-9A0F-4ABF-B7C5-84578C1C2C09</string>
+		</dict>
+		<key>A8FA41DC-9FC1-4E31-9709-F0685A5B7E06</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>A8FA41DC-9FC1-4E31-9709-F0685A5B7E06.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>S</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>0</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>KTPLIFE project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>KTPLIFE</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>809880978.28259099</real>
+			<key>timeStoppedRecording</key>
+			<real>809880979.55199897</real>
+			<key>title</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>A8FA41DC-9FC1-4E31-9709-F0685A5B7E06</string>
+		</dict>
+		<key>C605B1D3-BF3E-4BF3-AFEF-ED6510513B04</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>C605B1D3-BF3E-4BF3-AFEF-ED6510513B04.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>E</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>108</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>16</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>KTPLIFE project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>KTPLIFE</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
+			<key>timeStartedRecording</key>
+			<real>809880521.15560997</real>
+			<key>timeStoppedRecording</key>
+			<real>809880588.19760001</real>
+			<key>title</key>
+			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
+			<key>uniqueIdentifier</key>
+			<string>C605B1D3-BF3E-4BF3-AFEF-ED6510513B04</string>
+		</dict>
+		<key>F20804F7-3C90-4C43-8567-AE89D2FB971D</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>F20804F7-3C90-4C43-8567-AE89D2FB971D.xcactivitylog</string>
 			<key>hasPrimaryLog</key>
 			<true/>
 			<key>primaryObservable</key>
@@ -71,7 +239,7 @@
 				<key>totalNumberOfTestFailures</key>
 				<integer>0</integer>
 				<key>totalNumberOfWarnings</key>
-				<integer>26</integer>
+				<integer>6</integer>
 			</dict>
 			<key>schemeIdentifier-containerName</key>
 			<string>KTPLIFE project</string>
@@ -82,13 +250,13 @@
 			<key>signature</key>
 			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
 			<key>timeStartedRecording</key>
-			<real>805605476.46490598</real>
+			<real>809880953.41999102</real>
 			<key>timeStoppedRecording</key>
-			<real>805605492.427737</real>
+			<real>809880966.13348198</real>
 			<key>title</key>
 			<string>Building project KTPLIFE with scheme KTPLIFE and configuration Debug</string>
 			<key>uniqueIdentifier</key>
-			<string>10102018-5F23-4948-9CBF-FFEA32C6B255</string>
+			<string>F20804F7-3C90-4C43-8567-AE89D2FB971D</string>
 		</dict>
 	</dict>
 </dict>

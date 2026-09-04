@@ -650,9 +650,9 @@ private struct HomeNavigationItem: View {
                 Image(systemName: systemImage)
                     .font(.system(size: 18, weight: .semibold))
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(HomeDesign.accent)
+                    .foregroundStyle(AppSystemColor.primaryLabel)
                     .frame(width: 38, height: 38)
-                    .background(HomeDesign.accent.opacity(0.09), in: Circle())
+                    .background(AppSystemColor.insetBackground, in: Circle())
 
                 Text(title)
                     .font(AppFont.footnote(weight: .semibold))

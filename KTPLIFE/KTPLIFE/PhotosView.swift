@@ -12,13 +12,25 @@ import CoreTransferable
 
 struct PhotosView: View {
     @EnvironmentObject private var authManager: AuthManager
+    @EnvironmentObject private var thumbnailRepository: GalleryThumbnailRepository
+    @EnvironmentObject private var galleryContentCache: GalleryContentCache
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
     @State private var photos: [PhotoItem] = []
+    @State private var preparedThumbnails: [String: UIImage] = [:]
+    @State private var albums: [PhotoAlbum] = [.general]
+    @State private var selectedAlbum = PhotoAlbum.general
     @State private var selectedItems: [PhotosPickerItem] = []
+    @State private var isPhotoPickerPresented = false
     @State private var selectedMedia: MediaSelection?
+    @State private var isLoadingGallery = true
+    @State private var galleryLoadProgress = 0.0
     @State private var isUploading = false
     @State private var loadError: String?
+    @State private var photoPendingDeletion: PhotoItem?
+    @State private var deletingPhotoIDs: Set<String> = []
+    @State private var deleteErrorMessage: String?
 
     let showsCloseButton: Bool
 
@@ -46,39 +58,51 @@ struct PhotosView: View {
     var body: some View {
         let service = photoService
 
-        PageScaffold(showsPageHeader: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                galleryToolbar
-
-                if let loadError {
-                    PhotosStatusCard(message: loadError)
+        ZStack(alignment: .topTrailing) {
+            PageScaffold(showsPageHeader: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if isLoadingGallery {
+                        GalleryLoadingView(progress: galleryLoadProgress)
+                            .frame(maxWidth: .infinity, minHeight: 280)
+                            .padding(.horizontal, 20)
+                    } else if let loadError {
+                        PhotosStatusCard(message: loadError)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 16)
+                    } else if photos.isEmpty {
+                        ContentUnavailableView(
+                            "No chapter media yet",
+                            systemImage: "photo.on.rectangle.angled",
+                            description: Text("Use the add button to share the first photo or video.")
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 280)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
-                } else if photos.isEmpty {
-                    ContentUnavailableView(
-                        "No chapter media yet",
-                        systemImage: "photo.on.rectangle.angled",
-                        description: Text("Use the add button to share the first photo or video.")
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 280)
-                    .padding(.horizontal, 20)
-                }
-                
-                // Zero row and column spacing creates one continuous, edge-to-edge grid.
-                LazyVGrid(columns: columns, spacing: 0) {
-                    ForEach(photos.indices, id: \.self) { index in
-                        GeometryReader { proxy in
-                            AuthenticatedPhotoTile(
-                                photo: photos[index],
-                                photoService: service,
-                                select: { selectedMedia = MediaSelection(index: index) }
-                            )
-                            .frame(width: proxy.size.width, height: proxy.size.width)
+                    }
+
+                    // Zero row and column spacing creates one continuous, edge-to-edge grid.
+                    LazyVGrid(columns: columns, spacing: 0) {
+                        ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                            GeometryReader { proxy in
+                                AuthenticatedPhotoTile(
+                                    photo: photo,
+                                    photoService: service,
+                                    preparedImage: preparedThumbnails[photo.id],
+                                    select: { selectedMedia = MediaSelection(index: index) },
+                                    canDelete: canDelete(photo),
+                                    requestDeletion: { photoPendingDeletion = photo },
+                                    isDeleting: deletingPhotoIDs.contains(photo.id)
+                                )
+                                .frame(width: proxy.size.width, height: proxy.size.width)
+                            }
+                            .aspectRatio(1, contentMode: .fit)
                         }
-                        .aspectRatio(1, contentMode: .fit)
                     }
                 }
             }
+
+            photoActionsMenu
+                .padding(12)
+                .zIndex(1)
         }
         // The dismiss control occupies its own top safe-area region, so the first photo
         // cannot receive a tap intended for the back control.
@@ -116,8 +140,16 @@ struct PhotosView: View {
                 }
         )
         .task {
+            await loadAlbums()
             await loadPhotos()
         }
+        .photosPicker(
+            isPresented: $isPhotoPickerPresented,
+            selection: $selectedItems,
+            maxSelectionCount: 10,
+            matching: .any(of: [.images, .videos]),
+            preferredItemEncoding: .current
+        )
         .sheet(item: $selectedMedia) { selection in
             AuthenticatedMediaViewer(
                 photos: photos,
@@ -125,46 +157,216 @@ struct PhotosView: View {
                 photoService: service
             )
         }
-    }
-    
-    private var galleryToolbar: some View {
-        HStack {
-            Spacer()
-            addPhotoButton
+        .confirmationDialog(
+            "Delete this media?",
+            isPresented: Binding(
+                get: { photoPendingDeletion != nil },
+                set: { if !$0 { photoPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                guard let photo = photoPendingDeletion else { return }
+                photoPendingDeletion = nil
+                Task { await deletePhoto(photo) }
+            }
+            Button("Cancel", role: .cancel) { photoPendingDeletion = nil }
+        } message: {
+            Text("This permanently removes the photo or video from the chapter gallery.")
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
-        .background(PhotosDesign.galleryBackground(for: colorScheme))
+        .alert("Couldn’t Delete Media", isPresented: Binding(
+            get: { deleteErrorMessage != nil },
+            set: { if !$0 { deleteErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteErrorMessage ?? "Please try again.")
+        }
+    }
+
+    /// The client only offers deletion when the gallery response positively
+    /// identifies the signed-in member as the uploader. The server still owns
+    /// authorization for the DELETE request.
+    private func canDelete(_ photo: PhotoItem) -> Bool {
+        guard let currentUserID = authManager.currentUserID,
+              let uploadedBy = photo.uploadedBy?.nonEmptyTrimmed
+        else {
+            return false
+        }
+
+        return uploadedBy == currentUserID
+    }
+
+    private func selectAlbum(_ album: PhotoAlbum) {
+        guard selectedAlbum.id != album.id else { return }
+        selectedAlbum = album
+        selectedMedia = nil
+        photos = []
+        preparedThumbnails = [:]
+        galleryLoadProgress = 0
+        isLoadingGallery = true
+        loadError = nil
+        Task { await loadPhotos() }
     }
 
     @MainActor
+    private func deletePhoto(_ photo: PhotoItem) async {
+        guard deletingPhotoIDs.insert(photo.id).inserted else { return }
+        deleteErrorMessage = nil
+        defer { deletingPhotoIDs.remove(photo.id) }
+
+        do {
+            try await photoService.deletePhoto(id: photo.id)
+            photos.removeAll { $0.id == photo.id }
+            preparedThumbnails[photo.id] = nil
+            if selectedAlbum.apiAlbumID == nil {
+                galleryContentCache.store(photos: photos, thumbnails: preparedThumbnails)
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            deleteErrorMessage = photoDeleteErrorMessage(for: error)
+        }
+    }
+    
+    @MainActor
     private func loadPhotos() async {
+        let album = selectedAlbum
+        if album.apiAlbumID == nil, galleryContentCache.hasLoaded {
+            photos = galleryContentCache.photos
+            preparedThumbnails = galleryContentCache.thumbnails
+            galleryLoadProgress = 1
+            isLoadingGallery = false
+            loadError = nil
+            return
+        }
+
+        isLoadingGallery = true
+        galleryLoadProgress = 0
 #if DEBUG
         if isPreview {
             photos = PhotoItem.previewSamples
+            galleryLoadProgress = 1
+            isLoadingGallery = false
             loadError = nil
             return
         }
 #endif
         
         do {
-            photos = try await photoService.fetchPhotos()
+            let loadedPhotos = try await photoService.fetchPhotos(albumId: album.apiAlbumID)
+            var loadedThumbnails: [String: UIImage] = [:]
+            let batchSize = 6
+            for batchStart in stride(from: 0, to: loadedPhotos.count, by: batchSize) {
+                let batchEnd = min(batchStart + batchSize, loadedPhotos.count)
+                let tasks = loadedPhotos[batchStart..<batchEnd].map { photo in
+                    Task { @MainActor in
+                        (photo.id, await prepareThumbnail(for: photo))
+                    }
+                }
+
+                for (batchIndex, task) in tasks.enumerated() {
+                    guard !Task.isCancelled else {
+                        tasks.forEach { $0.cancel() }
+                        return
+                    }
+
+                    let (photoID, thumbnail) = await task.value
+                    if let thumbnail {
+                        loadedThumbnails[photoID] = thumbnail
+                    }
+                    let completedCount = batchStart + batchIndex + 1
+                    galleryLoadProgress = Double(completedCount) / Double(max(loadedPhotos.count, 1))
+                }
+            }
+
+            preparedThumbnails = loadedThumbnails
+            photos = loadedPhotos
+            if album.apiAlbumID == nil {
+                galleryContentCache.store(photos: loadedPhotos, thumbnails: loadedThumbnails)
+            }
+            if loadedPhotos.isEmpty {
+                galleryLoadProgress = 1
+            }
             loadError = nil
         } catch {
             photos = []
+            preparedThumbnails = [:]
             loadError = photosErrorMessage(for: error)
         }
+        isLoadingGallery = false
+    }
+
+    @MainActor
+    private func loadAlbums() async {
+        do {
+            let loadedAlbums = try await photoService.fetchAlbums()
+            let namedAlbums = loadedAlbums.filter { $0.id != PhotoAlbum.general.id }
+            albums = [.general] + namedAlbums.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+
+            if !albums.contains(where: { $0.id == selectedAlbum.id }) {
+                selectedAlbum = .general
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            // The shared album remains available even if named-album metadata is
+            // temporarily unavailable.
+            albums = [.general]
+        }
+    }
+
+    @MainActor
+    private func prepareThumbnail(for photo: PhotoItem) async -> UIImage? {
+        if photo.isVideo {
+            do {
+                let data = try await photoService.fetchMediaData(for: photo)
+                let url = try await MediaTemporaryFile.write(data: data, suggestedPath: photo.imagePath)
+                defer { try? FileManager.default.removeItem(at: url) }
+                return await VideoThumbnailGenerator.image(from: url)
+            } catch {
+                return nil
+            }
+        }
+
+        return await thumbnailRepository.image(
+            for: "gallery-\(photo.id)",
+            pointSize: 180,
+            displayScale: displayScale,
+            loadData: { try await photoService.fetchMediaData(for: photo) }
+        )
     }
     
     
-    private var addPhotoButton: some View {
-        PhotosPicker(
-            selection: $selectedItems,
-            maxSelectionCount: 10,
-            matching: .any(of: [.images, .videos]),
-            preferredItemEncoding: .current
-        ) {
-            PhotoUploadButtonLabel(isUploading: isUploading)
+    private var photoActionsMenu: some View {
+        Menu {
+            Section("Albums") {
+                ForEach(albums) { album in
+                    Button {
+                        selectAlbum(album)
+                    } label: {
+                        Label(
+                            album.name,
+                            systemImage: selectedAlbum.id == album.id ? "checkmark" : "photo.on.rectangle"
+                        )
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    isPhotoPickerPresented = true
+                } label: {
+                    Label("Upload Photos or Videos", systemImage: "photo.badge.plus")
+                }
+            }
+        } label: {
+            PhotoGalleryMenuLabel(
+                albumName: selectedAlbum.name,
+                isUploading: isUploading
+            )
         }
         .fixedSize()
         .disabled(isUploading)
@@ -224,23 +426,37 @@ struct PhotosView: View {
                     }
                 }
 
-                let mimeType = contentType.preferredMIMEType ?? "image/jpeg"
-                let fileExtension = contentType.preferredFilenameExtension ?? "jpg"
+                let uploadImage = contentType.conforms(to: .image)
+                    ? try ImageUploadEncoder.encodeForUpload(data: data, contentType: contentType)
+                    : nil
+                let mimeType = uploadImage?.mimeType ?? contentType.preferredMIMEType ?? "image/jpeg"
+                let fileExtension = uploadImage?.fileExtension ?? contentType.preferredFilenameExtension ?? "jpg"
                 let title = contentType.conforms(to: .movie) ? "Chapter Video" : "Chapter Photo"
                 let fileName = "ktp-media-\(UUID().uuidString).\(fileExtension)"
                 // Keep the same in-memory multipart request used by the last
                 // known-good iOS build for both photos and videos.
                 let uploadedPhoto = try await photoService.uploadPhoto(
-                    data: data,
+                    data: uploadImage?.data ?? data,
                     fileName: fileName,
                     mimeType: mimeType,
-                    title: title
+                    title: title,
+                    albumId: selectedAlbum.apiAlbumID
                 )
                 uploadedPhotos.append(uploadedPhoto)
             }
 
             if !uploadedPhotos.isEmpty {
                 photos.insert(contentsOf: uploadedPhotos.reversed(), at: 0)
+
+                for photo in uploadedPhotos {
+                    if let thumbnail = await prepareThumbnail(for: photo) {
+                        preparedThumbnails[photo.id] = thumbnail
+                    }
+                }
+
+                if selectedAlbum.apiAlbumID == nil {
+                    galleryContentCache.store(photos: photos, thumbnails: preparedThumbnails)
+                }
             }
 
             loadError = nil
@@ -288,6 +504,29 @@ struct PhotosView: View {
         }
 
         return "The photo upload failed. Please try again."
+    }
+
+    private func photoDeleteErrorMessage(for error: Error) -> String {
+        if case AuthManagerError.notAuthenticated = error {
+            return "Your sign-in session has expired. Sign in again and retry the deletion."
+        }
+
+        if case KTPAPIError.missingAccessToken = error {
+            return "Your sign-in session has expired. Sign in again and retry the deletion."
+        }
+
+        if case KTPAPIError.badStatusCode(let statusCode, _) = error {
+            switch statusCode {
+            case 403:
+                return "Only the member who uploaded this media can delete it."
+            case 404:
+                return "This media is no longer in the chapter gallery."
+            default:
+                return "The chapter gallery could not delete this media (HTTP \(statusCode))."
+            }
+        }
+
+        return "The media could not be deleted. Please try again."
     }
 
     private func mediaContentType(for url: URL, supportedTypes: [UTType], fallback: UTType) -> UTType {
@@ -362,7 +601,11 @@ private struct AuthenticatedPhotoTile: View {
     @EnvironmentObject private var thumbnailRepository: GalleryThumbnailRepository
     let photo: PhotoItem
     let photoService: PhotoService
+    let preparedImage: UIImage?
     let select: () -> Void
+    let canDelete: Bool
+    let requestDeletion: () -> Void
+    let isDeleting: Bool
 
     @State private var image: UIImage?
     @State private var isDownloading = false
@@ -373,8 +616,8 @@ private struct AuthenticatedPhotoTile: View {
             PhotosDesign.tileBackground(for: colorScheme)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay {
-                    if let image {
-                        Image(uiImage: image)
+                    if let displayedImage = image ?? preparedImage {
+                        Image(uiImage: displayedImage)
                             .resizable()
                             .scaledToFill()
                             .clipped()
@@ -401,8 +644,17 @@ private struct AuthenticatedPhotoTile: View {
                 Label(isDownloading ? "Saving…" : "Save to Photos", systemImage: "arrow.down.to.line")
             }
             .disabled(isDownloading)
+
+            if canDelete {
+                Divider()
+
+                Button(role: .destructive, action: requestDeletion) {
+                    Label(isDeleting ? "Deleting…" : "Delete", systemImage: "trash")
+                }
+                .disabled(isDeleting)
+            }
         }
-        .accessibilityLabel("\(photo.title). Tap to view full size. Long press to save.")
+        .accessibilityLabel("\(photo.title). Tap to view full size. Long press to save\(canDelete ? " or delete" : "").")
         .background {
             GeometryReader { proxy in
                 Color.clear
@@ -427,6 +679,11 @@ private struct AuthenticatedPhotoTile: View {
 
     @MainActor
     private func loadThumbnail(for size: CGSize) async {
+        if preparedImage != nil {
+            image = nil
+            return
+        }
+
         guard size.width > 0 else {
             image = nil
             return
@@ -746,25 +1003,32 @@ private enum PhotoLibrarySaveError: LocalizedError {
     }
 }
 
-private struct PhotoUploadButtonLabel: View {
+private struct PhotoGalleryMenuLabel: View {
     @Environment(\.colorScheme) private var colorScheme
 
+    let albumName: String
     let isUploading: Bool
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: isUploading ? "hourglass" : "square.and.arrow.up")
+            Image(systemName: isUploading ? "hourglass" : "photo.on.rectangle.angled")
                 .font(.system(size: 16, weight: .semibold))
 
-            Text(isUploading ? "Uploading" : "Upload")
+            Text(isUploading ? "Uploading" : albumName)
                 .font(AppFont.headline())
+                .lineLimit(1)
+
+            if !isUploading {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .bold))
+            }
         }
         .foregroundStyle(PhotosDesign.addButtonForeground(for: colorScheme))
         .padding(.horizontal, 16)
         .frame(height: 44)
         .contentShape(Capsule())
         .fixedSize(horizontal: true, vertical: true)
-        .accessibilityLabel(isUploading ? "Uploading media" : "Upload media from photo library")
+        .accessibilityLabel(isUploading ? "Uploading media" : "Choose album or upload media")
         .background(.ultraThinMaterial, in: Capsule())
         .overlay {
             Capsule()
@@ -783,6 +1047,32 @@ private struct PhotoCloseButtonLabel: View {
             .frame(width: 52, height: 52)
             .contentShape(Circle())
             .background(PhotosDesign.closeButtonBackground(for: colorScheme), in: Circle())
+    }
+}
+
+private struct GalleryLoadingView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let progress: Double
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Text("Preparing gallery")
+                .font(AppFont.headline())
+                .foregroundStyle(PhotosDesign.addButtonForeground(for: colorScheme))
+
+            ProgressView(value: progress, total: 1)
+                .progressViewStyle(.linear)
+                .tint(AppSystemColor.primaryLabel)
+                .frame(maxWidth: 260)
+
+            Text(progress > 0 ? "\(Int((progress * 100).rounded()))%" : "Loading photos…")
+                .font(AppFont.footnote())
+                .foregroundStyle(PhotosDesign.secondaryText(for: colorScheme))
+                .monospacedDigit()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Preparing gallery")
+        .accessibilityValue("\(Int((progress * 100).rounded())) percent")
     }
 }
 
@@ -842,5 +1132,6 @@ private enum PhotosDesign {
         .background(AppTab.photos.theme.previewBackground())
         .environmentObject(AuthManager.previewSignedOut)
         .environmentObject(GalleryThumbnailRepository())
+        .environmentObject(GalleryContentCache())
 }
 #endif

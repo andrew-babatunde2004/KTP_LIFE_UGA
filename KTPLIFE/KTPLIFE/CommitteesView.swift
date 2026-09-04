@@ -7,6 +7,7 @@ struct CommitteesView: View {
     @State private var isLoading = false
     @State private var loadError: String?
     @State private var workingCommitteeIDs: Set<String> = []
+    @State private var requestedCommitteeIDs: Set<String> = []
 
     private var service: ChapterResourcesService {
         ChapterResourcesService(accessTokenProvider: { [authManager] in
@@ -36,6 +37,7 @@ struct CommitteesView: View {
                             CommitteeCard(
                                 committee: committee,
                                 isWorking: workingCommitteeIDs.contains(committee.id),
+                                hasPendingRequest: committee.hasPendingMembershipRequest || requestedCommitteeIDs.contains(committee.id),
                                 service: service,
                                 changeMembership: { changeMembership(for: committee) }
                             )
@@ -60,6 +62,7 @@ struct CommitteesView: View {
                 await loadCommittees()
             }
         }
+        .tint(AppSystemColor.primaryLabel)
         .background(AppSystemColor.background.ignoresSafeArea())
     }
 
@@ -90,8 +93,10 @@ struct CommitteesView: View {
             do {
                 if committee.isMember {
                     try await service.leaveCommittee(id: committee.id)
+                    requestedCommitteeIDs.remove(committee.id)
                 } else {
-                    try await service.joinCommittee(id: committee.id)
+                    try await service.requestCommitteeMembership(id: committee.id)
+                    requestedCommitteeIDs.insert(committee.id)
                 }
                 await loadCommittees()
             } catch {
@@ -104,6 +109,7 @@ struct CommitteesView: View {
 private struct CommitteeCard: View {
     let committee: Committee
     let isWorking: Bool
+    let hasPendingRequest: Bool
     let service: ChapterResourcesService
     let changeMembership: () -> Void
 
@@ -127,7 +133,7 @@ private struct CommitteeCard: View {
                 if let role = committee.role, committee.isMember {
                     Text(role.capitalized)
                         .font(AppFont.caption(weight: .bold))
-                        .foregroundStyle(AppSurfaceColor.primaryControl)
+                        .foregroundStyle(AppSystemColor.primaryLabel)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(AppSystemColor.insetBackground, in: Capsule())
@@ -147,30 +153,42 @@ private struct CommitteeCard: View {
 
                 Spacer(minLength: 0)
 
-                Button(committee.isMember ? "Leave" : "Join") {
+                Button(membershipButtonTitle) {
                     changeMembership()
                 }
                 .font(AppFont.footnote(weight: .semibold))
                 .modifier(CommitteeMembershipButtonStyle(isMember: committee.isMember))
-                .disabled(isWorking)
+                .disabled(isWorking || hasPendingRequest)
             }
         }
         .padding(18)
         .appElevatedSurface(radius: 24)
         .accessibilityElement(children: .contain)
     }
+
+    private var membershipButtonTitle: String {
+        if committee.isMember { return "Leave" }
+        return hasPendingRequest ? "Request Pending" : "Request to Join"
+    }
 }
 
 private struct CommitteeMembershipButtonStyle: ViewModifier {
     let isMember: Bool
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if isMember {
-            content.buttonStyle(.glass)
-        } else {
-            content.buttonStyle(.glassProminent)
-        }
+        content
+            .foregroundStyle(isMember ? AppSystemColor.primaryLabel : AppSystemColor.background)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(
+                isMember ? AppSystemColor.insetBackground : AppSystemColor.primaryLabel,
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(AppSystemColor.separator.opacity(isMember ? 0.7 : 0), lineWidth: 1)
+            }
+            .buttonStyle(.plain)
     }
 }
 

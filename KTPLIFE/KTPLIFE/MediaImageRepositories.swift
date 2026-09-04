@@ -178,7 +178,34 @@ final class AvatarRepository: BoundedImageRepository, ObservableObject {
 @MainActor
 final class GalleryThumbnailRepository: BoundedImageRepository, ObservableObject {
     init() {
-        super.init(cacheLimit: 160, failedRequestLimit: 80)
+        super.init(
+            cacheLimit: 160,
+            failedRequestLimit: 80,
+            diskCacheDirectoryName: "KTPGalleryThumbnails",
+            diskCacheFileLimit: 320
+        )
+    }
+}
+
+/// Keeps the current user's prepared album available while navigating between tabs.
+/// Still-image thumbnails also live in `GalleryThumbnailRepository` on disk; this
+/// snapshot retains the photo ordering and generated video thumbnails for the session.
+@MainActor
+final class GalleryContentCache: ObservableObject {
+    @Published private(set) var photos: [PhotoItem] = []
+    @Published private(set) var thumbnails: [String: UIImage] = [:]
+    private(set) var hasLoaded = false
+
+    func store(photos: [PhotoItem], thumbnails: [String: UIImage]) {
+        self.photos = photos
+        self.thumbnails = thumbnails
+        hasLoaded = true
+    }
+
+    func clear() {
+        photos = []
+        thumbnails = [:]
+        hasLoaded = false
     }
 }
 

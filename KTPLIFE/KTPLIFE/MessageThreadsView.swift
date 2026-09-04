@@ -13,9 +13,13 @@ struct MessageThreadsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var authManager: AuthManager
     @State private var threads: [MessageThread] = []
-    @State private var isLoading = false
+    @State private var isLoading = true
     @State private var isRefreshing = false
     @State private var loadError: String?
+    @State private var isShowingCachedThreads = false
+    @State private var mutedGroupChatIDs: Set<String> = []
+
+    private let offlineStore = MessageOfflineStore.shared
 
     let refreshVersion: Int
 
@@ -43,12 +47,26 @@ struct MessageThreadsView: View {
                 MessagesStatusCard(message: "No conversations yet.")
             } else {
                 VStack(alignment: .leading, spacing: MessageThreadLayout.sectionSpacing) {
+                    if isShowingCachedThreads {
+                        MessageOfflineBanner(message: "Showing saved conversations")
+                    }
+
                     if !directThreads.isEmpty {
-                        MessageThreadSection(title: nil, threads: directThreads, apiService: apiService)
+                        MessageThreadSection(
+                            title: nil,
+                            threads: directThreads,
+                            mutedGroupChatIDs: mutedGroupChatIDs,
+                            apiService: apiService
+                        )
                     }
 
                     if !groupThreads.isEmpty {
-                        MessageThreadSection(title: "Group Chats", threads: groupThreads, apiService: apiService)
+                        MessageThreadSection(
+                            title: "Group Chats",
+                            threads: groupThreads,
+                            mutedGroupChatIDs: mutedGroupChatIDs,
+                            apiService: apiService
+                        )
                     }
                 }
             }
@@ -63,6 +81,15 @@ struct MessageThreadsView: View {
         .onReceive(NotificationCenter.default.publisher(for: .messageThreadShouldRefresh)) { _ in
             Task { await loadConversations(showsLoadingState: false) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .connectivityRestored)) { _ in
+            Task {
+                await flushPendingMessages()
+                await loadConversations(showsLoadingState: false)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .groupChatMutePreferencesDidChange)) { _ in
+            mutedGroupChatIDs = GroupChatMutePreferences.mutedChatIDs
+        }
     }
 
     private var directThreads: [MessageThread] {
@@ -75,6 +102,9 @@ struct MessageThreadsView: View {
 
     @MainActor
     private func monitorConversations() async {
+        mutedGroupChatIDs = GroupChatMutePreferences.mutedChatIDs
+        await hydrateInboxCache()
+        await flushPendingMessages()
         await loadConversations(showsLoadingState: true)
 
         while !Task.isCancelled {
@@ -120,10 +150,12 @@ struct MessageThreadsView: View {
         let resolvedDirectThreads: [MessageThread]
         let resolvedGroupThreads: [MessageThread]
         var loadFailures: [Error] = []
+        var loadedFromNetwork = false
 
         switch loadedDirectResult {
         case .success(let conversations):
             resolvedDirectThreads = conversations.map(MessageThread.direct)
+            loadedFromNetwork = true
         case .failure(let error):
             resolvedDirectThreads = previousDirectThreads
             loadFailures.append(error)
@@ -132,12 +164,17 @@ struct MessageThreadsView: View {
         switch loadedGroupResult {
         case .success(let chats):
             resolvedGroupThreads = chats.map(MessageThread.group)
+            loadedFromNetwork = true
         case .failure(let error):
             resolvedGroupThreads = previousGroupThreads
             loadFailures.append(error)
         }
 
         threads = sortedThreads(resolvedDirectThreads + resolvedGroupThreads)
+        isShowingCachedThreads = !loadFailures.isEmpty && !threads.isEmpty
+        if loadedFromNetwork {
+            await offlineStore.saveInbox(threads, accountID: accountID)
+        }
 
         // A group-chat outage should not erase working direct messages (or vice
         // versa). Only replace the inbox with an error when neither request
@@ -148,6 +185,57 @@ struct MessageThreadsView: View {
 
         isLoading = false
         isRefreshing = false
+    }
+
+    @MainActor
+    private func hydrateInboxCache() async {
+        let cachedThreads = await offlineStore.loadInbox(accountID: accountID)
+        guard threads.isEmpty, !cachedThreads.isEmpty else { return }
+        threads = sortedThreads(cachedThreads)
+        isLoading = false
+        isShowingCachedThreads = true
+    }
+
+    @MainActor
+    private func flushPendingMessages() async {
+        guard ConnectivityMonitor.shared.isConnected else { return }
+        let deliveries = await offlineStore.claimPendingDeliveries(accountID: accountID)
+        guard !deliveries.isEmpty else { return }
+
+        for delivery in deliveries {
+            do {
+                switch delivery.destination {
+                case .direct:
+                    _ = try await apiService.sendMessage(
+                        to: delivery.destinationID,
+                        body: delivery.body,
+                        attachment: delivery.attachment,
+                        replyToMessageID: delivery.replyTo?.id
+                    )
+                case .group:
+                    _ = try await apiService.sendGroupChatMessage(
+                        chatId: delivery.destinationID,
+                        body: delivery.body,
+                        attachment: delivery.attachment,
+                        replyToMessageID: delivery.replyTo?.id
+                    )
+                }
+                await offlineStore.removeDelivery(id: delivery.id, accountID: accountID)
+            } catch is CancellationError {
+                await offlineStore.releaseDeliveries(ids: deliveries.map(\.id))
+                return
+            } catch {
+                await offlineStore.releaseDeliveries(ids: [delivery.id])
+                if isOfflineTransportError(error) {
+                    await offlineStore.releaseDeliveries(ids: deliveries.map(\.id))
+                    return
+                }
+            }
+        }
+    }
+
+    private var accountID: String {
+        authManager.currentUserID ?? "authenticated-user"
     }
 
     private func fetchDirectConversationsResult() async -> Result<[MessageConversation], Error> {
@@ -196,6 +284,7 @@ private struct MessageThreadSection: View {
     @Environment(\.colorScheme) private var colorScheme
     let title: String?
     let threads: [MessageThread]
+    let mutedGroupChatIDs: Set<String>
     let apiService: KTPAPIService
 
     var body: some View {
@@ -214,7 +303,11 @@ private struct MessageThreadSection: View {
         LazyVStack(spacing: MessageThreadLayout.rowSpacing) {
             ForEach(threads) { thread in
                 NavigationLink(value: thread) {
-                    MessageThreadCard(thread: thread, apiService: apiService)
+                    MessageThreadCard(
+                        thread: thread,
+                        isMuted: mutedGroupChatIDs.contains(thread.groupChatID ?? ""),
+                        apiService: apiService
+                    )
                 }
                 .buttonStyle(.plain)
             }
@@ -225,6 +318,7 @@ private struct MessageThreadSection: View {
 private struct MessageThreadCard: View {
     @Environment(\.colorScheme) private var colorScheme
     let thread: MessageThread
+    let isMuted: Bool
     let apiService: KTPAPIService
 
     private var profileID: String? {
@@ -237,11 +331,20 @@ private struct MessageThreadCard: View {
             threadAvatar
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(thread.displayName)
-                    .font(AppFont.subheadline(weight: .semibold))
-                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+                HStack(spacing: 5) {
+                    Text(thread.displayName)
+                        .font(AppFont.subheadline(weight: .semibold))
+                        .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+
+                    if isMuted {
+                        Image(systemName: "bell.slash.fill")
+                            .font(AppFont.caption(weight: .semibold))
+                            .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                            .accessibilityLabel("Muted")
+                    }
+                }
 
                 Text(thread.preview)
                     .font(AppFont.subheadline())
@@ -416,7 +519,6 @@ private struct ProfileAvatarView: View {
 struct MessageConversationView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @EnvironmentObject private var authManager: AuthManager
     @State private var messages: [KTPMessage] = []
     @State private var draftMessage = ""
@@ -424,9 +526,6 @@ struct MessageConversationView: View {
     @State private var isRefreshingConversation = false
     @State private var isSending = false
     @State private var loadError: String?
-    @State private var conversationCursor: String?
-    @State private var conversationETag: String?
-    @State private var hasLoadedInitialConversationPage = false
     @State private var sentMessageIDs: Set<String> = []
     @State private var renderWindow = ConversationRenderWindow()
     @State private var isAwayFromLatest = false
@@ -439,7 +538,9 @@ struct MessageConversationView: View {
     @State private var reactionsByMessageID: [String: [String: MessageReactionSummary]] = [:]
     @State private var updatingReactionKeys: Set<String> = []
     @State private var reactionErrorMessage: String?
+    @State private var reactionDetails: MessageReactionDetails?
     @State private var sendErrorMessage: String?
+    @State private var replyingTo: KTPMessage?
     @State private var messagePendingDeletion: KTPMessage?
     @State private var deletingMessageIDs: Set<String> = []
     @State private var deleteErrorMessage: String?
@@ -448,6 +549,15 @@ struct MessageConversationView: View {
     @State private var pendingAttachmentPreview: UIImage?
     @State private var isPreparingAttachment = false
     @State private var attachmentDataByMessageID: [String: Data] = [:]
+    @State private var groupDetailsChat: GroupChat?
+    @State private var isGroupChatMuted = false
+    @State private var isShowingCachedMessages = false
+    @State private var pendingDeliveryCount = 0
+    private let offlineStore = MessageOfflineStore.shared
+    /// Group-message payloads do not always include sender display metadata.
+    /// Keep the existing group-member endpoint as the source of truth for the
+    /// name and profile image shown beside those messages.
+    @State private var groupMembersByID: [String: DirectoryMember] = [:]
     @FocusState private var isComposerFocused: Bool
 
     let thread: MessageThread
@@ -462,16 +572,22 @@ struct MessageConversationView: View {
         })
     }
 
-    var body: some View {
+    private var conversationBase: some View {
         VStack(spacing: 12) {
+            if isShowingCachedMessages || pendingDeliveryCount > 0 {
+                MessageOfflineBanner(message: offlineStatusMessage)
+            }
+
             if isBlocked {
                 MessagesStatusCard(message: "You blocked \(thread.displayName). Unblock them to resume this conversation.")
-            } else if isLoading {
+            } else if isLoading && messages.isEmpty {
                 MessagesStatusCard(message: "Loading conversation...")
             } else if let loadError {
-                MessagesStatusCard(message: loadError)
+                ConversationLoadFailure(message: loadError) {
+                    Task { await loadConversation(showsLoadingState: true) }
+                }
             } else if messages.isEmpty {
-                MessagesStatusCard(message: "No messages in this conversation yet.")
+                ConversationEmptyState(thread: thread)
             } else {
                 messageTimeline
             }
@@ -480,19 +596,32 @@ struct MessageConversationView: View {
         // Fill the navigation destination so the safe-area composer is anchored to
         // the bottom of the screen instead of immediately following short content.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .navigationTitle(thread.displayName)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await monitorConversation()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
-            Task { await loadConversation(showsLoadingState: false) }
+            Task {
+                await flushPendingMessages()
+                await loadConversation(showsLoadingState: false)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .messageThreadShouldRefresh)) { _ in
             Task { await loadConversation(showsLoadingState: false) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .connectivityRestored)) { _ in
+            Task {
+                await flushPendingMessages()
+                await loadConversation(showsLoadingState: false)
+            }
+        }
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                conversationTitleAvatar
+            }
+
             if directConversation != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -510,6 +639,29 @@ struct MessageConversationView: View {
                     }
                     .disabled(isUpdatingBlock)
                     .accessibilityLabel("Conversation options")
+                }
+            } else if case .group(let chat) = thread {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            groupDetailsChat = chat
+                        } label: {
+                            Label("Group Details", systemImage: "person.3")
+                        }
+
+                        Button {
+                            isGroupChatMuted.toggle()
+                            GroupChatMutePreferences.setMuted(isGroupChatMuted, for: chat.id)
+                        } label: {
+                            Label(
+                                isGroupChatMuted ? "Unmute Group" : "Mute Group",
+                                systemImage: isGroupChatMuted ? "bell" : "bell.slash"
+                            )
+                        }
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
+                    .accessibilityLabel("Group options")
                 }
             }
         }
@@ -537,8 +689,18 @@ struct MessageConversationView: View {
             }
         }
         .background(MessageDesign.background(for: colorScheme).ignoresSafeArea())
+    }
+
+    var body: some View {
+        conversationBase
         .sheet(item: $reportTarget) { target in
             ReportContentSheet(target: target)
+        }
+        .sheet(item: $groupDetailsChat) { chat in
+            GroupChatDetailsView(chat: chat, apiService: apiService)
+        }
+        .sheet(item: $reactionDetails) { details in
+            MessageReactionDetailsView(details: details)
         }
         .confirmationDialog(
             "Block \(thread.displayName)?",
@@ -568,10 +730,7 @@ struct MessageConversationView: View {
         } message: {
             Text(reactionErrorMessage ?? "Please try again.")
         }
-        .alert("Couldn’t Send Message", isPresented: Binding(
-            get: { sendErrorMessage != nil },
-            set: { if !$0 { sendErrorMessage = nil } }
-        )) {
+        .alert("Couldn’t Send Message", isPresented: sendErrorAlertBinding) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(sendErrorMessage ?? "Please try again.")
@@ -612,19 +771,59 @@ struct MessageConversationView: View {
         return conversation
     }
 
-    @ViewBuilder
-    private var messageComposer: some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            GlassEffectContainer(spacing: 16) {
-                messageComposerContent
+    private var sendErrorAlertBinding: Binding<Bool> {
+        Binding(
+            get: { sendErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented { sendErrorMessage = nil }
             }
-        } else {
-            messageComposerContent
+        )
+    }
+
+    private var accountID: String {
+        authManager.currentUserID ?? "authenticated-user"
+    }
+
+    private var offlineStatusMessage: String {
+        if pendingDeliveryCount == 1 {
+            return "1 message waiting to send"
         }
+        if pendingDeliveryCount > 1 {
+            return "\(pendingDeliveryCount) messages waiting to send"
+        }
+        return "Showing saved messages"
+    }
+
+    @ViewBuilder
+    private var conversationTitleAvatar: some View {
+        switch thread {
+        case .direct(let conversation):
+            ProfileAvatarView(
+                imageURL: conversation.profileImageURL,
+                profileID: conversation.userId,
+                name: conversation.displayName,
+                isGroup: false,
+                size: 34,
+                apiService: apiService
+            )
+        case .group(let chat):
+            GroupChatAvatar(chat: chat, size: 34, apiService: apiService)
+        }
+    }
+
+    private var messageComposer: some View {
+        messageComposerContent
     }
 
     private var messageComposerContent: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let replyingTo {
+                MessageReplyComposerPreview(
+                    replyTo: replyReference(for: replyingTo),
+                    cancel: { self.replyingTo = nil }
+                )
+            }
+
             if let pendingAttachment {
                 MessageAttachmentDraftPreview(
                     attachment: pendingAttachment,
@@ -634,9 +833,7 @@ struct MessageConversationView: View {
             }
 
             HStack(spacing: 10) {
-                if directConversation != nil {
-                    mediaPicker
-                }
+                mediaPicker
 
                 TextField("Message", text: $draftMessage, axis: .vertical)
                     .font(AppFont.subheadline())
@@ -646,10 +843,7 @@ struct MessageConversationView: View {
                     .focused($isComposerFocused)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
-                    .modifier(MessageComposerFieldSurface(
-                        colorScheme: colorScheme,
-                        reduceTransparency: reduceTransparency
-                    ))
+                    .modifier(MessageComposerFieldSurface(colorScheme: colorScheme))
 
                 Button {
                     Task { await sendMessage() }
@@ -664,10 +858,7 @@ struct MessageConversationView: View {
                         .frame(width: 34, height: 34)
                 }
                 .buttonStyle(.plain)
-                .modifier(MessageSendButtonSurface(
-                    canSend: composerCanSend,
-                    reduceTransparency: reduceTransparency
-                ))
+                .modifier(MessageSendButtonSurface(canSend: composerCanSend))
                 .disabled(!composerCanSend)
                 .accessibilityLabel("Send message")
             }
@@ -723,10 +914,7 @@ struct MessageConversationView: View {
                     Button("Jump to Latest", systemImage: "arrow.down") {
                         scrollRequest = .latest(UUID())
                     }
-                    .modifier(MessageTimelineActionSurface(
-                        prominent: true,
-                        reduceTransparency: reduceTransparency
-                    ))
+                    .modifier(MessageTimelineActionSurface(prominent: true))
                     .padding(12)
                 }
             }
@@ -763,15 +951,8 @@ struct MessageConversationView: View {
         }
     }
 
-    @ViewBuilder
     private var messageStack: some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            GlassEffectContainer(spacing: 16) {
-                messageStackContent
-            }
-        } else {
-            messageStackContent
-        }
+        messageStackContent
     }
 
     private var messageStackContent: some View {
@@ -785,10 +966,7 @@ struct MessageConversationView: View {
                         scrollRequest = .preservePosition(preservedMessageID)
                     }
                 }
-                .modifier(MessageTimelineActionSurface(
-                    prominent: false,
-                    reduceTransparency: reduceTransparency
-                ))
+                .modifier(MessageTimelineActionSurface(prominent: false))
                 .padding(.bottom, 4)
             }
 
@@ -802,11 +980,16 @@ struct MessageConversationView: View {
                     attachmentSourceID: "\(thread.id)-\(message.id)",
                     attachmentData: attachmentDataByMessageID[message.id],
                     loadAttachmentData: { try await attachmentData(for: message) },
+                    replyTo: resolvedReply(for: message),
+                    replyMessage: { beginReply(to: message) },
                     allowsReactions: true,
                     reactions: reactionSummaries(for: message),
                     updatingEmojis: updatingEmojis(for: message),
                     toggleReaction: { emoji in
                         Task { await toggleReaction(emoji, on: message) }
+                    },
+                    showReactionDetails: { reaction in
+                        reactionDetails = MessageReactionDetails(messageID: message.id, reaction: reaction)
                     },
                     deleteMessage: isSentByCurrentUser(message) && !message.id.hasPrefix("local-") ? {
                         messagePendingDeletion = message
@@ -880,12 +1063,79 @@ struct MessageConversationView: View {
                 imageURL: message.senderProfileImageURL
             )
         case .group:
+            if let senderID = message.senderId,
+               let member = groupMembersByID[senderID] {
+                return MessageSender(
+                    id: member.authentikID ?? member.id,
+                    name: member.name,
+                    imageURL: message.senderProfileImageURL
+                )
+            }
+
+            if isSentByCurrentUser(message), let currentUser = authManager.currentUserProfile {
+                return MessageSender(
+                    id: currentUser.id,
+                    name: currentUser.displayName,
+                    imageURL: message.senderProfileImageURL
+                )
+            }
+
             return MessageSender(
                 id: message.senderId,
                 name: message.senderDisplayName ?? "Member",
                 imageURL: message.senderProfileImageURL
             )
         }
+    }
+
+    private func replyReference(for message: KTPMessage) -> MessageReplyReference {
+        MessageReplyReference(
+            id: message.id,
+            senderID: message.senderId,
+            senderDisplayName: sender(for: message).name,
+            body: message.body,
+            attachment: message.attachment
+        )
+    }
+
+    private func resolvedReply(for message: KTPMessage) -> MessageReplyReference? {
+        guard let reply = message.replyTo else { return nil }
+
+        // Some API versions send only `reply_to_id`. Fill in that preview from
+        // the loaded timeline whenever the original message is still available.
+        if reply.body?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
+           reply.attachment == nil,
+           let original = messages.first(where: { $0.id == reply.id }) {
+            return replyReference(for: original)
+        }
+
+        return reply
+    }
+
+    private func beginReply(to message: KTPMessage) {
+        replyingTo = message
+        isComposerFocused = true
+    }
+
+    private func preservingReply(
+        _ reply: MessageReplyReference?,
+        on message: KTPMessage
+    ) -> KTPMessage {
+        guard message.replyTo == nil, let reply else { return message }
+        return KTPMessage(
+            id: message.id,
+            senderId: message.senderId,
+            recipientId: message.recipientId,
+            senderDisplayName: message.senderDisplayName,
+            senderProfileImageURL: message.senderProfileImageURL,
+            body: message.body,
+            attachment: message.attachment,
+            createdAt: message.createdAt,
+            isRead: message.isRead,
+            isDeleted: message.isDeleted,
+            replyTo: reply,
+            reactions: message.reactions
+        )
     }
 
     private func isSentByCurrentUser(_ message: KTPMessage) -> Bool {
@@ -962,21 +1212,50 @@ struct MessageConversationView: View {
 
     @MainActor
     private func monitorConversation() async {
+        await hydrateConversationCache()
         await loadBlockState()
+        if case .group(let chat) = thread {
+            isGroupChatMuted = GroupChatMutePreferences.isMuted(chat.id)
+        }
+        // Sender metadata should not delay the first history request.
+        Task { await loadGroupMembers() }
+        await flushPendingMessages()
         await loadConversation(showsLoadingState: true)
 
         while !Task.isCancelled {
             do {
-                // Foreground APNs notifications refresh this view immediately.
-                // Retain a low-frequency fallback only for installations where
-                // notifications are unavailable or delayed.
-                try await Task.sleep(nanoseconds: 60_000_000_000)
+                // Match the website's 5–10 second foreground polling window.
+                try await Task.sleep(nanoseconds: 8_000_000_000)
             } catch {
                 return
             }
 
             guard scenePhase == .active, !isBlocked else { continue }
             await loadConversation(showsLoadingState: false)
+        }
+    }
+
+    /// Resolves group-message sender IDs to the same member identities used by
+    /// direct conversations. A failure here must not prevent the message
+    /// timeline from loading; the message payload remains the fallback.
+    @MainActor
+    private func loadGroupMembers() async {
+        guard case .group(let chat) = thread else { return }
+
+        do {
+            let members = try await apiService.fetchGroupChatMembers(chatID: chat.id)
+            var membersByID: [String: DirectoryMember] = [:]
+            for member in members {
+                membersByID[member.id] = member
+                if let authentikID = member.authentikID, !authentikID.isEmpty {
+                    membersByID[authentikID] = member
+                }
+            }
+            groupMembersByID = membersByID
+        } catch is CancellationError {
+            return
+        } catch {
+            return
         }
     }
 
@@ -1003,54 +1282,44 @@ struct MessageConversationView: View {
         }
 
         do {
-            let isIncrementalRequest = hasLoadedInitialConversationPage && conversationCursor != nil
-            let syncResponse: ConversationSyncResponse
+            // The documented API returns complete histories for both direct and
+            // group conversations. Poll that stable contract rather than relying
+            // on optional cursor/ETag extensions that can leave a newly opened
+            // conversation without rendered content.
+            let loadedMessages: [KTPMessage]
             switch thread {
             case .direct(let conversation):
-                syncResponse = try await apiService.syncConversation(
-                    with: conversation.userId,
-                    after: isIncrementalRequest ? conversationCursor : nil,
-                    eTag: conversationETag
-                )
+                loadedMessages = try await apiService.fetchConversation(with: conversation.userId)
             case .group(let chat):
-                syncResponse = try await apiService.syncGroupChatMessages(
-                    chatId: chat.id,
-                    after: isIncrementalRequest ? conversationCursor : nil,
-                    eTag: conversationETag
+                loadedMessages = try await apiService.fetchGroupChatMessages(chatId: chat.id)
+            }
+
+            let existingMessageIDs = Set(messages.map(\.id))
+            let pendingDeliveries = await offlineStore.pendingDeliveries(
+                accountID: accountID,
+                threadID: thread.id
+            )
+            let pendingMessages = pendingDeliveries.map { $0.localMessage(currentUserID: authManager.currentUserID) }
+            sentMessageIDs.formUnion(pendingMessages.map(\.id))
+            pendingDeliveryCount = pendingDeliveries.count
+            let resolvedMessages = (loadedMessages + pendingMessages)
+                .filter { !$0.isDeleted }
+                .sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+            let hasNewMessages = !Set(resolvedMessages.map(\.id))
+                .subtracting(existingMessageIDs)
+                .isEmpty
+
+            if resolvedMessages != messages {
+                messages = resolvedMessages
+                updateReactionState(
+                    for: resolvedMessages,
+                    removing: [],
+                    replacesAll: true
                 )
+                renderWindow.reset(totalCount: resolvedMessages.count)
             }
-
-            var hasNewMessages = false
-            switch syncResponse {
-            case .notModified:
-                break
-            case .updated(let page, let eTag):
-                let merge = merge(page, incrementally: isIncrementalRequest)
-                hasNewMessages = !merge.newMessageIDs.isEmpty
-
-                if merge.messages != messages {
-                    messages = merge.messages
-                    updateReactionState(
-                        for: merge.updatedMessages,
-                        removing: merge.deletedMessageIDs,
-                        replacesAll: !isIncrementalRequest
-                    )
-
-                    if !isIncrementalRequest {
-                        renderWindow.reset(totalCount: messages.count)
-                    } else {
-                        renderWindow.clamp(to: messages.count)
-                    }
-                }
-
-                hasLoadedInitialConversationPage = true
-                if let nextCursor = page.nextCursor, !nextCursor.isEmpty {
-                    conversationCursor = nextCursor
-                }
-                if let eTag, !eTag.isEmpty {
-                    conversationETag = eTag
-                }
-            }
+            await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
+            isShowingCachedMessages = false
 
             if showsLoadingState || (hasNewMessages && !isAwayFromLatest) {
                 scrollRequest = .latest(UUID())
@@ -1073,11 +1342,98 @@ struct MessageConversationView: View {
         } catch {
             if showsLoadingState, messages.isEmpty {
                 loadError = messagesErrorMessage(for: error)
+            } else if !messages.isEmpty {
+                isShowingCachedMessages = true
             }
         }
 
         if showsLoadingState {
             isLoading = false
+        }
+    }
+
+    @MainActor
+    private func hydrateConversationCache() async {
+        let cachedMessages = await offlineStore.loadConversation(threadID: thread.id, accountID: accountID)
+        let pendingDeliveries = await offlineStore.pendingDeliveries(
+            accountID: accountID,
+            threadID: thread.id
+        )
+        let pendingMessages = pendingDeliveries.map { $0.localMessage(currentUserID: authManager.currentUserID) }
+        let pendingIDs = Set(pendingMessages.map(\.id))
+        let combined = cachedMessages.filter { !pendingIDs.contains($0.id) } + pendingMessages
+        guard !combined.isEmpty else { return }
+
+        messages = combined.sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+        sentMessageIDs.formUnion(pendingIDs)
+        pendingDeliveryCount = pendingDeliveries.count
+        seedReactionState(from: messages)
+        renderWindow.reset(totalCount: messages.count)
+        scrollRequest = .latest(UUID())
+        isLoading = false
+        isShowingCachedMessages = true
+        for delivery in pendingDeliveries {
+            if let attachment = delivery.attachment {
+                attachmentDataByMessageID["pending-\(delivery.id)"] = attachment.data
+            }
+        }
+    }
+
+    @MainActor
+    private func flushPendingMessages() async {
+        guard ConnectivityMonitor.shared.isConnected else { return }
+        let deliveries = await offlineStore.claimPendingDeliveries(accountID: accountID, threadID: thread.id)
+        pendingDeliveryCount = deliveries.count
+
+        for delivery in deliveries {
+            do {
+                let sentMessage: KTPMessage
+                switch delivery.destination {
+                case .direct:
+                    sentMessage = try await apiService.sendMessage(
+                        to: delivery.destinationID,
+                        body: delivery.body,
+                        attachment: delivery.attachment,
+                        replyToMessageID: delivery.replyTo?.id
+                    )
+                case .group:
+                    sentMessage = try await apiService.sendGroupChatMessage(
+                        chatId: delivery.destinationID,
+                        body: delivery.body,
+                        attachment: delivery.attachment,
+                        replyToMessageID: delivery.replyTo?.id
+                    )
+                }
+
+                let pendingID = "pending-\(delivery.id)"
+                messages.removeAll { $0.id == pendingID }
+                sentMessageIDs.remove(pendingID)
+                let resolvedSentMessage = preservingReply(delivery.replyTo, on: sentMessage)
+                messages.append(resolvedSentMessage)
+                sentMessageIDs.insert(resolvedSentMessage.id)
+                if let attachment = delivery.attachment {
+                    attachmentDataByMessageID[resolvedSentMessage.id] = attachment.data
+                }
+                attachmentDataByMessageID[pendingID] = nil
+                await offlineStore.removeDelivery(id: delivery.id, accountID: accountID)
+                pendingDeliveryCount -= 1
+            } catch is CancellationError {
+                await offlineStore.releaseDeliveries(ids: deliveries.map(\.id))
+                return
+            } catch {
+                await offlineStore.releaseDeliveries(ids: [delivery.id])
+                if isOfflineTransportError(error) {
+                    await offlineStore.releaseDeliveries(ids: deliveries.map(\.id))
+                    break
+                }
+            }
+        }
+
+        messages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+        renderWindow.reset(totalCount: messages.count)
+        await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
+        if deliveries.count > pendingDeliveryCount {
+            NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
         }
     }
 
@@ -1193,6 +1549,7 @@ struct MessageConversationView: View {
         let draftBeforeSending = draftMessage
         let content = draftBeforeSending.trimmingCharacters(in: .whitespacesAndNewlines)
         let attachment = pendingAttachment
+        let reply = replyingTo.map(replyReference(for:))
         guard (!content.isEmpty || attachment != nil), !isSending else { return }
 
         isSending = true
@@ -1209,21 +1566,31 @@ struct MessageConversationView: View {
                 sentMessage = try await apiService.sendMessage(
                     to: conversation.userId,
                     body: content.isEmpty ? nil : content,
-                    attachment: attachment
+                    attachment: attachment,
+                    replyToMessageID: reply?.id
                 )
             case .group(let chat):
-                sentMessage = try await apiService.sendGroupChatMessage(chatId: chat.id, body: content)
+                sentMessage = try await apiService.sendGroupChatMessage(
+                    chatId: chat.id,
+                    body: content.isEmpty ? nil : content,
+                    attachment: attachment,
+                    replyToMessageID: reply?.id
+                )
             }
+            let resolvedSentMessage = preservingReply(reply, on: sentMessage)
             if let attachment {
-                attachmentDataByMessageID[sentMessage.id] = attachment.data
+                attachmentDataByMessageID[resolvedSentMessage.id] = attachment.data
             }
-            messages.append(sentMessage)
+            messages.append(resolvedSentMessage)
             messages.sort { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
-            sentMessageIDs.insert(sentMessage.id)
+            sentMessageIDs.insert(resolvedSentMessage.id)
             renderWindow.reset(totalCount: messages.count)
             scrollRequest = .latest(UUID())
             clearPendingAttachment()
+            replyingTo = nil
             loadError = nil
+            await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
+            NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
         } catch is CancellationError {
             if draftMessage.isEmpty {
                 draftMessage = draftBeforeSending
@@ -1231,10 +1598,46 @@ struct MessageConversationView: View {
             isSending = false
             return
         } catch {
-            if draftMessage.isEmpty {
-                draftMessage = draftBeforeSending
+            if isOfflineTransportError(error) || !ConnectivityMonitor.shared.isConnected {
+                let destination: MessageOfflineStore.PendingDelivery.Destination
+                let destinationID: String
+                switch thread {
+                case .direct(let conversation):
+                    destination = .direct
+                    destinationID = conversation.userId
+                case .group(let chat):
+                    destination = .group
+                    destinationID = chat.id
+                }
+                let delivery = await offlineStore.enqueue(
+                    destination: destination,
+                    destinationID: destinationID,
+                    body: content.isEmpty ? nil : content,
+                    attachment: attachment,
+                    replyTo: reply,
+                    accountID: accountID
+                )
+                let pendingMessage = delivery.localMessage(currentUserID: authManager.currentUserID)
+                messages.append(pendingMessage)
+                sentMessageIDs.insert(pendingMessage.id)
+                pendingDeliveryCount += 1
+                if let attachment {
+                    attachmentDataByMessageID[pendingMessage.id] = attachment.data
+                }
+                renderWindow.reset(totalCount: messages.count)
+                scrollRequest = .latest(UUID())
+                clearPendingAttachment()
+                replyingTo = nil
+                loadError = nil
+                isShowingCachedMessages = true
+                await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
+                NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
+            } else {
+                if draftMessage.isEmpty {
+                    draftMessage = draftBeforeSending
+                }
+                sendErrorMessage = messageSendErrorMessage(for: error)
             }
-            sendErrorMessage = messageSendErrorMessage(for: error)
         }
 
         isSending = false
@@ -1264,11 +1667,14 @@ struct MessageConversationView: View {
                 throw MessageAttachmentError.unsupportedType
             }
 
-            let fileExtension = contentType.preferredFilenameExtension ?? "jpg"
+            let uploadImage = try ImageUploadEncoder.encodeForUpload(data: data, contentType: contentType)
+            guard uploadImage.data.count <= MessageAttachmentLimits.maximumBytes else {
+                throw MessageAttachmentError.fileTooLarge
+            }
             pendingAttachment = MessageAttachmentUpload(
-                data: data,
-                fileName: "ktp-message-\(UUID().uuidString).\(fileExtension)",
-                mimeType: contentType.preferredMIMEType ?? "image/jpeg"
+                data: uploadImage.data,
+                fileName: "ktp-message-\(UUID().uuidString).\(uploadImage.fileExtension)",
+                mimeType: uploadImage.mimeType
             )
             pendingAttachmentPreview = await decodeAttachmentPreview(from: data)
             sendErrorMessage = nil
@@ -1346,24 +1752,41 @@ struct MessageConversationView: View {
         let previous = reactionsByMessageID[message.id]?[emoji]
             ?? MessageReactionSummary(emoji: emoji, count: 0, reactedByCurrentUser: false)
         let isAdding = !previous.reactedByCurrentUser
+        var updatedUsers = previous.users
+        if let currentUserID = authManager.currentUserID {
+            updatedUsers.removeAll { $0.id == currentUserID }
+            if isAdding {
+                updatedUsers.append(
+                    MessageReactionUser(
+                        id: currentUserID,
+                        displayName: authManager.currentUserProfile?.displayName ?? "You"
+                    )
+                )
+            }
+        }
         let updated = MessageReactionSummary(
             emoji: emoji,
             count: max(0, previous.count + (isAdding ? 1 : -1)),
-            reactedByCurrentUser: isAdding
+            reactedByCurrentUser: isAdding,
+            users: updatedUsers
         )
         setReaction(updated, on: message.id)
 
         do {
+            let serverReactions: [MessageReactionSummary]
             switch thread {
             case .direct:
-                try await apiService.toggleMessageReaction(messageId: message.id, emoji: emoji)
+                serverReactions = try await apiService.toggleMessageReaction(messageId: message.id, emoji: emoji)
             case .group(let chat):
-                try await apiService.toggleGroupChatMessageReaction(
+                serverReactions = try await apiService.toggleGroupChatMessageReaction(
                     chatId: chat.id,
                     messageId: message.id,
                     emoji: emoji
                 )
             }
+            reactionsByMessageID[message.id] = Dictionary(
+                uniqueKeysWithValues: serverReactions.map { ($0.emoji, $0) }
+            )
         } catch is CancellationError {
             setReaction(previous, on: message.id)
         } catch {
@@ -1403,6 +1826,7 @@ struct MessageConversationView: View {
             sentMessageIDs.remove(message.id)
             reactionsByMessageID[message.id] = nil
             renderWindow.reset(totalCount: messages.count)
+            await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
             NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
         } catch is CancellationError {
             return
@@ -1466,6 +1890,147 @@ private struct MessageDeleteConfirmationOverlay: View {
     }
 }
 
+private struct ConversationEmptyState: View {
+    let thread: MessageThread
+
+    var body: some View {
+        ContentUnavailableView(
+            "No messages yet",
+            systemImage: thread.isGroup ? "person.3" : "bubble.left.and.bubble.right",
+            description: Text("Send the first message to start this conversation.")
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityLabel("No messages in \(thread.displayName)")
+    }
+}
+
+private struct ConversationLoadFailure: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ContentUnavailableView(
+                "Conversation unavailable",
+                systemImage: "exclamationmark.bubble",
+                description: Text(message)
+            )
+
+            Button("Try Again", action: retry)
+                .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// A member-facing view of a group chat. Management stays on the website; this
+/// sheet only surfaces the group identity and current participants.
+private struct GroupChatDetailsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    let chat: GroupChat
+    let apiService: KTPAPIService
+
+    @State private var members: [DirectoryMember] = []
+    @State private var isLoading = true
+    @State private var loadError: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    VStack(spacing: 12) {
+                        GroupChatAvatar(chat: chat, size: 92, apiService: apiService)
+
+                        Text(chat.name)
+                            .font(AppFont.title(24))
+                            .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                            .multilineTextAlignment(.center)
+
+                        Text("Group chat")
+                            .font(AppFont.footnote())
+                            .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+
+                    Text("Members")
+                        .font(AppFont.headline())
+                        .foregroundStyle(MessageDesign.primary(for: colorScheme))
+
+                    if isLoading {
+                        MessagesStatusCard(message: "Loading members...")
+                    } else if let loadError {
+                        ConversationLoadFailure(message: loadError) {
+                            Task { await loadMembers() }
+                        }
+                        .frame(minHeight: 180)
+                    } else if members.isEmpty {
+                        MessagesStatusCard(message: "No members are available for this group.")
+                    } else {
+                        ForEach(members) { member in
+                            HStack(spacing: 12) {
+                                ProfileAvatarView(
+                                    imageURL: nil,
+                                    profileID: member.authentikID ?? member.id,
+                                    name: member.name,
+                                    isGroup: false,
+                                    size: 42,
+                                    apiService: apiService
+                                )
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(member.name)
+                                        .font(AppFont.subheadline(weight: .semibold))
+                                        .foregroundStyle(MessageDesign.primary(for: colorScheme))
+
+                                    Text(member.group.title)
+                                        .font(AppFont.caption())
+                                        .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                                }
+
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.vertical, 6)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(MessageDesign.background(for: colorScheme))
+            .navigationTitle("Group Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .task(id: chat.id) {
+                await loadMembers()
+            }
+        }
+    }
+
+    @MainActor
+    private func loadMembers() async {
+        isLoading = true
+        loadError = nil
+
+        do {
+            members = try await apiService.fetchGroupChatMembers(chatID: chat.id)
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        } catch is CancellationError {
+            return
+        } catch {
+            members = []
+            loadError = messagesErrorMessage(for: error)
+        }
+
+        isLoading = false
+    }
+}
+
 /// Limits the rendered conversation while the current API returns one unpaginated message array.
 private struct ConversationRenderWindow {
     private let pageSize = 50
@@ -1514,9 +2079,157 @@ private struct MessageSender {
     let imageURL: URL?
 }
 
+private struct MessageReactionDetails: Identifiable {
+    let messageID: String
+    let reaction: MessageReactionSummary
+
+    var id: String { "\(messageID)-\(reaction.emoji)" }
+}
+
+private struct MessageReplyPreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let replyTo: MessageReplyReference
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Capsule()
+                .fill(MessageDesign.primary(for: colorScheme).opacity(0.55))
+                .frame(width: 3)
+
+            VStack(alignment: .leading, spacing: 2) {
+                if let name = replyTo.senderDisplayName, !name.isEmpty {
+                    Text(name)
+                        .font(AppFont.caption(weight: .semibold))
+                        .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                }
+
+                Text(replyTo.preview)
+                    .font(AppFont.caption())
+                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(MessageDesign.input(for: colorScheme).opacity(0.72), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Reply to \(replyTo.senderDisplayName ?? "message"): \(replyTo.preview)")
+    }
+}
+
+private struct MessageReplyComposerPreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let replyTo: MessageReplyReference
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "arrowshape.turn.up.left.fill")
+                .font(AppFont.footnote(weight: .semibold))
+                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Replying to \(replyTo.senderDisplayName ?? "message")")
+                    .font(AppFont.caption(weight: .semibold))
+                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
+
+                Text(replyTo.preview)
+                    .font(AppFont.caption())
+                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            Button(action: cancel) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(AppFont.subheadline())
+                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Cancel reply")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(MessageDesign.card(for: colorScheme), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
+        }
+    }
+}
+
+private struct MessageReactionDetailsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    let details: MessageReactionDetails
+
+    private var namedUsers: [MessageReactionUser] {
+        details.reaction.users.filter {
+            guard let name = $0.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) else { return false }
+            return !name.isEmpty
+        }
+    }
+
+    private var totalLabel: String {
+        let count = details.reaction.count
+        return "\(count) \(count == 1 ? "person" : "people") reacted"
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    HStack(spacing: 10) {
+                        Text(details.reaction.emoji)
+                            .font(.system(size: 30))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(totalLabel)
+                                .font(AppFont.subheadline(weight: .semibold))
+                                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                            if details.reaction.reactedByCurrentUser {
+                                Text("You reacted")
+                                    .font(AppFont.caption())
+                                    .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                            }
+                        }
+                    }
+                }
+
+                if namedUsers.isEmpty {
+                    Section {
+                        Text("Names will appear here when the conversation refresh includes reaction details.")
+                            .font(AppFont.subheadline())
+                            .foregroundStyle(MessageDesign.muted(for: colorScheme))
+                    }
+                } else {
+                    Section("Reactions") {
+                        ForEach(namedUsers) { user in
+                            Text(user.displayName ?? "Member")
+                                .font(AppFont.subheadline())
+                                .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(MessageDesign.background(for: colorScheme))
+            .navigationTitle("Reactions")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
 private struct MessageBubble: View {
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var showsMessageActions = false
     @State private var holdFeedbackTrigger = 0
     let message: KTPMessage
@@ -1527,10 +2240,13 @@ private struct MessageBubble: View {
     let attachmentSourceID: String
     let attachmentData: Data?
     let loadAttachmentData: () async throws -> Data
+    let replyTo: MessageReplyReference?
+    let replyMessage: () -> Void
     let allowsReactions: Bool
     let reactions: [MessageReactionSummary]
     let updatingEmojis: Set<String>
     let toggleReaction: (String) -> Void
+    let showReactionDetails: (MessageReactionSummary) -> Void
     let deleteMessage: (() -> Void)?
     let isDeleting: Bool
     let reportMessage: (() -> Void)?
@@ -1572,6 +2288,10 @@ private struct MessageBubble: View {
 
     private var messageSurface: some View {
         VStack(alignment: .leading, spacing: 5) {
+            if let replyTo {
+                MessageReplyPreview(replyTo: replyTo)
+            }
+
             if let attachment = message.attachment, attachment.isImage {
                 MessageAttachmentPreview(
                     attachment: attachment,
@@ -1599,14 +2319,25 @@ private struct MessageBubble: View {
         .frame(maxWidth: 260, alignment: .leading)
         .modifier(MessageBubbleSurface(
             isSentByCurrentUser: isSentByCurrentUser,
-            colorScheme: colorScheme,
-            reduceTransparency: reduceTransparency
+            colorScheme: colorScheme
         ))
     }
 
     private var messageActionsPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Button {
+                showsMessageActions = false
+                replyMessage()
+            } label: {
+                Label("Reply", systemImage: "arrowshape.turn.up.left")
+                    .font(AppFont.footnote(weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+
             if allowsReactions {
+                Divider()
+
                 HStack(spacing: 4) {
                     ForEach(MessageReactionOptions.emojis, id: \.self) { emoji in
                         Button {
@@ -1676,53 +2407,60 @@ private struct MessageBubble: View {
     private var messageHeader: some View {
         if showsSenderIdentity {
             HStack(spacing: 6) {
-                if showsSenderIdentity, isSentByCurrentUser {
-                    Text(sender.name)
-                        .font(AppFont.caption(weight: .bold))
-                        .foregroundStyle(MessageDesign.muted(for: colorScheme))
-                        .lineLimit(1)
-
-                    AuthenticatedMessageAvatar(sender: sender, apiService: apiService)
-                        .frame(width: 24, height: 24)
-                } else if showsSenderIdentity {
-                    AuthenticatedMessageAvatar(sender: sender, apiService: apiService)
-                        .frame(width: 24, height: 24)
-
-                    Text(sender.name)
-                        .font(AppFont.caption(weight: .bold))
-                        .foregroundStyle(MessageDesign.muted(for: colorScheme))
-                        .lineLimit(1)
+                if isSentByCurrentUser {
+                    senderName
+                    senderAvatar
+                } else {
+                    senderAvatar
+                    senderName
                 }
-
             }
         }
+    }
+
+    private var senderName: some View {
+        Text(sender.name)
+            .font(AppFont.caption(weight: .bold))
+            .foregroundStyle(MessageDesign.muted(for: colorScheme))
+            .lineLimit(1)
+    }
+
+    private var senderAvatar: some View {
+        AuthenticatedMessageAvatar(sender: sender, size: 30, apiService: apiService)
+            .frame(width: 30, height: 30)
     }
 
     private var reactionBar: some View {
         HStack(spacing: 6) {
             ForEach(reactions) { reaction in
-                HStack(spacing: 4) {
-                    Text(reaction.emoji)
-                    Text("\(reaction.count)")
-                        .font(AppFont.caption(weight: .semibold))
+                Button {
+                    showReactionDetails(reaction)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(reaction.emoji)
+                        Text("\(reaction.count)")
+                            .font(AppFont.caption(weight: .semibold))
+                    }
+                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
+                    .padding(.horizontal, 9)
+                    .frame(height: 30)
+                    .background(
+                        reaction.reactedByCurrentUser
+                            ? MessageDesign.selectionTint(for: colorScheme)
+                            : MessageDesign.card(for: colorScheme),
+                        in: Capsule()
+                    )
+                    .overlay {
+                        Capsule()
+                            .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
+                    }
                 }
-                .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                .padding(.horizontal, 9)
-                .frame(height: 30)
-                .background(
-                    reaction.reactedByCurrentUser
-                        ? MessageDesign.selectionTint(for: colorScheme)
-                        : MessageDesign.card(for: colorScheme),
-                    in: Capsule()
-                )
-                .overlay {
-                    Capsule()
-                        .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
-                }
+                .buttonStyle(.plain)
                 .accessibilityLabel(
                     "\(reaction.emoji) reaction, \(reaction.count), "
                     + (reaction.reactedByCurrentUser ? "selected" : "not selected")
                 )
+                .accessibilityHint("Shows who reacted")
             }
         }
     }
@@ -1933,6 +2671,7 @@ private struct AuthenticatedMessageAvatar: View {
     @Environment(\.displayScale) private var displayScale
     @EnvironmentObject private var avatarRepository: AvatarRepository
     let sender: MessageSender
+    let size: CGFloat
     let apiService: KTPAPIService
 
     @State private var image: UIImage?
@@ -1957,7 +2696,7 @@ private struct AuthenticatedMessageAvatar: View {
             }
         }
         .clipShape(Circle())
-        .task(id: "\(sender.id ?? sender.imageURL?.absoluteString ?? sender.name)-\(Int(24 * displayScale))") {
+        .task(id: "\(sender.id ?? sender.imageURL?.absoluteString ?? sender.name)-\(Int(size * displayScale))") {
             await loadImage()
         }
         .accessibilityLabel("\(sender.name) profile picture")
@@ -1968,7 +2707,7 @@ private struct AuthenticatedMessageAvatar: View {
         let sourceID = sender.id ?? sender.imageURL?.absoluteString ?? sender.name
         let avatar = await avatarRepository.image(
             for: sourceID,
-            pointSize: 24,
+            pointSize: size,
             displayScale: displayScale,
             loadData: {
                 if let imageURL = sender.imageURL {
@@ -1981,6 +2720,19 @@ private struct AuthenticatedMessageAvatar: View {
         )
         guard !Task.isCancelled else { return }
         image = avatar
+    }
+}
+
+private struct MessageOfflineBanner: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let message: String
+
+    var body: some View {
+        Label(message, systemImage: "arrow.triangle.2.circlepath.icloud")
+            .font(AppFont.footnote(weight: .medium))
+            .foregroundStyle(MessageDesign.secondary(for: colorScheme))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
     }
 }
 
@@ -2047,10 +2799,6 @@ enum MessageDesign {
         AppSystemColor.primaryLabel.opacity(colorScheme == .dark ? 0.18 : 0.12)
     }
 
-    static func glassTint(for colorScheme: ColorScheme) -> Color {
-        colorScheme == .dark ? Color.white.opacity(0.06) : Color.white.opacity(0.32)
-    }
-
     static var sendForeground: Color {
         AppSystemColor.background
     }
@@ -2059,92 +2807,54 @@ enum MessageDesign {
 private struct MessageBubbleSurface: ViewModifier {
     let isSentByCurrentUser: Bool
     let colorScheme: ColorScheme
-    let reduceTransparency: Bool
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            content.glassEffect(
-                .regular.tint(
-                    isSentByCurrentUser
-                        ? AppSystemColor.primaryLabel.opacity(colorScheme == .dark ? 0.18 : 0.12)
-                        : MessageDesign.glassTint(for: colorScheme)
-                ),
-                in: .rect(cornerRadius: 18)
+        content
+            .background(
+                isSentByCurrentUser
+                    ? MessageDesign.sentBubble(for: colorScheme)
+                    : MessageDesign.card(for: colorScheme),
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
             )
-        } else {
-            content
-                .background(
-                    isSentByCurrentUser
-                        ? MessageDesign.sentBubble(for: colorScheme)
-                        : MessageDesign.card(for: colorScheme),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
-                }
-        }
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
+            }
     }
 }
 
 private struct MessageComposerFieldSurface: ViewModifier {
     let colorScheme: ColorScheme
-    let reduceTransparency: Bool
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            content.glassEffect(.regular, in: .rect(cornerRadius: 18))
-        } else {
-            content
-                .background(
-                    MessageDesign.input(for: colorScheme),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
-                }
-        }
+        content
+            .background(
+                MessageDesign.input(for: colorScheme),
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(MessageDesign.border(for: colorScheme), lineWidth: 1)
+            }
     }
 }
 
 private struct MessageSendButtonSurface: ViewModifier {
     let canSend: Bool
-    let reduceTransparency: Bool
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            content.glassEffect(
-                .regular
-                    .tint(canSend ? AppSystemColor.primaryLabel : AppSystemColor.secondaryLabel)
-                    .interactive(canSend),
-                in: .circle
-            )
-        } else {
-            content.background(
-                canSend ? AppSystemColor.primaryLabel : AppSystemColor.secondaryLabel,
-                in: Circle()
-            )
-        }
+        content.background(
+            canSend ? AppSystemColor.primaryLabel : AppSystemColor.secondaryLabel,
+            in: Circle()
+        )
     }
 }
 
 private struct MessageTimelineActionSurface: ViewModifier {
     let prominent: Bool
-    let reduceTransparency: Bool
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *), !reduceTransparency {
-            if prominent {
-                content.buttonStyle(.glassProminent)
-            } else {
-                content.buttonStyle(.glass)
-            }
-        } else if prominent {
+        if prominent {
             content.buttonStyle(.borderedProminent)
         } else {
             content.buttonStyle(.bordered)

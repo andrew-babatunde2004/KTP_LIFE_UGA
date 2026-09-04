@@ -14,8 +14,10 @@ struct KTPLIFEApp: App {
     @StateObject private var authManager = AuthManager()
     @StateObject private var avatarRepository = AvatarRepository()
     @StateObject private var galleryThumbnailRepository = GalleryThumbnailRepository()
+    @StateObject private var galleryContentCache = GalleryContentCache()
     @StateObject private var messageAttachmentThumbnailRepository = MessageAttachmentThumbnailRepository()
     @StateObject private var pushNotificationManager = PushNotificationManager()
+    @StateObject private var connectivityMonitor = ConnectivityMonitor.shared
 
     var body: some Scene {
         WindowGroup {
@@ -24,8 +26,10 @@ struct KTPLIFEApp: App {
                 .environmentObject(authManager)
                 .environmentObject(avatarRepository)
                 .environmentObject(galleryThumbnailRepository)
+                .environmentObject(galleryContentCache)
                 .environmentObject(messageAttachmentThumbnailRepository)
                 .environmentObject(pushNotificationManager)
+                .environmentObject(connectivityMonitor)
         }
     }
 

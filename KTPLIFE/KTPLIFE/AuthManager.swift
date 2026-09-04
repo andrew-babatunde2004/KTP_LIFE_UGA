@@ -68,13 +68,15 @@ final class AuthManager: ObservableObject {
         }
     }
 
-    func signInWithSSO() async {
+    func signInWithSSO(useEphemeralSession: Bool = false) async {
         AuthDebugLog.log("Sign-in button tapped.")
         phase = .signingIn
         errorMessage = nil
 
         do {
-            let newTokens = try await authService.signIn()
+            let newTokens = try await authService.signIn(
+                prefersEphemeralSession: useEphemeralSession
+            )
             AuthDebugLog.log("Sign-in returned tokens. Saving.")
             try save(tokens: newTokens)
             try await updateProfileState()
