@@ -29,6 +29,7 @@ struct ContentView: View {
     @State private var qrAlert: QRAlert?
     @State private var isSubmittingCheckIn = false
     @State private var pushMessageUserID: String?
+    @State private var pushGroupChat: GroupChatPushDestination?
     @State private var pushEventID: String?
     @State private var unreadMessageCount = 0
 
@@ -289,12 +290,14 @@ struct ContentView: View {
         case .community:
             MessagesView(
                 isConversationPresented: $isMessageConversationPresented,
-                deepLinkedUserID: $pushMessageUserID
+                deepLinkedUserID: $pushMessageUserID,
+                deepLinkedGroupChat: $pushGroupChat
             )
         case .messages:
             MessagesView(
                 isConversationPresented: $isMessageConversationPresented,
-                deepLinkedUserID: $pushMessageUserID
+                deepLinkedUserID: $pushMessageUserID,
+                deepLinkedGroupChat: $pushGroupChat
             )
         case .directory:
             MemberDirectoryView(
@@ -399,6 +402,9 @@ struct ContentView: View {
         case .directMessage(let userID):
             selectedTab = .community
             pushMessageUserID = userID
+        case .groupMessage(let chat):
+            selectedTab = .community
+            pushGroupChat = chat
         case .announcement:
             presentedFullScreen = .announcements
         case .poll:
@@ -408,6 +414,8 @@ struct ContentView: View {
         case .event(let eventID):
             selectedTab = .calendar
             pushEventID = eventID
+        case .interview:
+            presentedFullScreen = .interviews
         }
     }
 

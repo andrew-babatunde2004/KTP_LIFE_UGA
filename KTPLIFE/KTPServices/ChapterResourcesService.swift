@@ -67,6 +67,17 @@ final class ChapterResourcesService {
         _ = try await perform(request, label: "leave committee")
     }
 
+    func cancelCommitteeMembershipRequest(id: String, userID: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("committees")
+            .appendingPathComponent(id)
+            .appendingPathComponent("requests")
+            .appendingPathComponent(userID)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await perform(request, label: "committee membership request withdrawal")
+    }
+
     func fetchCommitteeMembers(id: String) async throws -> [CommitteeMember] {
         let url = baseURL
             .appendingPathComponent("committees")

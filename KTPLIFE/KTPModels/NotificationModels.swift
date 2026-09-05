@@ -108,8 +108,15 @@ extension Notification.Name {
 
 enum PushNotificationDestination: Equatable {
     case directMessage(userID: String)
+    case groupMessage(chat: GroupChatPushDestination)
     case announcement(id: String?)
     case poll(id: String?)
     case meeting(id: String?)
     case event(eventID: String)
+    case interview
+}
+
+struct GroupChatPushDestination: Equatable {
+    let id: String
+    let name: String?
 }

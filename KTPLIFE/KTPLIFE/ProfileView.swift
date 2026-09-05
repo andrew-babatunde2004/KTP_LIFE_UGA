@@ -59,7 +59,7 @@ struct ProfileView: View {
                     profileForm
                 }
             }
-            .navigationTitle("Profile")
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -127,6 +127,11 @@ struct ProfileView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
                 .appElevatedSurface(radius: 28)
+            } header: {
+                Text("My Account")
+                    .font(AppFont.title(22))
+                    .foregroundStyle(AppSystemColor.primaryLabel)
+                    .textCase(nil)
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
             .listRowBackground(Color.clear)
@@ -203,7 +208,7 @@ struct ProfileView: View {
                 }
                 .padding(.vertical, 6)
             } header: {
-                Text("Editable profile")
+                Label("Profile Details", systemImage: "person.text.rectangle")
             }
             .listRowBackground(AppSystemColor.elevatedBackground)
 
@@ -225,11 +230,19 @@ struct ProfileView: View {
 
             Section("Support and community") {
                 Link(destination: URL(string: "https://ugaktp.com/code-of-conduct")!) {
-                    Text("Community Guidelines")
+                    SettingsRowLabel(
+                        title: "Community Guidelines",
+                        subtitle: "Chapter standards and expectations",
+                        systemImage: "person.3.fill"
+                    )
                 }
 
                 Link(destination: URL(string: "mailto:uga.ktp@gmail.com")!) {
-                    Text("Contact Support")
+                    SettingsRowLabel(
+                        title: "Contact Support",
+                        subtitle: "Get help from the KTP team",
+                        systemImage: "envelope.fill"
+                    )
                 }
             }
             .listRowBackground(AppSystemColor.elevatedBackground)
@@ -239,7 +252,11 @@ struct ProfileView: View {
                     NavigationLink {
                         ReportsView()
                     } label: {
-                        Text("Review Reports")
+                        SettingsRowLabel(
+                            title: "Review Reports",
+                            subtitle: "Manage member-submitted reports",
+                            systemImage: "checklist"
+                        )
                     }
                 }
                 .listRowBackground(AppSystemColor.elevatedBackground)
@@ -249,30 +266,47 @@ struct ProfileView: View {
                 NavigationLink {
                     AppearanceSettingsView()
                 } label: {
-                    Text("Appearance")
+                    SettingsRowLabel(
+                        title: "Appearance",
+                        subtitle: "System, light, or dark mode",
+                        systemImage: "circle.lefthalf.filled"
+                    )
                 }
 
                 NavigationLink {
                     NotificationSettingsView(apiService: apiService)
                 } label: {
-                    Text("Notifications")
+                    SettingsRowLabel(
+                        title: "Notifications",
+                        subtitle: "Choose the updates you receive",
+                        systemImage: "bell.fill"
+                    )
                 }
             }
             .listRowBackground(AppSystemColor.elevatedBackground)
 
             Section("Account") {
-                Button("Sign Out") {
+                Button {
                     Task {
                         await pushNotificationManager.unregister(using: apiService)
                         await authManager.signOut()
                         dismiss()
                     }
+                } label: {
+                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .disabled(isDeletingAccount)
                 .frame(maxWidth: .infinity)
 
-                Button(isDeletingAccount ? "Deleting Account..." : "Delete Account", role: .destructive) {
+                Button(role: .destructive) {
                     showsDeleteAccountConfirmation = true
+                } label: {
+                    Label(
+                        isDeletingAccount ? "Deleting Account..." : "Delete Account",
+                        systemImage: "trash"
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .disabled(isDeletingAccount)
                 .frame(maxWidth: .infinity)
@@ -466,6 +500,33 @@ struct ProfileView: View {
         }
 
         return value
+    }
+}
+
+private struct SettingsRowLabel: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 13) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppSystemColor.background)
+                .frame(width: 34, height: 34)
+                .background(AppSystemColor.primaryLabel, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(AppFont.subheadline(weight: .semibold))
+                    .foregroundStyle(AppSystemColor.primaryLabel)
+
+                Text(subtitle)
+                    .font(AppFont.caption())
+                    .foregroundStyle(AppSystemColor.secondaryLabel)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

@@ -125,6 +125,13 @@ final class PushNotificationManager: NSObject, ObservableObject {
             if let userID = stringValue(userInfo["conversation_user_id"]) {
                 pendingDestination = .directMessage(userID: userID)
             }
+        case "group_chat_message":
+            if let chatID = stringValue(userInfo["group_chat_id"]) {
+                pendingDestination = .groupMessage(chat: GroupChatPushDestination(
+                    id: chatID,
+                    name: stringValue(userInfo["group_chat_name"])
+                ))
+            }
         case "announcement":
             pendingDestination = .announcement(id: stringValue(userInfo["announcement_id"]))
         case "poll":
@@ -135,6 +142,8 @@ final class PushNotificationManager: NSObject, ObservableObject {
             if let eventID = stringValue(userInfo["event_id"]) {
                 pendingDestination = .event(eventID: eventID)
             }
+        case "interview":
+            pendingDestination = .interview
         default:
             break
         }
@@ -160,4 +169,72 @@ extension Notification.Name {
     static let pushNotificationTapped = Notification.Name("pushNotificationTapped")
     static let messageThreadShouldRefresh = Notification.Name("messageThreadShouldRefresh")
     static let messageUnreadCountShouldRefresh = Notification.Name("messageUnreadCountShouldRefresh")
+}
+
+/// Keeps Apple's delivered-notification list in sync with conversations that
+/// the member has actually opened. APNs can deliver several alerts for one
+/// thread, while tapping one notification only identifies a single request.
+enum MessageNotificationCleaner {
+    static func clearDeliveredNotifications(
+        for thread: MessageThread,
+        using notificationCenter: UNUserNotificationCenter = .current()
+    ) async {
+        let destination: MessageNotificationDestination
+        switch thread {
+        case .direct(let conversation):
+            destination = .direct(userID: conversation.userId)
+        case .group(let chat):
+            destination = .group(chatID: chat.id)
+        }
+
+        await clearDeliveredNotifications(for: destination, using: notificationCenter)
+    }
+
+    static func clearDeliveredNotifications(
+        matching userInfo: [AnyHashable: Any],
+        using notificationCenter: UNUserNotificationCenter = .current()
+    ) async {
+        guard let destination = destination(from: userInfo) else { return }
+        await clearDeliveredNotifications(for: destination, using: notificationCenter)
+    }
+
+    private static func clearDeliveredNotifications(
+        for destination: MessageNotificationDestination,
+        using notificationCenter: UNUserNotificationCenter
+    ) async {
+        let delivered = await notificationCenter.deliveredNotifications()
+        let identifiers = delivered.compactMap { notification -> String? in
+            guard self.destination(from: notification.request.content.userInfo) == destination else {
+                return nil
+            }
+            return notification.request.identifier
+        }
+
+        guard !identifiers.isEmpty else { return }
+        notificationCenter.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    private static func destination(from userInfo: [AnyHashable: Any]) -> MessageNotificationDestination? {
+        switch userInfo["type"] as? String {
+        case "direct_message":
+            guard let userID = stringValue(userInfo["conversation_user_id"]) else { return nil }
+            return .direct(userID: userID)
+        case "group_chat_message":
+            guard let chatID = stringValue(userInfo["group_chat_id"]) else { return nil }
+            return .group(chatID: chatID)
+        default:
+            return nil
+        }
+    }
+
+    private static func stringValue(_ value: Any?) -> String? {
+        if let value = value as? String, !value.isEmpty { return value }
+        if let value = value as? NSNumber { return value.stringValue }
+        return nil
+    }
+}
+
+private enum MessageNotificationDestination: Equatable {
+    case direct(userID: String)
+    case group(chatID: String)
 }

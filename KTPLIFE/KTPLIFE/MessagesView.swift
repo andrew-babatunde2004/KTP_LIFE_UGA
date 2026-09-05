@@ -14,13 +14,16 @@ struct MessagesView: View {
     @State private var deepLinkTask: Task<Void, Never>?
     @Binding private var isConversationPresented: Bool
     @Binding private var deepLinkedUserID: String?
+    @Binding private var deepLinkedGroupChat: GroupChatPushDestination?
 
     init(
         isConversationPresented: Binding<Bool> = .constant(false),
-        deepLinkedUserID: Binding<String?> = .constant(nil)
+        deepLinkedUserID: Binding<String?> = .constant(nil),
+        deepLinkedGroupChat: Binding<GroupChatPushDestination?> = .constant(nil)
     ) {
         _isConversationPresented = isConversationPresented
         _deepLinkedUserID = deepLinkedUserID
+        _deepLinkedGroupChat = deepLinkedGroupChat
     }
 
     var body: some View {
@@ -67,6 +70,7 @@ struct MessagesView: View {
         }
         .onAppear { openPushConversationIfNeeded() }
         .onChange(of: deepLinkedUserID) { _, _ in openPushConversationIfNeeded() }
+        .onChange(of: deepLinkedGroupChat) { _, _ in openPushConversationIfNeeded() }
         .background(MessageDesign.background(for: colorScheme).ignoresSafeArea())
     }
 
@@ -128,6 +132,18 @@ struct MessagesView: View {
     }
 
     private func openPushConversationIfNeeded() {
+        if let target = deepLinkedGroupChat {
+            deepLinkedGroupChat = nil
+            deepLinkTask?.cancel()
+            deepLinkTask = Task { @MainActor in
+                let chat = await resolvedGroupChat(for: target)
+                guard !Task.isCancelled else { return }
+                selectedSection = .messages
+                messagePath = [.group(chat)]
+            }
+            return
+        }
+
         guard let userID = deepLinkedUserID else { return }
         deepLinkedUserID = nil
         deepLinkTask?.cancel()
@@ -187,6 +203,23 @@ struct MessagesView: View {
             id: "push-\(userID)",
             userId: userID,
             displayName: "Member",
+            preview: "",
+            lastMessageDate: nil,
+            unreadCount: 0
+        )
+    }
+
+    private func resolvedGroupChat(for target: GroupChatPushDestination) async -> GroupChat {
+        if let chats = try? await apiService.fetchGroupChats(),
+           let chat = chats.first(where: { $0.id == target.id }) {
+            return chat
+        }
+
+        let payloadName = target.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedName = payloadName.flatMap { $0.isEmpty ? nil : $0 } ?? "Group Chat"
+        return GroupChat(
+            id: target.id,
+            name: resolvedName,
             preview: "",
             lastMessageDate: nil,
             unreadCount: 0

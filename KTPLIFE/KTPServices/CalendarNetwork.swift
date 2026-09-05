@@ -31,14 +31,32 @@ class CalendarNetworkService {
         return try MeetingCalendarEntry.decodeCalendarEvents(from: data, using: Self.calendarDecoder)
     }
 
+    func setRSVP(for eventID: String, status: CalendarRSVPStatus) async throws -> CalendarRSVPStatus {
+        let url = baseURL
+            .appendingPathComponent("events")
+            .appendingPathComponent(eventID)
+            .appendingPathComponent("rsvp")
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(RSVPRequest(status: status))
+
+        let data = try await fetchData(for: request)
+        return try JSONDecoder().decode(RSVPResponse.self, from: data).status
+    }
+
     private func fetchData(from url: URL) async throws -> Data {
+        try await fetchData(for: URLRequest(url: url))
+    }
+
+    private func fetchData(for request: URLRequest) async throws -> Data {
         guard let accessToken = try await accessTokenProvider(), !accessToken.isEmpty else {
             throw CalendarNetworkError.missingAccessToken
         }
 
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await session.data(for: request)
+        var authenticatedRequest = request
+        authenticatedRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: authenticatedRequest)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
         }
@@ -75,6 +93,14 @@ class CalendarNetworkService {
         }
         return decoder
     }
+}
+
+private struct RSVPRequest: Encodable {
+    let status: CalendarRSVPStatus
+}
+
+private struct RSVPResponse: Decodable {
+    let status: CalendarRSVPStatus
 }
 
 private struct MeetingCalendarEntry: Decodable {
