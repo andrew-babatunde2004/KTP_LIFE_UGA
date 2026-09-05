@@ -521,10 +521,8 @@ struct MessageConversationView: View {
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var authManager: AuthManager
     @State private var messages: [KTPMessage] = []
-    @State private var draftMessage = ""
     @State private var isLoading = false
     @State private var isRefreshingConversation = false
-    @State private var isSending = false
     @State private var loadError: String?
     @State private var sentMessageIDs: Set<String> = []
     @State private var renderWindow = ConversationRenderWindow()
@@ -539,15 +537,10 @@ struct MessageConversationView: View {
     @State private var updatingReactionKeys: Set<String> = []
     @State private var reactionErrorMessage: String?
     @State private var reactionDetails: MessageReactionDetails?
-    @State private var sendErrorMessage: String?
     @State private var replyingTo: KTPMessage?
     @State private var messagePendingDeletion: KTPMessage?
     @State private var deletingMessageIDs: Set<String> = []
     @State private var deleteErrorMessage: String?
-    @State private var selectedMediaItem: PhotosPickerItem?
-    @State private var pendingAttachment: MessageAttachmentUpload?
-    @State private var pendingAttachmentPreview: UIImage?
-    @State private var isPreparingAttachment = false
     @State private var attachmentDataByMessageID: [String: Data] = [:]
     @State private var groupDetailsChat: GroupChat?
     @State private var isGroupChatMuted = false
@@ -558,7 +551,7 @@ struct MessageConversationView: View {
     /// Keep the existing group-member endpoint as the source of truth for the
     /// name and profile image shown beside those messages.
     @State private var groupMembersByID: [String: DirectoryMember] = [:]
-    @FocusState private var isComposerFocused: Bool
+    @State private var isComposerFocused = false
 
     let thread: MessageThread
 
@@ -599,11 +592,15 @@ struct MessageConversationView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            // Clear every delivered alert for this thread, including older
+            // notifications that were not the one the member tapped.
+            await MessageNotificationCleaner.clearDeliveredNotifications(for: thread)
             await monitorConversation()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             Task {
+                await MessageNotificationCleaner.clearDeliveredNotifications(for: thread)
                 await flushPendingMessages()
                 await loadConversation(showsLoadingState: false)
             }
@@ -667,21 +664,16 @@ struct MessageConversationView: View {
         }
         .padding(.horizontal, 14)
         .padding(.top, 10)
-        .onChange(of: isComposerFocused) { _, isFocused in
-            guard isFocused, !messages.isEmpty else { return }
-
-            // Let the keyboard finish resizing the timeline before aligning the
-            // newest bubble. Scrolling during the transition can place content
-            // underneath the composer.
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(250))
-                guard isComposerFocused else { return }
-                scrollRequest = .latest(UUID())
-            }
-        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !isBlocked {
-                messageComposer
+                MessageComposerView(
+                    replyTo: replyingTo.map(replyReference(for:)),
+                    cancelReply: { replyingTo = nil },
+                    send: { content, attachment, reply in
+                        try await sendMessage(content: content, attachment: attachment, reply: reply)
+                    },
+                    focusChanged: handleComposerFocusChange
+                )
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
                     .padding(.bottom, 8)
@@ -730,15 +722,6 @@ struct MessageConversationView: View {
         } message: {
             Text(reactionErrorMessage ?? "Please try again.")
         }
-        .alert("Couldn’t Send Message", isPresented: sendErrorAlertBinding) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(sendErrorMessage ?? "Please try again.")
-        }
-        .onChange(of: selectedMediaItem) { _, item in
-            guard let item else { return }
-            Task { await prepareAttachment(from: item) }
-        }
         .overlay {
             if let message = messagePendingDeletion {
                 MessageDeleteConfirmationOverlay(
@@ -771,17 +754,22 @@ struct MessageConversationView: View {
         return conversation
     }
 
-    private var sendErrorAlertBinding: Binding<Bool> {
-        Binding(
-            get: { sendErrorMessage != nil },
-            set: { isPresented in
-                if !isPresented { sendErrorMessage = nil }
-            }
-        )
-    }
-
     private var accountID: String {
         authManager.currentUserID ?? "authenticated-user"
+    }
+
+    private func handleComposerFocusChange(_ isFocused: Bool) {
+        isComposerFocused = isFocused
+        guard isFocused, !messages.isEmpty else { return }
+
+        // Let the keyboard finish resizing the timeline before aligning the
+        // newest bubble. Scrolling during the transition can place content
+        // underneath the composer.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard isComposerFocused else { return }
+            scrollRequest = .latest(UUID())
+        }
     }
 
     private var offlineStatusMessage: String {
@@ -809,83 +797,6 @@ struct MessageConversationView: View {
         case .group(let chat):
             GroupChatAvatar(chat: chat, size: 34, apiService: apiService)
         }
-    }
-
-    private var messageComposer: some View {
-        messageComposerContent
-    }
-
-    private var messageComposerContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let replyingTo {
-                MessageReplyComposerPreview(
-                    replyTo: replyReference(for: replyingTo),
-                    cancel: { self.replyingTo = nil }
-                )
-            }
-
-            if let pendingAttachment {
-                MessageAttachmentDraftPreview(
-                    attachment: pendingAttachment,
-                    previewImage: pendingAttachmentPreview,
-                    remove: clearPendingAttachment
-                )
-            }
-
-            HStack(spacing: 10) {
-                mediaPicker
-
-                TextField("Message", text: $draftMessage, axis: .vertical)
-                    .font(AppFont.subheadline())
-                    .lineLimit(1...4)
-                    .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                    .textInputAutocapitalization(.sentences)
-                    .focused($isComposerFocused)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .modifier(MessageComposerFieldSurface(colorScheme: colorScheme))
-
-                Button {
-                    Task { await sendMessage() }
-                } label: {
-                    Image(systemName: "paperplane.fill")
-                        .font(AppFont.footnote(weight: .semibold))
-                        .foregroundStyle(
-                            composerCanSend
-                                ? MessageDesign.sendForeground
-                                : MessageDesign.muted(for: colorScheme)
-                        )
-                        .frame(width: 34, height: 34)
-                }
-                .buttonStyle(.plain)
-                .modifier(MessageSendButtonSurface(canSend: composerCanSend))
-                .disabled(!composerCanSend)
-                .accessibilityLabel("Send message")
-            }
-        }
-        .padding(4)
-    }
-
-    private var mediaPicker: some View {
-        PhotosPicker(
-            selection: $selectedMediaItem,
-            matching: .images,
-            preferredItemEncoding: .current
-        ) {
-            Image(systemName: isPreparingAttachment ? "hourglass" : "photo.on.rectangle.angled")
-                .font(AppFont.subheadline(weight: .semibold))
-                .foregroundStyle(MessageDesign.primary(for: colorScheme))
-                .frame(width: 34, height: 34)
-        }
-        .buttonStyle(.plain)
-        .disabled(isPreparingAttachment || isSending)
-        .accessibilityLabel("Choose an image or GIF")
-    }
-
-    private var composerCanSend: Bool {
-        (!draftMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pendingAttachment != nil)
-            && !isSending
-            && !isPreparingAttachment
     }
 
     private var visibleMessages: [KTPMessage] {
@@ -1545,20 +1456,11 @@ struct MessageConversationView: View {
     }
 
     @MainActor
-    private func sendMessage() async {
-        let draftBeforeSending = draftMessage
-        let content = draftBeforeSending.trimmingCharacters(in: .whitespacesAndNewlines)
-        let attachment = pendingAttachment
-        let reply = replyingTo.map(replyReference(for:))
-        guard (!content.isEmpty || attachment != nil), !isSending else { return }
-
-        isSending = true
-        sendErrorMessage = nil
-        // Clear at send time, not after the request returns. This gives the
-        // composer deterministic behavior even when a sync refresh races the
-        // response, while preserving text if the send actually fails.
-        draftMessage = ""
-
+    private func sendMessage(
+        content: String,
+        attachment: MessageAttachmentUpload?,
+        reply: MessageReplyReference?
+    ) async throws {
         do {
             let sentMessage: KTPMessage
             switch thread {
@@ -1586,17 +1488,12 @@ struct MessageConversationView: View {
             sentMessageIDs.insert(resolvedSentMessage.id)
             renderWindow.reset(totalCount: messages.count)
             scrollRequest = .latest(UUID())
-            clearPendingAttachment()
             replyingTo = nil
             loadError = nil
             await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
             NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
         } catch is CancellationError {
-            if draftMessage.isEmpty {
-                draftMessage = draftBeforeSending
-            }
-            isSending = false
-            return
+            throw CancellationError()
         } catch {
             if isOfflineTransportError(error) || !ConnectivityMonitor.shared.isConnected {
                 let destination: MessageOfflineStore.PendingDelivery.Destination
@@ -1626,80 +1523,15 @@ struct MessageConversationView: View {
                 }
                 renderWindow.reset(totalCount: messages.count)
                 scrollRequest = .latest(UUID())
-                clearPendingAttachment()
                 replyingTo = nil
                 loadError = nil
                 isShowingCachedMessages = true
                 await offlineStore.saveConversation(messages, threadID: thread.id, accountID: accountID)
                 NotificationCenter.default.post(name: .messageThreadShouldRefresh, object: nil)
             } else {
-                if draftMessage.isEmpty {
-                    draftMessage = draftBeforeSending
-                }
-                sendErrorMessage = messageSendErrorMessage(for: error)
+                throw error
             }
         }
-
-        isSending = false
-    }
-
-    @MainActor
-    private func prepareAttachment(from item: PhotosPickerItem) async {
-        isPreparingAttachment = true
-        defer {
-            isPreparingAttachment = false
-            selectedMediaItem = nil
-        }
-
-        do {
-            guard let selectedImage = try await item.loadTransferable(type: MessagePickedImage.self) else {
-                throw MessageAttachmentError.unreadableImage
-            }
-            defer { try? FileManager.default.removeItem(at: selectedImage.url) }
-
-            let data = try await readAttachmentData(from: selectedImage.url)
-            guard data.count <= MessageAttachmentLimits.maximumBytes else {
-                throw MessageAttachmentError.fileTooLarge
-            }
-
-            let contentType = UTType(filenameExtension: selectedImage.url.pathExtension) ?? .image
-            guard contentType.conforms(to: .image) else {
-                throw MessageAttachmentError.unsupportedType
-            }
-
-            let uploadImage = try ImageUploadEncoder.encodeForUpload(data: data, contentType: contentType)
-            guard uploadImage.data.count <= MessageAttachmentLimits.maximumBytes else {
-                throw MessageAttachmentError.fileTooLarge
-            }
-            pendingAttachment = MessageAttachmentUpload(
-                data: uploadImage.data,
-                fileName: "ktp-message-\(UUID().uuidString).\(uploadImage.fileExtension)",
-                mimeType: uploadImage.mimeType
-            )
-            pendingAttachmentPreview = await decodeAttachmentPreview(from: data)
-            sendErrorMessage = nil
-        } catch is CancellationError {
-            return
-        } catch {
-            sendErrorMessage = messageAttachmentErrorMessage(for: error)
-        }
-    }
-
-    private func clearPendingAttachment() {
-        pendingAttachment = nil
-        pendingAttachmentPreview = nil
-    }
-
-    private func readAttachmentData(from url: URL) async throws -> Data {
-        try await Task.detached(priority: .utility) {
-            try Data(contentsOf: url, options: [.mappedIfSafe])
-        }.value
-    }
-
-    private func decodeAttachmentPreview(from data: Data) async -> UIImage? {
-        await Task.detached(priority: .utility) {
-            UIImage(data: data)
-        }.value
     }
 
     private func attachmentData(for message: KTPMessage) async throws -> Data {
@@ -1709,13 +1541,6 @@ struct MessageConversationView: View {
         case .group(let chat):
             return try await apiService.fetchGroupChatMessageAttachmentData(chatID: chat.id, messageID: message.id)
         }
-    }
-
-    private func messageAttachmentErrorMessage(for error: Error) -> String {
-        if let attachmentError = error as? MessageAttachmentError {
-            return attachmentError.errorDescription ?? "Couldn’t prepare that attachment."
-        }
-        return "Couldn’t prepare that image or GIF. Please try again."
     }
 
     private func reactionSummaries(for message: KTPMessage) -> [MessageReactionSummary] {
@@ -2119,7 +1944,7 @@ private struct MessageReplyPreview: View {
     }
 }
 
-private struct MessageReplyComposerPreview: View {
+struct MessageReplyComposerPreview: View {
     @Environment(\.colorScheme) private var colorScheme
     let replyTo: MessageReplyReference
     let cancel: () -> Void
@@ -2577,7 +2402,7 @@ private struct AnimatedGIFView: UIViewRepresentable {
     }
 }
 
-private struct MessageAttachmentDraftPreview: View {
+struct MessageAttachmentDraftPreview: View {
     let attachment: MessageAttachmentUpload
     let previewImage: UIImage?
     let remove: () -> Void
@@ -2620,17 +2445,17 @@ private extension MessageAttachment {
     }
 }
 
-private extension MessageAttachmentUpload {
+extension MessageAttachmentUpload {
     var isGIF: Bool {
         mimeType.lowercased() == "image/gif" || fileName.lowercased().hasSuffix(".gif")
     }
 }
 
-private enum MessageAttachmentLimits {
+enum MessageAttachmentLimits {
     static let maximumBytes = 25 * 1024 * 1024
 }
 
-private enum MessageAttachmentError: LocalizedError {
+enum MessageAttachmentError: LocalizedError {
     case unreadableImage
     case unsupportedType
     case fileTooLarge
@@ -2647,7 +2472,7 @@ private enum MessageAttachmentError: LocalizedError {
     }
 }
 
-private struct MessagePickedImage: Transferable {
+struct MessagePickedImage: Transferable {
     let url: URL
 
     static var transferRepresentation: some TransferRepresentation {
@@ -2823,7 +2648,7 @@ private struct MessageBubbleSurface: ViewModifier {
     }
 }
 
-private struct MessageComposerFieldSurface: ViewModifier {
+struct MessageComposerFieldSurface: ViewModifier {
     let colorScheme: ColorScheme
 
     func body(content: Content) -> some View {
@@ -2839,7 +2664,7 @@ private struct MessageComposerFieldSurface: ViewModifier {
     }
 }
 
-private struct MessageSendButtonSurface: ViewModifier {
+struct MessageSendButtonSurface: ViewModifier {
     let canSend: Bool
 
     func body(content: Content) -> some View {
@@ -2886,7 +2711,7 @@ private func messagesErrorMessage(for error: Error) -> String {
     return "Could not load messages. Please check your connection and try again."
 }
 
-private func messageSendErrorMessage(for error: Error) -> String {
+func messageSendErrorMessage(for error: Error) -> String {
     if case AuthManagerError.notAuthenticated = error {
         return "Sign in with SSO before sending a message."
     }

@@ -17,6 +17,10 @@ struct CalendarView: View {
     @State private var addingEventID: String?
     @State private var addedEventIDs: Set<String> = []
     @State private var calendarErrorMessage: String?
+    @State private var calendarErrorTitle = "Couldn’t Add Event"
+    @State private var rsvpByEventID: [String: CalendarRSVPStatus] = [:]
+    @State private var updatingRSVPEventIDs: Set<String> = []
+    @State private var selectedEventDetails: CalendarEvent?
     @Binding private var deepLinkedEventID: String?
 
     private let calendar = Calendar.ktpCalendar
@@ -32,16 +36,12 @@ struct CalendarView: View {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }
 
-    private var sortedEvents: [CalendarEvent] {
-        viewModel.events.sorted { $0.startDate < $1.startDate }
-    }
-
     private var nextEvent: CalendarEvent? {
-        sortedEvents.first { $0.endDate >= Date() } ?? sortedEvents.first
+        viewModel.events.first { $0.endDate >= Date() } ?? viewModel.events.first
     }
 
     private var selectedDateEvents: [CalendarEvent] {
-        sortedEvents.filter { calendar.isDate($0.startDate, inSameDayAs: selectedDate) }
+        viewModel.events.filter { calendar.isDate($0.startDate, inSameDayAs: selectedDate) }
     }
 
     private var visibleUpcomingEvents: [CalendarEvent] {
@@ -50,7 +50,7 @@ struct CalendarView: View {
             return sameDayEvents
         }
 
-        return Array(sortedEvents.filter { $0.endDate >= Date() }.prefix(3))
+        return Array(viewModel.events.lazy.filter { $0.endDate >= Date() }.prefix(3))
     }
 
     var body: some View {
@@ -59,7 +59,7 @@ struct CalendarView: View {
                 CalendarMonthPanel(
                     displayedMonth: displayedMonth,
                     selectedDate: selectedDate,
-                    events: sortedEvents,
+                    events: viewModel.events,
                     transitionDirection: monthTransitionDirection,
                     selectDate: { date in
                         selectedDate = date
@@ -90,7 +90,12 @@ struct CalendarView: View {
         .onReceive(NotificationCenter.default.publisher(for: .connectivityRestored)) { _ in
             Task { await loadCalendarEvents() }
         }
-        .alert("Couldn’t Add Event", isPresented: Binding(
+        .sheet(item: $selectedEventDetails) { event in
+            CalendarEventDetailsSheet(event: event, accent: accent(for: event))
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .alert(calendarErrorTitle, isPresented: Binding(
             get: { calendarErrorMessage != nil },
             set: { if !$0 { calendarErrorMessage = nil } }
         )) {
@@ -138,7 +143,11 @@ struct CalendarView: View {
                             accent: accent(for: event),
                             isAdding: addingEventID == event.id,
                             isAdded: addedEventIDs.contains(event.id),
-                            addToCalendar: { addToDeviceCalendar(event) }
+                            selectedRSVP: rsvpByEventID[event.id] ?? event.myRSVP,
+                            isUpdatingRSVP: updatingRSVPEventIDs.contains(event.id),
+                            updateRSVP: { status in updateRSVP(for: event, status: status) },
+                            addToCalendar: { addToDeviceCalendar(event) },
+                            showDetails: { selectedEventDetails = event }
                         )
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
@@ -163,6 +172,7 @@ struct CalendarView: View {
         }
 
         addingEventID = event.id
+        calendarErrorTitle = "Couldn’t Add Event"
 
         Task {
             do {
@@ -184,6 +194,39 @@ struct CalendarView: View {
 
             await MainActor.run {
                 addingEventID = nil
+            }
+        }
+    }
+
+    private func updateRSVP(for event: CalendarEvent, status: CalendarRSVPStatus) {
+        guard event.requiresRSVP,
+              event.canRSVP,
+              event.endDate >= Date(),
+              !updatingRSVPEventIDs.contains(event.id)
+        else { return }
+
+        updatingRSVPEventIDs.insert(event.id)
+        calendarErrorTitle = "Couldn’t Update RSVP"
+
+        Task {
+            do {
+                let service = CalendarNetworkService(accessTokenProvider: { [authManager] in
+                    try await authManager.validAccessToken()
+                })
+                let savedStatus = try await service.setRSVP(for: event.id, status: status)
+                await MainActor.run {
+                    rsvpByEventID[event.id] = savedStatus
+                }
+            } catch is CancellationError {
+                // Leaving the calendar cancels the in-flight update cleanly.
+            } catch {
+                await MainActor.run {
+                    calendarErrorMessage = error.localizedDescription
+                }
+            }
+
+            await MainActor.run {
+                updatingRSVPEventIDs.remove(event.id)
             }
         }
     }
@@ -226,6 +269,9 @@ struct CalendarView: View {
             }
         )
         await reminderScheduler.sync(events: viewModel.events)
+        for event in viewModel.events where !updatingRSVPEventIDs.contains(event.id) {
+            rsvpByEventID[event.id] = event.myRSVP
+        }
         syncSelectionToNextEventIfNeeded()
         selectDeepLinkedEventIfNeeded()
     }
@@ -266,9 +312,11 @@ private struct CalendarAgendaHeader: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(title)
-                    .font(AppFont.title(21))
+                    .font(AppFont.title(18))
                     .foregroundStyle(CalendarDesign.title(for: colorScheme))
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .layoutPriority(1)
 
                 Spacer(minLength: 12)
 
@@ -337,7 +385,7 @@ private struct CalendarMonthPanel: View {
                         .foregroundStyle(CalendarDesign.accent)
 
                     Text(monthTitle)
-                        .font(AppFont.largeTitle(29))
+                        .font(AppFont.largeTitle(27))
                         .foregroundStyle(CalendarDesign.title(for: colorScheme))
                 }
 
@@ -468,7 +516,7 @@ private struct CalendarDayCell: View {
                         .opacity(isToday && !isSelected ? 1 : 0)
 
                     Text("\(day.number)")
-                        .font(AppFont.subheadline(weight: isSelected || isToday ? .semibold : .medium))
+                        .font(AppFont.footnote(weight: isSelected || isToday ? .semibold : .medium))
                         .foregroundStyle(textColor)
                         .frame(width: 38, height: 36)
                 }
@@ -515,7 +563,11 @@ private struct CalendarEventRow: View {
     let accent: Color
     let isAdding: Bool
     let isAdded: Bool
+    let selectedRSVP: CalendarRSVPStatus?
+    let isUpdatingRSVP: Bool
+    let updateRSVP: (CalendarRSVPStatus) -> Void
     let addToCalendar: () -> Void
+    let showDetails: () -> Void
 
     private var timeRange: String {
         if !Calendar.current.isDate(event.startDate, inSameDayAs: event.endDate) {
@@ -551,7 +603,7 @@ private struct CalendarEventRow: View {
                     .textCase(.uppercase)
 
                 Text(event.startDate.formatted(.dateTime.day()))
-                    .font(AppFont.title(20))
+                    .font(AppFont.title(18))
             }
             .foregroundStyle(accent)
             .frame(width: 56, height: 60)
@@ -562,7 +614,7 @@ private struct CalendarEventRow: View {
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(event.title)
-                    .font(AppFont.headline())
+                    .font(AppFont.subheadline(weight: .semibold))
                     .foregroundStyle(CalendarDesign.title(for: colorScheme))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -572,7 +624,7 @@ private struct CalendarEventRow: View {
                         .font(.system(size: 10, weight: .semibold))
 
                     Text(timeRange)
-                        .font(AppFont.footnote(weight: .medium))
+                        .font(AppFont.caption(weight: .medium))
                         .lineLimit(1)
                         .minimumScaleFactor(0.76)
                 }
@@ -580,16 +632,25 @@ private struct CalendarEventRow: View {
 
                 if let eventLocation {
                     Label(eventLocation, systemImage: "mappin.and.ellipse")
-                        .font(AppFont.footnote(weight: .medium))
+                        .font(AppFont.caption(weight: .medium))
                         .foregroundStyle(CalendarDesign.muted(for: colorScheme))
                         .lineLimit(2)
                 }
 
                 if let eventDescription {
                     Text(eventDescription)
-                        .font(AppFont.footnote())
+                        .font(AppFont.caption())
                         .foregroundStyle(CalendarDesign.muted(for: colorScheme))
                         .lineLimit(2)
+                }
+
+                if event.requiresRSVP && event.canRSVP && event.endDate >= Date() {
+                    RSVPControl(
+                        selection: selectedRSVP,
+                        isUpdating: isUpdatingRSVP,
+                        update: updateRSVP
+                    )
+                    .padding(.top, 3)
                 }
 
                 calendarAction
@@ -608,14 +669,19 @@ private struct CalendarEventRow: View {
                 .stroke(CalendarDesign.border(for: colorScheme).opacity(0.30), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.045), radius: 10, x: 0, y: 4)
-        .accessibilityElement(children: .combine)
+        .contentShape(Rectangle())
+        .onLongPressGesture(minimumDuration: 0.45, perform: showDetails)
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: Text("Show event details")) {
+            showDetails()
+        }
     }
 
     @ViewBuilder
     private var calendarAction: some View {
         if isAdded {
             Label("Added to Calendar", systemImage: "checkmark.circle.fill")
-                .font(AppFont.footnote(weight: .semibold))
+                .font(AppFont.caption(weight: .semibold))
                 .foregroundStyle(CalendarDesign.accent)
                 .padding(.top, 2)
         } else {
@@ -624,12 +690,166 @@ private struct CalendarEventRow: View {
                     isAdding ? "Adding…" : "Add to Calendar",
                     systemImage: isAdding ? "arrow.triangle.2.circlepath" : "calendar.badge.plus"
                 )
-                .font(AppFont.footnote(weight: .semibold))
+                .font(AppFont.caption(weight: .semibold))
             }
             .buttonStyle(.plain)
             .foregroundStyle(CalendarDesign.accent)
             .disabled(isAdding)
             .accessibilityLabel(isAdding ? "Adding event to Calendar" : "Add event to Calendar")
+        }
+    }
+}
+
+private struct CalendarEventDetailsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    let event: CalendarEvent
+    let accent: Color
+
+    private var description: String {
+        let value = event.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? "No description was provided for this event." : value
+    }
+
+    private var timeRange: String {
+        if Calendar.current.isDate(event.startDate, inSameDayAs: event.endDate) {
+            let date = event.startDate.formatted(.dateTime.weekday(.wide).month(.wide).day())
+            let start = event.startDate.formatted(date: .omitted, time: .shortened)
+            let end = event.endDate.formatted(date: .omitted, time: .shortened)
+            return start == end ? "\(date) at \(start)" : "\(date), \(start)–\(end)"
+        }
+
+        return "\(event.startDate.formatted(date: .abbreviated, time: .shortened)) – \(event.endDate.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("EVENT DETAILS")
+                            .font(AppFont.caption(weight: .semibold))
+                            .tracking(1.4)
+                            .foregroundStyle(accent)
+
+                        Text(event.title)
+                            .font(AppFont.title(25))
+                            .foregroundStyle(CalendarDesign.title(for: colorScheme))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        detailRow(systemImage: "calendar", text: timeRange)
+
+                        if let location = event.location?.trimmingCharacters(in: .whitespacesAndNewlines),
+                           !location.isEmpty {
+                            detailRow(systemImage: "mappin.and.ellipse", text: location)
+                        }
+                    }
+
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Description")
+                            .font(AppFont.subheadline(weight: .semibold))
+                            .foregroundStyle(CalendarDesign.title(for: colorScheme))
+
+                        Text(description)
+                            .font(AppFont.subheadline())
+                            .foregroundStyle(CalendarDesign.muted(for: colorScheme))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+
+                    if let url = event.url {
+                        Link(destination: url) {
+                            Label("Open Event Link", systemImage: "arrow.up.right.square")
+                                .font(AppFont.subheadline(weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(accent)
+                    }
+                }
+                .padding(20)
+            }
+            .background(CalendarDesign.background(for: colorScheme))
+            .navigationTitle("Event")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func detailRow(systemImage: String, text: String) -> some View {
+        Label {
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(accent)
+        }
+        .font(AppFont.subheadline())
+        .foregroundStyle(CalendarDesign.muted(for: colorScheme))
+    }
+}
+
+private struct RSVPControl: View {
+    let selection: CalendarRSVPStatus?
+    let isUpdating: Bool
+    let update: (CalendarRSVPStatus) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                Text("Will you be attending?")
+            }
+            .font(AppFont.caption(weight: .semibold))
+            .foregroundStyle(AppSystemColor.secondaryLabel)
+
+            HStack(spacing: 8) {
+                ForEach(CalendarRSVPStatus.allCases, id: \.self) { status in
+                    Button {
+                        update(status)
+                    } label: {
+                        HStack(spacing: 5) {
+                            if isUpdating && selection == status {
+                                ProgressView()
+                                    .controlSize(.mini)
+                            } else if selection == status {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+
+                            Text(status.title)
+                                .lineLimit(1)
+                        }
+                        .font(AppFont.caption(weight: .semibold))
+                        .foregroundStyle(selection == status ? AppSystemColor.background : AppSystemColor.primaryLabel)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            selection == status ? AppSystemColor.primaryLabel : AppSystemColor.insetBackground,
+                            in: Capsule()
+                        )
+                        .overlay {
+                            Capsule()
+                                .stroke(AppSystemColor.separator.opacity(selection == status ? 0 : 0.7), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isUpdating)
+                    .accessibilityLabel(status.title)
+                    .accessibilityValue(selection == status ? "Selected" : "Not selected")
+                }
+            }
         }
     }
 }

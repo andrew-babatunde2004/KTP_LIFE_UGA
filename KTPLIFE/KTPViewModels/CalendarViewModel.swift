@@ -10,11 +10,19 @@ class CalendarViewModel {
     var cacheUpdatedAt: Date?
 
     private let cache = CalendarEventCache.shared
+    private var isFetching = false
 
     @MainActor
     func fetchEvents(accountID: String, accessTokenProvider: @escaping () async throws -> String?) async {
+        guard !isFetching else { return }
+        isFetching = true
+        defer {
+            isFetching = false
+            isLoading = false
+        }
+
         if events.isEmpty, let snapshot = await cache.load(accountID: accountID) {
-            events = snapshot.events
+            events = snapshot.events.sorted { $0.startDate < $1.startDate }
             cacheUpdatedAt = snapshot.updatedAt
             isShowingCachedEvents = true
         }
@@ -48,7 +56,5 @@ class CalendarViewModel {
                 isShowingCachedEvents = true
             }
         }
-
-        isLoading = false
     }
 }

@@ -42,10 +42,19 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
+        let notification = response.notification
+        // iOS normally removes the alert that was tapped, but doing this
+        // explicitly avoids stale entries when several pushes were grouped.
+        center.removeDeliveredNotifications(withIdentifiers: [notification.request.identifier])
+        await MessageNotificationCleaner.clearDeliveredNotifications(
+            matching: notification.request.content.userInfo,
+            using: center
+        )
+
         NotificationCenter.default.post(
             name: .pushNotificationTapped,
             object: nil,
-            userInfo: response.notification.request.content.userInfo
+            userInfo: notification.request.content.userInfo
         )
     }
 

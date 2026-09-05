@@ -43,6 +43,7 @@ struct ChapterDocument: Identifiable, Hashable, Decodable {
         case name
         case title
         case fileName = "file_name"
+        case filename
         case originalName = "original_name"
         case folderID = "folder_id"
         case mimeType = "mime_type"
@@ -80,6 +81,7 @@ struct ChapterDocument: Identifiable, Hashable, Decodable {
         name = try container.decodeIfPresent(String.self, forKey: .name)
             ?? container.decodeIfPresent(String.self, forKey: .title)
             ?? container.decodeIfPresent(String.self, forKey: .fileName)
+            ?? container.decodeIfPresent(String.self, forKey: .filename)
             ?? container.decodeIfPresent(String.self, forKey: .originalName)
             ?? "Untitled Document"
         folderID = try container.flexibleString(forKey: .folderID)

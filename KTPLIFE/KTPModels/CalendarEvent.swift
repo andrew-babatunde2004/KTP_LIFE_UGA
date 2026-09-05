@@ -1,5 +1,17 @@
 import Foundation
 
+enum CalendarRSVPStatus: String, Codable, CaseIterable {
+    case going
+    case notGoing = "not_going"
+
+    var title: String {
+        switch self {
+        case .going: "Going"
+        case .notGoing: "Can't make it"
+        }
+    }
+}
+
 struct CalendarEvent: Identifiable, Codable {
     let id: String
     let title: String
@@ -8,6 +20,9 @@ struct CalendarEvent: Identifiable, Codable {
     let description: String?
     let location: String?
     let url: URL?
+    let requiresRSVP: Bool
+    let canRSVP: Bool
+    let myRSVP: CalendarRSVPStatus?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -20,6 +35,9 @@ struct CalendarEvent: Identifiable, Codable {
         case link
         case eventUrl
         case calendlyUrl
+        case requiresRSVP = "requiresRsvp"
+        case canRSVP = "canRsvp"
+        case myRSVP = "myRsvp"
     }
 
     init(
@@ -29,7 +47,10 @@ struct CalendarEvent: Identifiable, Codable {
         endDate: Date,
         description: String?,
         location: String? = nil,
-        url: URL? = nil
+        url: URL? = nil,
+        requiresRSVP: Bool = false,
+        canRSVP: Bool = false,
+        myRSVP: CalendarRSVPStatus? = nil
     ) {
         self.id = id
         self.title = title
@@ -38,6 +59,9 @@ struct CalendarEvent: Identifiable, Codable {
         self.description = description
         self.location = location
         self.url = url
+        self.requiresRSVP = requiresRSVP
+        self.canRSVP = canRSVP
+        self.myRSVP = myRSVP
     }
 
     init(from decoder: Decoder) throws {
@@ -59,6 +83,9 @@ struct CalendarEvent: Identifiable, Codable {
             ?? container.decodeIfPresent(URL.self, forKey: .link)
             ?? container.decodeIfPresent(URL.self, forKey: .eventUrl)
             ?? container.decodeIfPresent(URL.self, forKey: .calendlyUrl)
+        requiresRSVP = try container.decodeIfPresent(Bool.self, forKey: .requiresRSVP) ?? false
+        canRSVP = try container.decodeIfPresent(Bool.self, forKey: .canRSVP) ?? false
+        myRSVP = try container.decodeIfPresent(CalendarRSVPStatus.self, forKey: .myRSVP)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -70,13 +97,25 @@ struct CalendarEvent: Identifiable, Codable {
         try container.encodeIfPresent(description, forKey: .description)
         try container.encodeIfPresent(location, forKey: .location)
         try container.encodeIfPresent(url, forKey: .url)
+        try container.encode(requiresRSVP, forKey: .requiresRSVP)
+        try container.encode(canRSVP, forKey: .canRSVP)
+        try container.encodeIfPresent(myRSVP, forKey: .myRSVP)
     }
 }
 
 #if DEBUG
 extension CalendarEvent {
     static let previewSamples: [CalendarEvent] = [
-        CalendarEvent(id: "1", title: "Chapter Meeting", startDate: Date(), endDate: Date(), description: "Weekly chapter meeting", location: "Tate Student Center"),
+        CalendarEvent(
+            id: "1",
+            title: "Chapter Meeting",
+            startDate: Date(),
+            endDate: Date().addingTimeInterval(3_600),
+            description: "Weekly chapter meeting",
+            location: "Tate Student Center",
+            requiresRSVP: true,
+            canRSVP: true
+        ),
         CalendarEvent(id: "2", title: "Professional Development Workshop", startDate: Date(), endDate: Date(), description: "Resume and interview prep with alumni"),
         CalendarEvent(id: "3", title: "Social Event", startDate: Date(), endDate: Date(), description: "End-of-semester chapter social"),
     ]

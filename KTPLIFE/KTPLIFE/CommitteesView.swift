@@ -94,6 +94,12 @@ struct CommitteesView: View {
                 if committee.isMember {
                     try await service.leaveCommittee(id: committee.id)
                     requestedCommitteeIDs.remove(committee.id)
+                } else if committee.hasPendingMembershipRequest || requestedCommitteeIDs.contains(committee.id) {
+                    guard let userID = authManager.currentUserID else {
+                        throw KTPAPIError.missingAccessToken
+                    }
+                    try await service.cancelCommitteeMembershipRequest(id: committee.id, userID: userID)
+                    requestedCommitteeIDs.remove(committee.id)
                 } else {
                     try await service.requestCommitteeMembership(id: committee.id)
                     requestedCommitteeIDs.insert(committee.id)
@@ -157,8 +163,9 @@ private struct CommitteeCard: View {
                     changeMembership()
                 }
                 .font(AppFont.footnote(weight: .semibold))
-                .modifier(CommitteeMembershipButtonStyle(isMember: committee.isMember))
-                .disabled(isWorking || hasPendingRequest)
+                .modifier(CommitteeMembershipButtonStyle(isSecondaryAction: committee.isMember || hasPendingRequest))
+                .disabled(isWorking)
+                .accessibilityHint(hasPendingRequest ? "Withdraws your request to join" : "")
             }
         }
         .padding(18)
@@ -168,25 +175,25 @@ private struct CommitteeCard: View {
 
     private var membershipButtonTitle: String {
         if committee.isMember { return "Leave" }
-        return hasPendingRequest ? "Request Pending" : "Request to Join"
+        return hasPendingRequest ? "Withdraw Request" : "Request to Join"
     }
 }
 
 private struct CommitteeMembershipButtonStyle: ViewModifier {
-    let isMember: Bool
+    let isSecondaryAction: Bool
 
     func body(content: Content) -> some View {
         content
-            .foregroundStyle(isMember ? AppSystemColor.primaryLabel : AppSystemColor.background)
+            .foregroundStyle(isSecondaryAction ? AppSystemColor.primaryLabel : AppSystemColor.background)
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
             .background(
-                isMember ? AppSystemColor.insetBackground : AppSystemColor.primaryLabel,
+                isSecondaryAction ? AppSystemColor.insetBackground : AppSystemColor.primaryLabel,
                 in: Capsule()
             )
             .overlay {
                 Capsule()
-                    .stroke(AppSystemColor.separator.opacity(isMember ? 0.7 : 0), lineWidth: 1)
+                    .stroke(AppSystemColor.separator.opacity(isSecondaryAction ? 0.7 : 0), lineWidth: 1)
             }
             .buttonStyle(.plain)
     }
